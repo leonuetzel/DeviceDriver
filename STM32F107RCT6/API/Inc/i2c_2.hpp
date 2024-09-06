@@ -18,6 +18,13 @@ class I2C_2
 			FAST_400KHZ
 		};
 		
+		enum class e_error
+		{
+			ACKNOWLEDGE_FAILURE,
+			ARBITRATION_LOST,
+			BUS_ERROR
+		};
+		
 		
 		
 		
@@ -29,11 +36,15 @@ class I2C_2
 		
 		
 		//	Non-static Member
+		const uint8 m_eventID_TxE;
+		const uint8 m_eventID_RxNE;
+		const uint8 m_eventID_error;
 		
+		UniqueArray<e_error> m_errors;
 		
 		
 		//	Constructor and Destructor
-		constexpr inline I2C_2();
+		inline I2C_2();
 		I2C_2(const I2C_2& i2c_2) = delete;
 		inline ~I2C_2();
 		
@@ -46,6 +57,8 @@ class I2C_2
 		
 		
 		//	Friends
+		friend void ISR_I2C_2_EVENT();
+		friend void ISR_I2C_2_ERROR();
 		friend class STM32F107RCT6;
 		
 		
@@ -75,7 +88,10 @@ class I2C_2
 /*                      						Private	  			 						 						 */
 /*****************************************************************************/
 
-constexpr inline I2C_2::I2C_2()
+inline I2C_2::I2C_2()
+	:	m_eventID_TxE(CMOS::get().event_create()),
+		m_eventID_RxNE(CMOS::get().event_create()),
+		m_eventID_error(CMOS::get().event_create())
 {
 	
 }

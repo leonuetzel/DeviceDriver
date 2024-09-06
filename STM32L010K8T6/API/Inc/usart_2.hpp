@@ -1,6 +1,7 @@
 #pragma once
 
 #include "cmos.hpp"
+#include "registers.hpp"
 
 
 
@@ -46,7 +47,6 @@ class USART_2 : public UART
 		
 	public:
 		
-		feedback reset();
 		feedback init(uint32 baud, e_databits databits, e_stopbits stopbits, e_parity parity, uint8* rxBuffer, uint32 rxBufferSize, uint8* txBuffer, uint32 txBufferSize) override;
 };
 
@@ -65,7 +65,7 @@ class USART_2 : public UART
 /*****************************************************************************/
 
 inline USART_2::USART_2()
-	:	UART(Interrupt::USART_2, (void*) MCU::USART_2::TDR)
+	:	UART((void*) MCU::USART_2::TDR)
 {
 	
 }

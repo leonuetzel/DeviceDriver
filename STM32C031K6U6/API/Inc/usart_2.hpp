@@ -1,23 +1,17 @@
 #pragma once
 
-#include "registers.hpp"
 #include "cmos.hpp"
-#include "rcc.hpp"
+#include "registers.hpp"
 
 
 
 
 
-class I2C: public I_I2C
+class USART_2 : public UART
 {
 	public:
 		
-		enum class e_mode
-		{
-			STANDARD_100kHz					= 0,
-			FAST_MODE_400kHz				= 1,
-			FAST_MODE_PLUS_1000kHz	= 2
-		};
+		
 		
 		
 		
@@ -30,20 +24,22 @@ class I2C: public I_I2C
 		
 		
 		//	Non-static Member
-		
+		DMA_Software m_dma_tx_software;
 		
 		
 		//	Constructor and Destructor
-		constexpr inline I2C();
-		I2C(const I2C& i2c) = delete;
-		inline ~I2C();
+		inline USART_2();
+		USART_2(const USART_2& usart_2) = delete;
+		inline ~USART_2();
 		
 		
 		//	Member Functions
-		inline feedback startup(RCC& rcc);
+		inline feedback startup();
+		static inline bool readyForNextTransfer();
 		
 		
 		//	Friends
+		friend void ISR_USART_2();
 		friend class STM32C031K6U6;
 		
 		
@@ -52,12 +48,7 @@ class I2C: public I_I2C
 		
 	public:
 		
-		feedback init(RCC::e_clockSource_i2c clockSource = RCC::e_clockSource_i2c::SYSTEM, e_mode mode = e_mode::FAST_MODE_400kHz, bool analogFilterEnable = true, uint8 digitalFilterLength = 0);
-		
-		feedback start(uint8 slaveAddress, bool write, uint8 numberOfBytes) override;
-		void stop() override;
-		feedback tx(uint8 data) override;
-		uint8 rx() override;
+		feedback init(uint32 baud, e_databits databits, e_stopbits stopbits, e_parity parity, uint8* rxBuffer, uint32 rxBufferSize, uint8* txBuffer, uint32 txBufferSize) override;
 };
 
 
@@ -74,13 +65,15 @@ class I2C: public I_I2C
 /*                      						Private	  			 						 						 */
 /*****************************************************************************/
 
-constexpr inline I2C::I2C()
+inline USART_2::USART_2()
+	:	UART((void*) MCU::USART_2::TDR),
+		m_dma_tx_software(readyForNextTransfer)
 {
 	
 }
 
 
-inline I2C::~I2C()
+inline USART_2::~USART_2()
 {
 	
 }
@@ -91,10 +84,16 @@ inline I2C::~I2C()
 
 
 
-inline feedback I2C::startup(RCC& rcc)
+inline feedback USART_2::startup()
 {
-	rcc.module_clockInit(RCC::e_module::I2C, true);
-	return(OK);
+	//	Create Semaphore
+	return(CMOS::get().semaphore_create(this));
+}
+
+
+inline bool USART_2::readyForNextTransfer()
+{
+	return(bit::isSet(*MCU::USART_2::ISR, 7));
 }
 
 

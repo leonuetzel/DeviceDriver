@@ -401,17 +401,17 @@ namespace MCU
 	
 	namespace DMAMUX
 	{
-		volatile uint32* const C0CR	  							= (volatile uint32* const) (BASE::DMAMUX + 0x000);
-		volatile uint32* const C1CR	  							= (volatile uint32* const) (BASE::DMAMUX + 0x000);
-		volatile uint32* const C2CR	  							= (volatile uint32* const) (BASE::DMAMUX + 0x000);
+		volatile uint32* const CH0_CR	  						= (volatile uint32* const) (BASE::DMAMUX + 0x000);
+		volatile uint32* const CH1_CR	  						= (volatile uint32* const) (BASE::DMAMUX + 0x000);
+		volatile uint32* const CH2_CR	  						= (volatile uint32* const) (BASE::DMAMUX + 0x000);
 		volatile uint32* const CSR	  							= (volatile uint32* const) (BASE::DMAMUX + 0x080);
 		volatile uint32* const CFR    							= (volatile uint32* const) (BASE::DMAMUX + 0x084);
-		volatile uint32* const RG0CR								= (volatile uint32* const) (BASE::DMAMUX + 0x100);
-		volatile uint32* const RG1CR								= (volatile uint32* const) (BASE::DMAMUX + 0x104);
-		volatile uint32* const RG2CR								= (volatile uint32* const) (BASE::DMAMUX + 0x108);
-		volatile uint32* const RG3CR								= (volatile uint32* const) (BASE::DMAMUX + 0x10C);
-		volatile uint32* const RGSR	  							= (volatile uint32* const) (BASE::DMAMUX + 0x140);
-		volatile uint32* const RGCFR								= (volatile uint32* const) (BASE::DMAMUX + 0x144);
+		volatile uint32* const RG_CH0_CR						= (volatile uint32* const) (BASE::DMAMUX + 0x100);
+		volatile uint32* const RG_CH1_CR						= (volatile uint32* const) (BASE::DMAMUX + 0x104);
+		volatile uint32* const RG_CH2_CR						= (volatile uint32* const) (BASE::DMAMUX + 0x108);
+		volatile uint32* const RG_CH3_CR						= (volatile uint32* const) (BASE::DMAMUX + 0x10C);
+		volatile uint32* const RG_SR	  						= (volatile uint32* const) (BASE::DMAMUX + 0x140);
+		volatile uint32* const RG_CFR								= (volatile uint32* const) (BASE::DMAMUX + 0x144);
 	};
 	
 	namespace RCC

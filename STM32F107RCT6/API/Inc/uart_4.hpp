@@ -64,7 +64,7 @@ class UART_4 : public UART
 /*****************************************************************************/
 
 inline UART_4::UART_4()
-	:	UART(Interrupt::UART_4, (void*) MCU::UART_4::DR)
+	:	UART((void*) MCU::UART_4::DR)
 {
 	
 }

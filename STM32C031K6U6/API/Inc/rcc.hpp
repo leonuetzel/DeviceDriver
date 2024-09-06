@@ -109,9 +109,15 @@ class RCC
 		
 		enum class e_clockSource_i2c
 		{
+			APB					= 0x0,
+			SYSTEM			= 0x1,
+			HSI_KERNEL	= 0x2
+		};
+		
+		enum class e_clockSource_adc
+		{
 			SYSTEM			= 0x0,
-			HSI_KERNEL	= 0x2,
-			I2S_CKIN		= 0x3
+			HSI_KERNEL	= 0x2
 		};
 		
 		
@@ -134,6 +140,8 @@ class RCC
 		uint32 c_clock_lse;
 		
 		e_clockSource_system m_clockSource_system;
+		e_clockSource_i2c m_clockSource_i2c;
+		e_clockSource_adc m_clockSource_adc;
 		
 		bool m_hse_enabled;
 		bool m_hsi_enabled;
@@ -202,6 +210,7 @@ class RCC
 		void set_clock_hse(uint32 clock);
 		
 		void set_clockSource(e_clockSource_i2c clockSource);
+		feedback set_clockSource(e_clockSource_adc clockSource);
 		
 		constexpr inline uint32 get_clock_hse() const;
 		constexpr inline uint32 get_clock_hsi() const;
@@ -211,6 +220,8 @@ class RCC
 		constexpr inline uint32 get_clock_ahb() const;
 		constexpr inline uint32 get_clock_apb() const;
 		constexpr inline uint32 get_clock_apb_timer() const;
+		constexpr inline uint32 get_clock_hsiKernel() const;
+		constexpr inline uint32 get_clock_adc() const;
 };
 
 
@@ -234,6 +245,8 @@ constexpr inline RCC::RCC(Flash& flash)
 		c_clock_lse(0),
 		
 		m_clockSource_system(e_clockSource_system::HSI),
+		m_clockSource_i2c(e_clockSource_i2c::SYSTEM),
+		m_clockSource_adc(e_clockSource_adc::SYSTEM),
 		
 		m_hse_enabled(false),
 		m_hsi_enabled(true),
@@ -358,4 +371,35 @@ constexpr inline uint32 RCC::get_clock_apb() const
 constexpr inline uint32 RCC::get_clock_apb_timer() const
 {
 	return(m_clock_apb_timer);
+}
+
+
+constexpr inline uint32 RCC::get_clock_hsiKernel() const
+{
+	return(m_clock_hsiKernel);
+}
+
+
+constexpr inline uint32 RCC::get_clock_adc() const
+{
+	switch(m_clockSource_adc)
+	{
+		case e_clockSource_adc::SYSTEM:
+		{
+			return(m_clock_system);
+		}
+		break;
+		
+		case e_clockSource_adc::HSI_KERNEL:
+		{
+			return(m_clock_hsiKernel);
+		}
+		break;
+		
+		default:
+		{
+			return(0);
+		}
+		break;
+	}
 }

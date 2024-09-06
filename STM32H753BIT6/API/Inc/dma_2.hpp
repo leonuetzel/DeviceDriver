@@ -20,7 +20,7 @@ class DMA_2: public I_DMA
 	private:
 		
 		//	Static Member
-		static Triplet<uint16, uint8, f_callback> m_channelInfo[c_channel];
+		static Pair<uint16, f_callback> m_channelInfo[c_channel];
 		
 		
 		//	Non-static Member

@@ -64,7 +64,7 @@ class UART_5 : public UART
 /*****************************************************************************/
 
 inline UART_5::UART_5()
-	:	UART(Interrupt::UART_5, (void*) MCU::UART_5::TDR)
+	:	UART((void*) MCU::UART_5::TDR)
 {
 	
 }

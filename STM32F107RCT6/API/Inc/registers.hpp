@@ -425,6 +425,56 @@ namespace MCU
 		volatile uint32* const F0R2		        			= (volatile uint32* const) (BASE::CAN_1 + 0x244);
 		volatile uint32* const F1R1		        			= (volatile uint32* const) (BASE::CAN_1 + 0x248);
 		volatile uint32* const F1R2			        		= (volatile uint32* const) (BASE::CAN_1 + 0x24C);
+		volatile uint32* const F2R1		        			= (volatile uint32* const) (BASE::CAN_1 + 0x250);
+		volatile uint32* const F2R2		        			= (volatile uint32* const) (BASE::CAN_1 + 0x254);
+		volatile uint32* const F3R1		        			= (volatile uint32* const) (BASE::CAN_1 + 0x258);
+		volatile uint32* const F3R2		        			= (volatile uint32* const) (BASE::CAN_1 + 0x25C);
+		volatile uint32* const F4R1		        			= (volatile uint32* const) (BASE::CAN_1 + 0x260);
+		volatile uint32* const F4R2		        			= (volatile uint32* const) (BASE::CAN_1 + 0x264);
+		volatile uint32* const F5R1		        			= (volatile uint32* const) (BASE::CAN_1 + 0x268);
+		volatile uint32* const F5R2		        			= (volatile uint32* const) (BASE::CAN_1 + 0x26C);
+		volatile uint32* const F6R1		        			= (volatile uint32* const) (BASE::CAN_1 + 0x270);
+		volatile uint32* const F6R2		        			= (volatile uint32* const) (BASE::CAN_1 + 0x274);
+		volatile uint32* const F7R1		        			= (volatile uint32* const) (BASE::CAN_1 + 0x278);
+		volatile uint32* const F7R2		        			= (volatile uint32* const) (BASE::CAN_1 + 0x27C);
+		volatile uint32* const F8R1		        			= (volatile uint32* const) (BASE::CAN_1 + 0x280);
+		volatile uint32* const F8R2		        			= (volatile uint32* const) (BASE::CAN_1 + 0x284);
+		volatile uint32* const F9R1		        			= (volatile uint32* const) (BASE::CAN_1 + 0x288);
+		volatile uint32* const F9R2		        			= (volatile uint32* const) (BASE::CAN_1 + 0x28C);
+		volatile uint32* const F10R1		        		= (volatile uint32* const) (BASE::CAN_1 + 0x290);
+		volatile uint32* const F10R2		        		= (volatile uint32* const) (BASE::CAN_1 + 0x294);
+		volatile uint32* const F11R1		        		= (volatile uint32* const) (BASE::CAN_1 + 0x298);
+		volatile uint32* const F11R2		        		= (volatile uint32* const) (BASE::CAN_1 + 0x29C);
+		volatile uint32* const F12R1		        		= (volatile uint32* const) (BASE::CAN_1 + 0x2A0);
+		volatile uint32* const F12R2		        		= (volatile uint32* const) (BASE::CAN_1 + 0x2A4);
+		volatile uint32* const F13R1		        		= (volatile uint32* const) (BASE::CAN_1 + 0x2A8);
+		volatile uint32* const F13R2		        		= (volatile uint32* const) (BASE::CAN_1 + 0x2AC);
+		volatile uint32* const F14R1		        		= (volatile uint32* const) (BASE::CAN_1 + 0x2B0);
+		volatile uint32* const F14R2		        		= (volatile uint32* const) (BASE::CAN_1 + 0x2B4);
+		volatile uint32* const F15R1		        		= (volatile uint32* const) (BASE::CAN_1 + 0x2B8);
+		volatile uint32* const F15R2		        		= (volatile uint32* const) (BASE::CAN_1 + 0x2BC);
+		volatile uint32* const F16R1		        		= (volatile uint32* const) (BASE::CAN_1 + 0x2C0);
+		volatile uint32* const F16R2		        		= (volatile uint32* const) (BASE::CAN_1 + 0x2C4);
+		volatile uint32* const F17R1		        		= (volatile uint32* const) (BASE::CAN_1 + 0x2C8);
+		volatile uint32* const F17R2		        		= (volatile uint32* const) (BASE::CAN_1 + 0x2CC);
+		volatile uint32* const F18R1		        		= (volatile uint32* const) (BASE::CAN_1 + 0x2D0);
+		volatile uint32* const F18R2		        		= (volatile uint32* const) (BASE::CAN_1 + 0x2D4);
+		volatile uint32* const F19R1		        		= (volatile uint32* const) (BASE::CAN_1 + 0x2D8);
+		volatile uint32* const F19R2		        		= (volatile uint32* const) (BASE::CAN_1 + 0x2DC);
+		volatile uint32* const F20R1		        		= (volatile uint32* const) (BASE::CAN_1 + 0x2E0);
+		volatile uint32* const F20R2		        		= (volatile uint32* const) (BASE::CAN_1 + 0x2E4);
+		volatile uint32* const F21R1		        		= (volatile uint32* const) (BASE::CAN_1 + 0x2E8);
+		volatile uint32* const F21R2		        		= (volatile uint32* const) (BASE::CAN_1 + 0x2EC);
+		volatile uint32* const F22R1		        		= (volatile uint32* const) (BASE::CAN_1 + 0x2F0);
+		volatile uint32* const F22R2		        		= (volatile uint32* const) (BASE::CAN_1 + 0x2F4);
+		volatile uint32* const F23R1		        		= (volatile uint32* const) (BASE::CAN_1 + 0x2F8);
+		volatile uint32* const F23R2		        		= (volatile uint32* const) (BASE::CAN_1 + 0x2FC);
+		volatile uint32* const F24R1		        		= (volatile uint32* const) (BASE::CAN_1 + 0x300);
+		volatile uint32* const F24R2		        		= (volatile uint32* const) (BASE::CAN_1 + 0x304);
+		volatile uint32* const F25R1		        		= (volatile uint32* const) (BASE::CAN_1 + 0x308);
+		volatile uint32* const F25R2		        		= (volatile uint32* const) (BASE::CAN_1 + 0x30C);
+		volatile uint32* const F26R1		        		= (volatile uint32* const) (BASE::CAN_1 + 0x310);
+		volatile uint32* const F26R2		        		= (volatile uint32* const) (BASE::CAN_1 + 0x314);
 		volatile uint32* const F27R1			        	= (volatile uint32* const) (BASE::CAN_1 + 0x318);
 		volatile uint32* const F27R2			        	= (volatile uint32* const) (BASE::CAN_1 + 0x31C);
 	}
@@ -460,17 +510,6 @@ namespace MCU
 		volatile uint32* const RDT1R		        		= (volatile uint32* const) (BASE::CAN_2 + 0x1C4);
 		volatile uint32* const RDL1R		           	= (volatile uint32* const) (BASE::CAN_2 + 0x1C8);
 		volatile uint32* const RDH1R		        		= (volatile uint32* const) (BASE::CAN_2 + 0x1CC);
-		volatile uint32* const FMR			        		= (volatile uint32* const) (BASE::CAN_2 + 0x200);
-		volatile uint32* const FM1R		        			= (volatile uint32* const) (BASE::CAN_2 + 0x204);
-		volatile uint32* const FS1R		        			= (volatile uint32* const) (BASE::CAN_2 + 0x20C);
-		volatile uint32* const FFA1R		        		= (volatile uint32* const) (BASE::CAN_2 + 0x214);
-		volatile uint32* const FA1R		           		= (volatile uint32* const) (BASE::CAN_2 + 0x21C);
-		volatile uint32* const F0R1		        			= (volatile uint32* const) (BASE::CAN_2 + 0x240);
-		volatile uint32* const F0R2		        			= (volatile uint32* const) (BASE::CAN_2 + 0x244);
-		volatile uint32* const F1R1		        			= (volatile uint32* const) (BASE::CAN_2 + 0x248);
-		volatile uint32* const F1R2			        		= (volatile uint32* const) (BASE::CAN_2 + 0x24C);
-		volatile uint32* const F27R1			        	= (volatile uint32* const) (BASE::CAN_2 + 0x318);
-		volatile uint32* const F27R2			        	= (volatile uint32* const) (BASE::CAN_2 + 0x31C);
 	}
 	
 	namespace BKP
@@ -790,7 +829,7 @@ namespace MCU
 		volatile uint32* const APB1_ENR				      = (volatile uint32* const) (BASE::RCC + 0x1C);
 		volatile uint32* const BDCR	    	    			= (volatile uint32* const) (BASE::RCC + 0x20);
 		volatile uint32* const CSR	    	    			= (volatile uint32* const) (BASE::RCC + 0x24);
-		volatile uint32* const AHB_STR	    	    	= (volatile uint32* const) (BASE::RCC + 0x28);
+		volatile uint32* const AHB_RSTR	    	    	= (volatile uint32* const) (BASE::RCC + 0x28);
 		volatile uint32* const CFGR2	    	    		= (volatile uint32* const) (BASE::RCC + 0x2C);
 	};
 	
@@ -889,128 +928,146 @@ namespace MCU
 	{
 		namespace GLOBAL
 		{
-			volatile uint32* const OTG_CTL							= (volatile uint32* const) (BASE::USB_OTG + 0x000);
-			volatile uint32* const OTG_INT							= (volatile uint32* const) (BASE::USB_OTG + 0x004);
-			volatile uint32* const AHB_CFG							= (volatile uint32* const) (BASE::USB_OTG + 0x008);
-			volatile uint32* const USB_CFG							= (volatile uint32* const) (BASE::USB_OTG + 0x00C);
-			volatile uint32* const RST_CTL							= (volatile uint32* const) (BASE::USB_OTG + 0x010);
-			volatile uint32* const INT_STS							= (volatile uint32* const) (BASE::USB_OTG + 0x014);
-			volatile uint32* const INT_MSK							= (volatile uint32* const) (BASE::USB_OTG + 0x018);
-			volatile uint32* const RX_STSR							= (volatile uint32* const) (BASE::USB_OTG + 0x01C);
-			volatile uint32* const RX_STSP							= (volatile uint32* const) (BASE::USB_OTG + 0x020);
-			volatile uint32* const RX_FSIZ							= (volatile uint32* const) (BASE::USB_OTG + 0x024);
-			volatile uint32* const HNPTFSIZ_DIEPTXF0		= (volatile uint32* const) (BASE::USB_OTG + 0x028);
-			volatile uint32* const HNPTXSTS							= (volatile uint32* const) (BASE::USB_OTG + 0x02C);
-			volatile uint32* const GCCFG								= (volatile uint32* const) (BASE::USB_OTG + 0x038);
-			volatile uint32* const CID									= (volatile uint32* const) (BASE::USB_OTG + 0x03C);
-			volatile uint32* const HPTX_FSIZ						= (volatile uint32* const) (BASE::USB_OTG + 0x100);
-			volatile uint32* const DIEP_TXF1						= (volatile uint32* const) (BASE::USB_OTG + 0x104);
-			volatile uint32* const DIEP_TXF2						= (volatile uint32* const) (BASE::USB_OTG + 0x108);
-			volatile uint32* const DIEP_TXF3						= (volatile uint32* const) (BASE::USB_OTG + 0x10C);
+			volatile uint32* const OTG_CTL							= (volatile uint32* const) (BASE::USB_OTG + 0x0000);
+			volatile uint32* const OTG_INT							= (volatile uint32* const) (BASE::USB_OTG + 0x0004);
+			volatile uint32* const AHB_CFG							= (volatile uint32* const) (BASE::USB_OTG + 0x0008);
+			volatile uint32* const USB_CFG							= (volatile uint32* const) (BASE::USB_OTG + 0x000C);
+			volatile uint32* const RST_CTL							= (volatile uint32* const) (BASE::USB_OTG + 0x0010);
+			volatile uint32* const INT_STS							= (volatile uint32* const) (BASE::USB_OTG + 0x0014);
+			volatile uint32* const INT_MSK							= (volatile uint32* const) (BASE::USB_OTG + 0x0018);
+			volatile uint32* const RX_STSR							= (volatile uint32* const) (BASE::USB_OTG + 0x001C);
+			volatile uint32* const RX_STSP							= (volatile uint32* const) (BASE::USB_OTG + 0x0020);
+			volatile uint32* const RX_FSIZ							= (volatile uint32* const) (BASE::USB_OTG + 0x0024);
+			volatile uint32* const HNPTFSIZ_DIEPTXF0		= (volatile uint32* const) (BASE::USB_OTG + 0x0028);
+			volatile uint32* const HNPTXSTS							= (volatile uint32* const) (BASE::USB_OTG + 0x002C);
+			volatile uint32* const GCCFG								= (volatile uint32* const) (BASE::USB_OTG + 0x0038);
+			volatile uint32* const CID									= (volatile uint32* const) (BASE::USB_OTG + 0x003C);
+			volatile uint32* const HPTX_FSIZ						= (volatile uint32* const) (BASE::USB_OTG + 0x0100);
+			volatile uint32* const DIEP_TXF1						= (volatile uint32* const) (BASE::USB_OTG + 0x0104);
+			volatile uint32* const DIEP_TXF2						= (volatile uint32* const) (BASE::USB_OTG + 0x0108);
+			volatile uint32* const DIEP_TXF3						= (volatile uint32* const) (BASE::USB_OTG + 0x010C);
 		};
 		
 		namespace HOST
 		{
-			volatile uint32* const CFG									= (volatile uint32* const) (BASE::USB_OTG + 0x400);
-			volatile uint32* const FIR									= (volatile uint32* const) (BASE::USB_OTG + 0x404);
-			volatile uint32* const FNUM									= (volatile uint32* const) (BASE::USB_OTG + 0x408);
-			volatile uint32* const PTX_STS							= (volatile uint32* const) (BASE::USB_OTG + 0x410);
-			volatile uint32* const AINT									= (volatile uint32* const) (BASE::USB_OTG + 0x414);
-			volatile uint32* const AINT_MSK							= (volatile uint32* const) (BASE::USB_OTG + 0x418);
-			volatile uint32* const PRT									= (volatile uint32* const) (BASE::USB_OTG + 0x440);
+			volatile uint32* const CFG									= (volatile uint32* const) (BASE::USB_OTG + 0x0400);
+			volatile uint32* const FIR									= (volatile uint32* const) (BASE::USB_OTG + 0x0404);
+			volatile uint32* const FNUM									= (volatile uint32* const) (BASE::USB_OTG + 0x0408);
+			volatile uint32* const PTX_STS							= (volatile uint32* const) (BASE::USB_OTG + 0x0410);
+			volatile uint32* const AINT									= (volatile uint32* const) (BASE::USB_OTG + 0x0414);
+			volatile uint32* const AINT_MSK							= (volatile uint32* const) (BASE::USB_OTG + 0x0418);
+			volatile uint32* const PRT									= (volatile uint32* const) (BASE::USB_OTG + 0x0440);
 			
 			
-			volatile uint32* const CHAR0								= (volatile uint32* const) (BASE::USB_OTG + 0x500);
-			volatile uint32* const INT0									= (volatile uint32* const) (BASE::USB_OTG + 0x508);
-			volatile uint32* const INTMSK0							= (volatile uint32* const) (BASE::USB_OTG + 0x50C);
-			volatile uint32* const TSIZ0								= (volatile uint32* const) (BASE::USB_OTG + 0x510);
+			volatile uint32* const CHAR0								= (volatile uint32* const) (BASE::USB_OTG + 0x0500);
+			volatile uint32* const INT0									= (volatile uint32* const) (BASE::USB_OTG + 0x0508);
+			volatile uint32* const INTMSK0							= (volatile uint32* const) (BASE::USB_OTG + 0x050C);
+			volatile uint32* const TSIZ0								= (volatile uint32* const) (BASE::USB_OTG + 0x0510);
 			
-			volatile uint32* const CHAR1								= (volatile uint32* const) (BASE::USB_OTG + 0x520);
-			volatile uint32* const INT1									= (volatile uint32* const) (BASE::USB_OTG + 0x528);
-			volatile uint32* const INTMSK1							= (volatile uint32* const) (BASE::USB_OTG + 0x52C);
-			volatile uint32* const TSIZ1								= (volatile uint32* const) (BASE::USB_OTG + 0x530);
+			volatile uint32* const CHAR1								= (volatile uint32* const) (BASE::USB_OTG + 0x0520);
+			volatile uint32* const INT1									= (volatile uint32* const) (BASE::USB_OTG + 0x0528);
+			volatile uint32* const INTMSK1							= (volatile uint32* const) (BASE::USB_OTG + 0x052C);
+			volatile uint32* const TSIZ1								= (volatile uint32* const) (BASE::USB_OTG + 0x0530);
 			
-			volatile uint32* const CHAR2								= (volatile uint32* const) (BASE::USB_OTG + 0x540);
-			volatile uint32* const INT2									= (volatile uint32* const) (BASE::USB_OTG + 0x548);
-			volatile uint32* const INTMSK2							= (volatile uint32* const) (BASE::USB_OTG + 0x54C);
-			volatile uint32* const TSIZ2								= (volatile uint32* const) (BASE::USB_OTG + 0x550);
+			volatile uint32* const CHAR2								= (volatile uint32* const) (BASE::USB_OTG + 0x0540);
+			volatile uint32* const INT2									= (volatile uint32* const) (BASE::USB_OTG + 0x0548);
+			volatile uint32* const INTMSK2							= (volatile uint32* const) (BASE::USB_OTG + 0x054C);
+			volatile uint32* const TSIZ2								= (volatile uint32* const) (BASE::USB_OTG + 0x0550);
 			
-			volatile uint32* const CHAR3								= (volatile uint32* const) (BASE::USB_OTG + 0x560);
-			volatile uint32* const INT3									= (volatile uint32* const) (BASE::USB_OTG + 0x568);
-			volatile uint32* const INTMSK3							= (volatile uint32* const) (BASE::USB_OTG + 0x56C);
-			volatile uint32* const TSIZ3								= (volatile uint32* const) (BASE::USB_OTG + 0x570);
+			volatile uint32* const CHAR3								= (volatile uint32* const) (BASE::USB_OTG + 0x0560);
+			volatile uint32* const INT3									= (volatile uint32* const) (BASE::USB_OTG + 0x0568);
+			volatile uint32* const INTMSK3							= (volatile uint32* const) (BASE::USB_OTG + 0x056C);
+			volatile uint32* const TSIZ3								= (volatile uint32* const) (BASE::USB_OTG + 0x0570);
 			
-			volatile uint32* const CHAR4								= (volatile uint32* const) (BASE::USB_OTG + 0x580);
-			volatile uint32* const INT4									= (volatile uint32* const) (BASE::USB_OTG + 0x588);
-			volatile uint32* const INTMSK4							= (volatile uint32* const) (BASE::USB_OTG + 0x58C);
-			volatile uint32* const TSIZ4								= (volatile uint32* const) (BASE::USB_OTG + 0x590);
+			volatile uint32* const CHAR4								= (volatile uint32* const) (BASE::USB_OTG + 0x0580);
+			volatile uint32* const INT4									= (volatile uint32* const) (BASE::USB_OTG + 0x0588);
+			volatile uint32* const INTMSK4							= (volatile uint32* const) (BASE::USB_OTG + 0x058C);
+			volatile uint32* const TSIZ4								= (volatile uint32* const) (BASE::USB_OTG + 0x0590);
 			
-			volatile uint32* const CHAR5								= (volatile uint32* const) (BASE::USB_OTG + 0x5A0);
-			volatile uint32* const INT5									= (volatile uint32* const) (BASE::USB_OTG + 0x5A8);
-			volatile uint32* const INTMSK5							= (volatile uint32* const) (BASE::USB_OTG + 0x5AC);
-			volatile uint32* const TSIZ5								= (volatile uint32* const) (BASE::USB_OTG + 0x5B0);
+			volatile uint32* const CHAR5								= (volatile uint32* const) (BASE::USB_OTG + 0x05A0);
+			volatile uint32* const INT5									= (volatile uint32* const) (BASE::USB_OTG + 0x05A8);
+			volatile uint32* const INTMSK5							= (volatile uint32* const) (BASE::USB_OTG + 0x05AC);
+			volatile uint32* const TSIZ5								= (volatile uint32* const) (BASE::USB_OTG + 0x05B0);
 			
-			volatile uint32* const CHAR6								= (volatile uint32* const) (BASE::USB_OTG + 0x5C0);
-			volatile uint32* const INT6									= (volatile uint32* const) (BASE::USB_OTG + 0x5C8);
-			volatile uint32* const INTMSK6							= (volatile uint32* const) (BASE::USB_OTG + 0x5CC);
-			volatile uint32* const TSIZ6								= (volatile uint32* const) (BASE::USB_OTG + 0x5D0);
+			volatile uint32* const CHAR6								= (volatile uint32* const) (BASE::USB_OTG + 0x05C0);
+			volatile uint32* const INT6									= (volatile uint32* const) (BASE::USB_OTG + 0x05C8);
+			volatile uint32* const INTMSK6							= (volatile uint32* const) (BASE::USB_OTG + 0x05CC);
+			volatile uint32* const TSIZ6								= (volatile uint32* const) (BASE::USB_OTG + 0x05D0);
 			
-			volatile uint32* const CHAR7								= (volatile uint32* const) (BASE::USB_OTG + 0x5E0);
-			volatile uint32* const INT7									= (volatile uint32* const) (BASE::USB_OTG + 0x5E8);
-			volatile uint32* const INTMSK7							= (volatile uint32* const) (BASE::USB_OTG + 0x5EC);
-			volatile uint32* const TSIZ7 								= (volatile uint32* const) (BASE::USB_OTG + 0x5F0);
+			volatile uint32* const CHAR7								= (volatile uint32* const) (BASE::USB_OTG + 0x05E0);
+			volatile uint32* const INT7									= (volatile uint32* const) (BASE::USB_OTG + 0x05E8);
+			volatile uint32* const INTMSK7							= (volatile uint32* const) (BASE::USB_OTG + 0x05EC);
+			volatile uint32* const TSIZ7 								= (volatile uint32* const) (BASE::USB_OTG + 0x05F0);
+			
+			
+			volatile uint32* const FIFO_0								= (volatile uint32* const) (BASE::USB_OTG + 0x1000);
+			volatile uint32* const FIFO_1								= (volatile uint32* const) (BASE::USB_OTG + 0x2000);
+			volatile uint32* const FIFO_2								= (volatile uint32* const) (BASE::USB_OTG + 0x3000);
+			volatile uint32* const FIFO_3								= (volatile uint32* const) (BASE::USB_OTG + 0x4000);
+			volatile uint32* const FIFO_4								= (volatile uint32* const) (BASE::USB_OTG + 0x5000);
+			volatile uint32* const FIFO_5								= (volatile uint32* const) (BASE::USB_OTG + 0x6000);
+			volatile uint32* const FIFO_6								= (volatile uint32* const) (BASE::USB_OTG + 0x7000);
+			volatile uint32* const FIFO_7								= (volatile uint32* const) (BASE::USB_OTG + 0x8000);
 		};
 		
 		namespace DEVICE
 		{
-			volatile uint32* const CFG									= (volatile uint32* const) (BASE::USB_OTG + 0x800);
-			volatile uint32* const CTL									= (volatile uint32* const) (BASE::USB_OTG + 0x804);
-			volatile uint32* const STS									= (volatile uint32* const) (BASE::USB_OTG + 0x808);
-			volatile uint32* const IEPMSK								= (volatile uint32* const) (BASE::USB_OTG + 0x810);
-			volatile uint32* const OEPMSK								= (volatile uint32* const) (BASE::USB_OTG + 0x814);
-			volatile uint32* const AINT									= (volatile uint32* const) (BASE::USB_OTG + 0x818);
-			volatile uint32* const AINTMSK							= (volatile uint32* const) (BASE::USB_OTG + 0x81C);
-			volatile uint32* const VBUS_DIS							= (volatile uint32* const) (BASE::USB_OTG + 0x828);
-			volatile uint32* const VBUS_PULSE						= (volatile uint32* const) (BASE::USB_OTG + 0x82C);
-			volatile uint32* const IEP_EMPMSK						= (volatile uint32* const) (BASE::USB_OTG + 0x834);
+			volatile uint32* const CFG									= (volatile uint32* const) (BASE::USB_OTG + 0x0800);
+			volatile uint32* const CTL									= (volatile uint32* const) (BASE::USB_OTG + 0x0804);
+			volatile uint32* const STS									= (volatile uint32* const) (BASE::USB_OTG + 0x0808);
+			volatile uint32* const IEPMSK								= (volatile uint32* const) (BASE::USB_OTG + 0x0810);
+			volatile uint32* const OEPMSK								= (volatile uint32* const) (BASE::USB_OTG + 0x0814);
+			volatile uint32* const AINT									= (volatile uint32* const) (BASE::USB_OTG + 0x0818);
+			volatile uint32* const AINTMSK							= (volatile uint32* const) (BASE::USB_OTG + 0x081C);
+			volatile uint32* const VBUS_DIS							= (volatile uint32* const) (BASE::USB_OTG + 0x0828);
+			volatile uint32* const VBUS_PULSE						= (volatile uint32* const) (BASE::USB_OTG + 0x082C);
+			volatile uint32* const IEP_EMPMSK						= (volatile uint32* const) (BASE::USB_OTG + 0x0834);
 			
 			
-			volatile uint32* const IEP_CTL0							= (volatile uint32* const) (BASE::USB_OTG + 0x900);
-			volatile uint32* const IEP_INT0							= (volatile uint32* const) (BASE::USB_OTG + 0x908);
-			volatile uint32* const IEP_TSIZ0						= (volatile uint32* const) (BASE::USB_OTG + 0x910);
-			volatile uint32* const TX_FSTS0							= (volatile uint32* const) (BASE::USB_OTG + 0x918);
+			volatile uint32* const IEP_CTL0							= (volatile uint32* const) (BASE::USB_OTG + 0x0900);
+			volatile uint32* const IEP_INT0							= (volatile uint32* const) (BASE::USB_OTG + 0x0908);
+			volatile uint32* const IEP_TSIZ0						= (volatile uint32* const) (BASE::USB_OTG + 0x0910);
+			volatile uint32* const TX_FSTS0							= (volatile uint32* const) (BASE::USB_OTG + 0x0918);
 			
-			volatile uint32* const IEP_CTL1							= (volatile uint32* const) (BASE::USB_OTG + 0x920);
-			volatile uint32* const IEP_INT1							= (volatile uint32* const) (BASE::USB_OTG + 0x928);
-			volatile uint32* const IEP_TSIZ1						= (volatile uint32* const) (BASE::USB_OTG + 0x930);
-			volatile uint32* const TX_FSTS1							= (volatile uint32* const) (BASE::USB_OTG + 0x938);
+			volatile uint32* const IEP_CTL1							= (volatile uint32* const) (BASE::USB_OTG + 0x0920);
+			volatile uint32* const IEP_INT1							= (volatile uint32* const) (BASE::USB_OTG + 0x0928);
+			volatile uint32* const IEP_TSIZ1						= (volatile uint32* const) (BASE::USB_OTG + 0x0930);
+			volatile uint32* const TX_FSTS1							= (volatile uint32* const) (BASE::USB_OTG + 0x0938);
 			
-			volatile uint32* const IEP_CTL2							= (volatile uint32* const) (BASE::USB_OTG + 0x940);
-			volatile uint32* const IEP_INT2							= (volatile uint32* const) (BASE::USB_OTG + 0x948);
-			volatile uint32* const IEP_TSIZ2						= (volatile uint32* const) (BASE::USB_OTG + 0x950);
-			volatile uint32* const TX_FSTS2							= (volatile uint32* const) (BASE::USB_OTG + 0x958);
+			volatile uint32* const IEP_CTL2							= (volatile uint32* const) (BASE::USB_OTG + 0x0940);
+			volatile uint32* const IEP_INT2							= (volatile uint32* const) (BASE::USB_OTG + 0x0948);
+			volatile uint32* const IEP_TSIZ2						= (volatile uint32* const) (BASE::USB_OTG + 0x0950);
+			volatile uint32* const TX_FSTS2							= (volatile uint32* const) (BASE::USB_OTG + 0x0958);
 			
-			volatile uint32* const IEP_CTL3							= (volatile uint32* const) (BASE::USB_OTG + 0x960);
-			volatile uint32* const IEP_INT3							= (volatile uint32* const) (BASE::USB_OTG + 0x968);
-			volatile uint32* const IEP_TSIZ3						= (volatile uint32* const) (BASE::USB_OTG + 0x970);
-			volatile uint32* const TX_FSTS3							= (volatile uint32* const) (BASE::USB_OTG + 0x978);
+			volatile uint32* const IEP_CTL3							= (volatile uint32* const) (BASE::USB_OTG + 0x0960);
+			volatile uint32* const IEP_INT3							= (volatile uint32* const) (BASE::USB_OTG + 0x0968);
+			volatile uint32* const IEP_TSIZ3						= (volatile uint32* const) (BASE::USB_OTG + 0x0970);
+			volatile uint32* const TX_FSTS3							= (volatile uint32* const) (BASE::USB_OTG + 0x0978);
 			
 			
-			volatile uint32* const OEP_CTL0							= (volatile uint32* const) (BASE::USB_OTG + 0xB00);
-			volatile uint32* const OEP_INT0							= (volatile uint32* const) (BASE::USB_OTG + 0xB08);
-			volatile uint32* const OEP_TSIZ0						= (volatile uint32* const) (BASE::USB_OTG + 0xB10);
+			volatile uint32* const OEP_CTL0							= (volatile uint32* const) (BASE::USB_OTG + 0x0B00);
+			volatile uint32* const OEP_INT0							= (volatile uint32* const) (BASE::USB_OTG + 0x0B08);
+			volatile uint32* const OEP_TSIZ0						= (volatile uint32* const) (BASE::USB_OTG + 0x0B10);
 			
-			volatile uint32* const OEP_CTL1							= (volatile uint32* const) (BASE::USB_OTG + 0xB20);
-			volatile uint32* const OEP_INT1							= (volatile uint32* const) (BASE::USB_OTG + 0xB28);
-			volatile uint32* const OEP_TSIZ1						= (volatile uint32* const) (BASE::USB_OTG + 0xB30);
+			volatile uint32* const OEP_CTL1							= (volatile uint32* const) (BASE::USB_OTG + 0x0B20);
+			volatile uint32* const OEP_INT1							= (volatile uint32* const) (BASE::USB_OTG + 0x0B28);
+			volatile uint32* const OEP_TSIZ1						= (volatile uint32* const) (BASE::USB_OTG + 0x0B30);
 			
-			volatile uint32* const OEP_CTL2							= (volatile uint32* const) (BASE::USB_OTG + 0xB40);
-			volatile uint32* const OEP_INT2							= (volatile uint32* const) (BASE::USB_OTG + 0xB48);
-			volatile uint32* const OEP_TSIZ2						= (volatile uint32* const) (BASE::USB_OTG + 0xB50);
+			volatile uint32* const OEP_CTL2							= (volatile uint32* const) (BASE::USB_OTG + 0x0B40);
+			volatile uint32* const OEP_INT2							= (volatile uint32* const) (BASE::USB_OTG + 0x0B48);
+			volatile uint32* const OEP_TSIZ2						= (volatile uint32* const) (BASE::USB_OTG + 0x0B50);
 			
-			volatile uint32* const OEP_CTL3							= (volatile uint32* const) (BASE::USB_OTG + 0xB60);
-			volatile uint32* const OEP_INT3							= (volatile uint32* const) (BASE::USB_OTG + 0xB68);
-			volatile uint32* const OEP_TSIZ3						= (volatile uint32* const) (BASE::USB_OTG + 0xB70);
+			volatile uint32* const OEP_CTL3							= (volatile uint32* const) (BASE::USB_OTG + 0x0B60);
+			volatile uint32* const OEP_INT3							= (volatile uint32* const) (BASE::USB_OTG + 0x0B68);
+			volatile uint32* const OEP_TSIZ3						= (volatile uint32* const) (BASE::USB_OTG + 0x0B70);
+			
+			
+			volatile uint32* const FIFO_0								= (volatile uint32* const) (BASE::USB_OTG + 0x1000);
+			volatile uint32* const FIFO_1								= (volatile uint32* const) (BASE::USB_OTG + 0x2000);
+			volatile uint32* const FIFO_2								= (volatile uint32* const) (BASE::USB_OTG + 0x3000);
+			volatile uint32* const FIFO_3								= (volatile uint32* const) (BASE::USB_OTG + 0x4000);
 		};
+		
+		volatile uint32* const PCGCCTL								= (volatile uint32* const) (BASE::USB_OTG + 0x0E00);
 	}
 };

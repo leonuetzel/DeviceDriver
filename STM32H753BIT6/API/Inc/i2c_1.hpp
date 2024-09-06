@@ -35,7 +35,7 @@ class I2C_1: public I_I2C
 		
 		
 		//	Member Functions
-		feedback startup(RCC& rcc);
+		inline feedback startup(RCC& rcc);
 		
 		
 		//	Friends
@@ -49,10 +49,10 @@ class I2C_1: public I_I2C
 		
 		feedback init();
 		
-		feedback start(uint8 slaveAddress, bool write, uint8 numberOfBytes) override;
+		feedback start(uint8 slaveAddress, bool write, uint8 numberOfBytes = 0, uint32 timeout_ms = 100) override;
 		void stop() override;
-		feedback tx(uint8 data) override;
-		uint8 rx() override;
+		feedback tx(uint8 data, uint32 timeout_ms = 100) override;
+		uint8 rx(uint32 timeout_ms = 100) override;
 };
 
 
@@ -78,6 +78,18 @@ constexpr inline I2C_1::I2C_1()
 inline I2C_1::~I2C_1()
 {
 	
+}
+
+
+
+
+
+
+
+inline feedback I2C_1::startup(RCC& rcc)
+{
+	rcc.module_clockInit(RCC::e_module::I2C_1, true);
+	return(OK);
 }
 
 

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "cmos.hpp"
-#include "stm32l010rbt6.hpp"
+#include "registers.hpp"
 
 
 
@@ -47,7 +47,6 @@ class LP_UART_1 : public UART
 		
 	public:
 		
-		feedback reset();
 		feedback init(uint32 baud, e_databits databits, e_stopbits stopbits, e_parity parity, uint8* rxBuffer, uint32 rxBufferSize, uint8* txBuffer, uint32 txBufferSize) override;
 };
 
@@ -66,7 +65,7 @@ class LP_UART_1 : public UART
 /*****************************************************************************/
 
 inline LP_UART_1::LP_UART_1()
-	:	UART(Interrupt::LP_UART_1, (void*) MCU::LP_UART_1::TDR)
+	:	UART((void*) MCU::LP_UART_1::TDR)
 {
 	
 }

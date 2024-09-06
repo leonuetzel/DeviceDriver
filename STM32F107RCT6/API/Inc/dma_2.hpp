@@ -20,7 +20,7 @@ class DMA_2 : public I_DMA
 	private:
 		
 		//	Static Member
-		static Triplet<uint16, uint8, f_callback> m_channelInfo[c_channel];
+		static Pair<uint16, f_callback> m_channelInfo[c_channel];
 		
 		
 		//	Non-static Member
@@ -107,9 +107,15 @@ inline feedback DMA_2::startup(RCC& rcc, uint8 channel)
 	}
 	
 	
-	//	Init Interrupts only once
+	//	Init Interrupts and Events only once
 	if(channel == 0)
 	{
+		for(auto& i: m_channelInfo)
+		{
+			i.first() = cmos.event_create();
+		}
+		
+		
 		NVIC& nvic = cmos.get_nvic();
 		nvic.setPriority(Interrupt::DMA2_CH0, 10);
 		nvic.setPriority(Interrupt::DMA2_CH1, 10);

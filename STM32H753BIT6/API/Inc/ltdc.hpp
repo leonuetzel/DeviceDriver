@@ -21,15 +21,15 @@ class LTDC	:	public I_DisplayDriver
 		
 	private:
 		
-		static uint8 m_fps;
-		static uint8 m_thread;
+		const uint16 m_eventID;
+		uint8 m_fps;
 		
 		s_displayData m_displayData;
 		RectGraphic m_layer[c_layer_number];
 		uint32 m_layerNumber;
 		Color m_colorBackground;
 		
-		constexpr inline LTDC();
+		inline LTDC();
 		LTDC(const LTDC& ltdc) = delete;
 		inline ~LTDC();
 		
@@ -46,9 +46,7 @@ class LTDC	:	public I_DisplayDriver
 		feedback init(s_displayData displayData, Array<RectGraphic> layer);
 		
 		
-		
-		feedback set_thread()																							override;
-		uint16 get_wakeUpInterrupt()																			override;
+		uint16 get_eventID_frameFinished()																override;
 		
 		feedback start()																									override;
 		feedback stop()																										override;
@@ -80,13 +78,16 @@ class LTDC	:	public I_DisplayDriver
 /*                      						Private	  			 						 						 */
 /*****************************************************************************/
 
-constexpr inline LTDC::LTDC()
-	:	m_displayData(),
+inline LTDC::LTDC()
+	:	m_eventID(CMOS::get().event_create()),
+		m_fps(0),
+		
+		m_displayData(),
 		m_layer(),
-		m_layerNumber(),
+		m_layerNumber(0),
 		m_colorBackground(Colors::transparent)
 {
-	m_thread = 0xFF;
+	
 }
 
 

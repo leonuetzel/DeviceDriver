@@ -23,23 +23,26 @@ class CAN_1: public I_CAN
 		
 		
 		//	Non-static Member
-		RingbufferDynamic<CAN_Frame*>* m_rxBuffer;
-		RingbufferDynamic<CAN_Frame*>* m_txBuffer;
+		const uint16 m_eventID_frameReadyToRead;
+		bool m_txISR_active;
+		RingbufferDynamic<CAN_Frame>* m_rxBuffer;
+		RingbufferDynamic<CAN_Frame>* m_txBuffer;
 		UniqueArray<e_error> m_errors;
 		e_state m_state;
 		uint32 m_baudRate;
 		
 		
 		//	Constructor and Destructor
-		constexpr inline CAN_1();
+		inline CAN_1();
 		CAN_1(const CAN_1& can_1) = delete;
 		inline ~CAN_1();
 		
 		
 		//	Member Functions
 		inline feedback startup();
+		feedback extractFrame(CAN_Frame& canFrame, uint32 RI, uint32 RDT, uint32 RDL, uint32 RDH);
 		
-		feedback writeToTxMailbox(const CAN_Frame& packet);
+		feedback writeToTxMailbox(const CAN_Frame& canFrame);
 		
 		
 		//	Friends
@@ -57,12 +60,13 @@ class CAN_1: public I_CAN
 		
 		feedback init(uint32 baudRate, uint32 rxBufferSize = 32, uint32 txBufferSize = 32);
 		
-		I_CAN& operator<<(const CAN_Frame& packet) override;
-		I_CAN& operator>>(CAN_Frame*& packet) override;
+		feedback tx(const CAN_Frame& canFrame) override;
+		feedback rx(CAN_Frame& canFrame) override;
 		
 		uint32 get_numberOfUnread() const override;
 		bool is_dataAvailable() const override;
 		
+		uint16 get_eventID() override;
 		I_CAN::e_state get_state() override;
 		const UniqueArray<e_error>& get_errors() const override;
 		void clearErrors() override;
@@ -86,8 +90,9 @@ class CAN_1: public I_CAN
 /*                      						Private	  			 						 						 */
 /*****************************************************************************/
 
-constexpr inline CAN_1::CAN_1()
-	:	m_rxBuffer(nullptr),
+inline CAN_1::CAN_1()
+	:	m_eventID_frameReadyToRead(CMOS::get().event_create()),
+		m_rxBuffer(nullptr),
 		m_txBuffer(nullptr),
 		m_errors(),
 		m_state(e_state::ERROR_ACTIVE),
@@ -105,14 +110,6 @@ inline CAN_1::~CAN_1()
 	//	Rx Buffer
 	if(m_rxBuffer != nullptr)
 	{
-		//	Free Memory of all Packets in Buffer
-		const uint32 numberOfPackets = m_rxBuffer->get_numberOfUnread();
-		for(uint32 i = 0; i < numberOfPackets; i++)
-		{
-			delete m_rxBuffer->read();
-		}
-		
-		
 		//	Free Memory of the Buffer itself
 		delete m_rxBuffer;
 		
@@ -127,14 +124,6 @@ inline CAN_1::~CAN_1()
 	//	Tx Buffer
 	if(m_txBuffer != nullptr)
 	{
-		//	Free Memory of all Packets in Buffer
-		const uint32 numberOfPackets = m_txBuffer->get_numberOfUnread();
-		for(uint32 i = 0; i < numberOfPackets; i++)
-		{
-			delete m_txBuffer->read();
-		}
-		
-		
 		//	Free Memory of the Buffer itself
 		delete m_txBuffer;
 		

@@ -98,6 +98,7 @@ class STM32F107RCT6
 		
 		static void copy_flashToRAM(const uint32* src, uint32* dest, uint32 sizeInBytes);
 		static void zeroOutRAM(uint32* startAddress, uint32 sizeInBytes);
+		static void preInit();
 		
 		
 		

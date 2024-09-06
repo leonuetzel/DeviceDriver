@@ -64,7 +64,7 @@ class USART_3 : public UART
 /*****************************************************************************/
 
 inline USART_3::USART_3()
-	:	UART(Interrupt::USART_3, (void*) MCU::USART_3::DR)
+	:	UART((void*) MCU::USART_3::DR)
 {
 	
 }

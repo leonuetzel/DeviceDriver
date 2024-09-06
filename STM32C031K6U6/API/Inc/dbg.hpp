@@ -6,6 +6,7 @@
 
 
 
+
 class DBG
 {
 	public:
@@ -94,7 +95,7 @@ inline feedback DBG::startup()
 {
 	freeze_onDebug(e_module::WWDG, true);
 	freeze_onDebug(e_module::IWDG, true);
-		
+	
 	return(OK);
 }
 

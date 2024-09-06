@@ -199,7 +199,7 @@ inline void EXTI::softwareTrigger(uint32 line)
 
 inline feedback EXTI::clear_pendingBit(uint32 pin)
 {
-	if(pin > 16)
+	if(pin > 15)
 	{
 		return(FAIL);
 	}

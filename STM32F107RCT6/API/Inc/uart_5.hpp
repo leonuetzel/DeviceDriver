@@ -65,7 +65,7 @@ class UART_5 : public UART
 /*****************************************************************************/
 
 inline UART_5::UART_5()
-	:	UART(Interrupt::UART_5, (void*) MCU::UART_5::DR),
+	:	UART((void*) MCU::UART_5::DR),
 		m_dma_tx_software(readyForNextTransfer)
 {
 	
