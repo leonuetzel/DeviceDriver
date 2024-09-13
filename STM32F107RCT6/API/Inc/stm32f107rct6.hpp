@@ -19,6 +19,7 @@
 #include "dma_2.hpp"
 #include "adc_1.hpp"
 #include "usart_1.hpp"
+#include "usart_2.hpp"
 #include "usart_3.hpp"
 #include "uart_4.hpp"
 #include "uart_5.hpp"
@@ -77,6 +78,7 @@ class STM32F107RCT6
 		DMA_2 m_dma_2[DMA_2::c_channel];
 		ADC_1 m_adc_1;
 		USART_1 m_usart_1;
+		USART_2 m_usart_2;
 		USART_3 m_usart_3;
 		UART_4 m_uart_4;
 		UART_5 m_uart_5;
@@ -131,6 +133,7 @@ class STM32F107RCT6
 		constexpr inline DMA_2& get_dma_2(uint8 channel);
 		constexpr inline ADC_1& get_adc_1();
 		constexpr inline USART_1& get_usart_1();
+		constexpr inline USART_2& get_usart_2();
 		constexpr inline USART_3& get_usart_3();
 		constexpr inline UART_4& get_uart_4();
 		constexpr inline UART_5& get_uart_5();
@@ -231,6 +234,7 @@ inline STM32F107RCT6::STM32F107RCT6()
 		m_dma_1(),
 		m_adc_1(),
 		m_usart_1(),
+		m_usart_2(),
 		m_usart_3(),
 		m_i2c_1(),
 		m_i2c_2(),
@@ -322,6 +326,10 @@ inline feedback STM32F107RCT6::startup()
 		return(FAIL);
 	}
 	if(m_usart_1.startup() != OK)
+	{
+		return(FAIL);
+	}
+	if(m_usart_2.startup() != OK)
 	{
 		return(FAIL);
 	}
@@ -492,6 +500,12 @@ constexpr inline ADC_1& STM32F107RCT6::get_adc_1()
 constexpr inline USART_1& STM32F107RCT6::get_usart_1()
 {
 	return(m_usart_1);
+}
+
+
+constexpr inline USART_2& STM32F107RCT6::get_usart_2()
+{
+	return(m_usart_2);
 }
 
 
