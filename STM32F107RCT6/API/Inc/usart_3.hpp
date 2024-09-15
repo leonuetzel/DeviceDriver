@@ -23,11 +23,11 @@ class USART_3 : public UART
 		
 		
 		//	Non-static Member
-		
+		I_DMA* m_dma_rx;
 		
 		
 		//	Constructor and Destructor
-		inline USART_3();
+		USART_3();
 		USART_3(const USART_3& usart_3) = delete;
 		inline ~USART_3();
 		
@@ -47,6 +47,7 @@ class USART_3 : public UART
 	public:
 		
 		feedback init(uint32 baud, e_databits databits, e_stopbits stopbits, e_parity parity, uint8* rxBuffer, uint32 rxBufferSize, uint8* txBuffer, uint32 txBufferSize) override;
+		feedback deinit() override;
 };
 
 
@@ -64,7 +65,8 @@ class USART_3 : public UART
 /*****************************************************************************/
 
 inline USART_3::USART_3()
-	:	UART((void*) MCU::USART_3::DR)
+	:	UART((void*) MCU::USART_3::DR),
+		m_dma_rx(nullptr)
 {
 	
 }
@@ -72,7 +74,7 @@ inline USART_3::USART_3()
 
 inline USART_3::~USART_3()
 {
-	
+	deinit();
 }
 
 

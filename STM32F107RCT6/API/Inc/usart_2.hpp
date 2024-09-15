@@ -24,7 +24,7 @@ class USART_2 : public UART
 		
 		
 		//	Non-static Member
-		
+		I_DMA* m_dma_rx;
 		
 		
 		//	Constructor and Destructor
@@ -48,6 +48,7 @@ class USART_2 : public UART
 	public:
 		
 		feedback init(uint32 baud, e_databits databits, e_stopbits stopbits, e_parity parity, uint8* rxBuffer, uint32 rxBufferSize, uint8* txBuffer, uint32 txBufferSize) override;
+		feedback deinit() override;
 };
 
 
@@ -65,7 +66,8 @@ class USART_2 : public UART
 /*****************************************************************************/
 
 inline USART_2::USART_2()
-	:	UART((void*) MCU::USART_2::DR)
+	:	UART((void*) MCU::USART_2::DR),
+		m_dma_rx(nullptr)
 {
 	
 }
@@ -73,7 +75,7 @@ inline USART_2::USART_2()
 
 inline USART_2::~USART_2()
 {
-	
+	deinit();
 }
 
 

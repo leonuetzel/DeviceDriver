@@ -49,6 +49,7 @@ class USART_2 : public UART
 	public:
 		
 		feedback init(uint32 baud, e_databits databits, e_stopbits stopbits, e_parity parity, uint8* rxBuffer, uint32 rxBufferSize, uint8* txBuffer, uint32 txBufferSize) override;
+		feedback deinit() override;
 };
 
 
@@ -69,13 +70,13 @@ inline USART_2::USART_2()
 	:	UART((void*) MCU::USART_2::TDR),
 		m_dma_tx_software(readyForNextTransfer)
 {
-	
+	m_dma_tx = &m_dma_tx_software;
 }
 
 
 inline USART_2::~USART_2()
 {
-	
+	deinit();
 }
 
 

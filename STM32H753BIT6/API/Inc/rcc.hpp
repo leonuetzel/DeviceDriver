@@ -340,8 +340,8 @@ class RCC
 		feedback mco_1_init(e_clockSource_mco_1 clockSource, uint32 divider);
 		feedback mco_2_init(e_clockSource_mco_2 clockSource, uint32 divider);
 		
-		void module_clockInit(e_module module, bool enable);
-		void module_reset(e_module module);
+		feedback module_clockInit(e_module module, bool enable);
+		feedback module_reset(e_module module);
 		
 		feedback set_clockSource(e_clockSource_perck clockSource);
 		feedback set_clockSource(e_clockSource_adc clockSource);

@@ -24,7 +24,7 @@ class LP_UART_1 : public UART
 		
 		
 		//	Non-static Member
-		
+		I_DMA* m_dma_rx;
 		
 		
 		//	Constructor and Destructor
@@ -48,6 +48,7 @@ class LP_UART_1 : public UART
 	public:
 		
 		feedback init(uint32 baud, e_databits databits, e_stopbits stopbits, e_parity parity, uint8* rxBuffer, uint32 rxBufferSize, uint8* txBuffer, uint32 txBufferSize) override;
+		feedback deinit() override;
 };
 
 
@@ -65,7 +66,8 @@ class LP_UART_1 : public UART
 /*****************************************************************************/
 
 inline LP_UART_1::LP_UART_1()
-	:	UART((void*) MCU::LP_UART_1::TDR)
+	:	UART((void*) MCU::LP_UART_1::TDR),
+		m_dma_rx(nullptr)
 {
 	
 }
@@ -73,7 +75,7 @@ inline LP_UART_1::LP_UART_1()
 
 inline LP_UART_1::~LP_UART_1()
 {
-	
+	deinit();
 }
 
 

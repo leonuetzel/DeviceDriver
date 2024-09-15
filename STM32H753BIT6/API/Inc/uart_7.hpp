@@ -23,7 +23,7 @@ class UART_7 : public UART
 		
 		
 		//	Non-static Member
-		
+		I_DMA* m_dma_rx;
 		
 		
 		//	Constructor and Destructor
@@ -47,6 +47,7 @@ class UART_7 : public UART
 	public:
 		
 		feedback init(uint32 baud, e_databits databits, e_stopbits stopbits, e_parity parity, uint8* rxBuffer, uint32 rxBufferSize, uint8* txBuffer, uint32 txBufferSize) override;
+		feedback deinit() override;
 };
 
 
@@ -64,7 +65,8 @@ class UART_7 : public UART
 /*****************************************************************************/
 
 inline UART_7::UART_7()
-	:	UART((void*) MCU::UART_7::TDR)
+	:	UART((void*) MCU::UART_7::TDR),
+		m_dma_rx(nullptr)
 {
 	
 }
@@ -72,7 +74,7 @@ inline UART_7::UART_7()
 
 inline UART_7::~UART_7()
 {
-	
+	deinit();
 }
 
 

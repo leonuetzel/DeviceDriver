@@ -236,6 +236,8 @@ inline STM32F107RCT6::STM32F107RCT6()
 		m_usart_1(),
 		m_usart_2(),
 		m_usart_3(),
+		m_uart_4(),
+		m_uart_5(),
 		m_i2c_1(),
 		m_i2c_2(),
 		m_can_1(),
