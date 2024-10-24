@@ -47,7 +47,7 @@ class I2C_1: public I_I2C
 		
 	public:
 		
-		feedback init(e_mode mode = e_mode::FAST_400KHZ, RCC::e_clockSource_i2c clockSource = RCC::e_clockSource_i2c::SYSTEM, bool analogFilterEnable = true, uint8 digitalFilterLength = 0);
+		feedback init(e_mode mode = e_mode::FAST_400KHZ, RCC::e_clockSource_i2c clockSource = RCC::e_clockSource_i2c::APB, bool analogFilterEnable = true, uint8 digitalFilterLength = 0);
 		
 		feedback start(uint8 slaveAddress, bool write, uint8 numberOfBytes = 0, uint32 timeout_ms = 100) override;
 		void stop() override;

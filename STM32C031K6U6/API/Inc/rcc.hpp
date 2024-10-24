@@ -245,7 +245,7 @@ constexpr inline RCC::RCC(Flash& flash)
 		c_clock_lse(0),
 		
 		m_clockSource_system(e_clockSource_system::HSI),
-		m_clockSource_i2c(e_clockSource_i2c::SYSTEM),
+		m_clockSource_i2c(e_clockSource_i2c::APB),
 		m_clockSource_adc(e_clockSource_adc::SYSTEM),
 		
 		m_hse_enabled(false),

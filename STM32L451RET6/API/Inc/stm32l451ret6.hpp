@@ -11,9 +11,12 @@
 #include "exti.hpp"
 #include "flash.hpp"
 #include "gpio.hpp"
+#include "i2c_1.hpp"
 #include "pwr.hpp"
 #include "rcc.hpp"
 #include "syscfg.hpp"
+#include "timer_2.hpp"
+#include "timer_3.hpp"
 #include "usart_1.hpp"
 #include "usart_2.hpp"
 #include "usart_3.hpp"
@@ -64,9 +67,12 @@ class STM32L451RET6
 		DMA_1 m_dma_1[DMA_1::c_channel];
 		DMA_2 m_dma_2[DMA_2::c_channel];
 		ADC_1 m_adc_1;
+		I2C_1 m_i2c_1;
 		USART_1 m_usart_1;
 		USART_2 m_usart_2;
 		USART_3 m_usart_3;
+		Timer_2 m_timer_2;
+		Timer_3 m_timer_3;
 		//LP_UART_1 m_lpuart_1;
 		//I2C_1 m_i2c_1;
 		
@@ -110,9 +116,12 @@ class STM32L451RET6
 		constexpr inline DMA_1& get_dma_1(uint8 channel);
 		constexpr inline DMA_2& get_dma_2(uint8 channel);
 		constexpr inline ADC_1& get_adc_1();
+		constexpr inline I2C_1& get_i2c_1();
 		constexpr inline USART_1& get_usart_1();
 		constexpr inline USART_2& get_usart_2();
 		constexpr inline USART_3& get_usart_3();
+		constexpr inline Timer_2& get_timer_2();
+		constexpr inline Timer_3& get_timer_3();
 		//constexpr inline LP_UART_1& get_lpuart_1();
 		//constexpr inline I2C_1& get_i2c_1();
 };
@@ -212,9 +221,12 @@ inline STM32L451RET6::STM32L451RET6()
 		m_dma_1(),
 		m_dma_2(),
 		m_adc_1(),
+		m_i2c_1(),
 		m_usart_1(),
 		m_usart_2(),
-		m_usart_3()
+		m_usart_3(),
+		m_timer_2(m_rcc),
+		m_timer_3(m_rcc)
 		//m_lpuart_1(),
 		//m_i2c_1()
 {
@@ -293,6 +305,10 @@ inline feedback STM32L451RET6::startup()
 	{
 		return(FAIL);
 	}
+	if(m_i2c_1.startup(m_rcc) != OK)
+	{
+		return(FAIL);
+	}
 	if(m_usart_1.startup() != OK)
 	{
 		return(FAIL);
@@ -304,7 +320,16 @@ inline feedback STM32L451RET6::startup()
 	if(m_usart_3.startup() != OK)
 	{
 		return(FAIL);
-	}/*
+	}
+	if(m_timer_2.startup() != OK)
+	{
+		return(FAIL);
+	}
+	if(m_timer_3.startup() != OK)
+	{
+		return(FAIL);
+	}
+	/*
 	if(m_lpuart_1.startup() != OK)
 	{
 		return(FAIL);
@@ -421,6 +446,12 @@ constexpr inline ADC_1& STM32L451RET6::get_adc_1()
 }
 
 
+constexpr inline I2C_1& STM32L451RET6::get_i2c_1()
+{
+	return(m_i2c_1);
+}
+
+
 constexpr inline USART_1& STM32L451RET6::get_usart_1()
 {
 	return(m_usart_1);
@@ -436,6 +467,18 @@ constexpr inline USART_2& STM32L451RET6::get_usart_2()
 constexpr inline USART_3& STM32L451RET6::get_usart_3()
 {
 	return(m_usart_3);
+}
+
+
+constexpr inline Timer_2& STM32L451RET6::get_timer_2()
+{
+	return(m_timer_2);
+}
+
+
+constexpr inline Timer_3& STM32L451RET6::get_timer_3()
+{
+	return(m_timer_3);
 }
 
 

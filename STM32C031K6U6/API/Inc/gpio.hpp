@@ -95,7 +95,7 @@ class GPIO
 			
 			A2_SPIMOSI				= 0x020,
 			A2_USART2TX				= 0x021,
-			A2_TIMER1CH1N			= 0x022,
+			A2_TIMER16CH1N		= 0x022,
 			A2_TIMER3ETR			= 0x023,
 			A2_TIMER1CH3			= 0x025,
 			

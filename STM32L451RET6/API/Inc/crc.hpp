@@ -9,7 +9,7 @@
 
 
 
-class CRC
+class CRC: public I_CRC
 {
 	public:
 		
@@ -48,15 +48,15 @@ class CRC
 		
 	public:
 		
-		void init(uint8 initialValue, uint8 polynomial, bool reverseOutputData = false, bool reverseInputData = false);
-		void init(uint16 initialValue, uint16 polynomial, bool reverseOutputData = false, bool reverseInputData = false);
-		void init(uint32 initialValue, uint32 polynomial, bool reverseOutputData = false, bool reverseInputData = false);
+		void init(uint8 initialValue, uint8 polynomial, bool reverseOutputData = false, bool reverseInputData = false) override;
+		void init(uint16 initialValue, uint16 polynomial, bool reverseOutputData = false, bool reverseInputData = false) override;
+		void init(uint32 initialValue, uint32 polynomial, bool reverseOutputData = false, bool reverseInputData = false) override;
 		
-		CRC& operator<<(uint8 data);
-		CRC& operator<<(uint16 data);
-		CRC& operator<<(uint32 data);
+		CRC& operator<<(uint8 data) override;
+		CRC& operator<<(uint16 data) override;
+		CRC& operator<<(uint32 data) override;
 		
-		uint32 operator()() const;
+		uint32 operator()() const override;
 };
 
 

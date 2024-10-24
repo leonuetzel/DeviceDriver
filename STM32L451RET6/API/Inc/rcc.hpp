@@ -180,6 +180,13 @@ class RCC
 			LSE												= 0x3
 		};
 		
+		enum class e_clockSource_i2c_1: uint8
+		{
+			APB					= 0x0,
+			SYSTEM			= 0x1,
+			HSI16				= 0x2
+		};
+		
 		enum class e_clockSource_lpuart_1: uint8
 		{
 			APB1											= 0x0,
@@ -214,6 +221,7 @@ class RCC
 		e_clockSource_system m_clockSource_system;
 		e_clockSource_pllCommon m_clockSource_pllCommon;
 		e_clockSource_adc m_clockSource_adc;
+		e_clockSource_i2c_1 m_clockSource_i2c_1;
 		e_clockSource_usart_1 m_clockSource_usart_1;
 		e_clockSource_usart_2 m_clockSource_usart_2;
 		e_clockSource_usart_3 m_clockSource_usart_3;
@@ -294,6 +302,7 @@ class RCC
 		feedback set_clockSource(e_clockSource_pllCommon clockSource);
 		inline feedback set_clockSource(e_clockSource_mco clockSource);
 		inline feedback set_clockSource(e_clockSource_adc clockSource);
+		inline void set_clockSource(e_clockSource_i2c_1 clockSource);
 		inline feedback set_clockSource(e_clockSource_usart_1 clockSource);
 		inline feedback set_clockSource(e_clockSource_usart_2 clockSource);
 		inline feedback set_clockSource(e_clockSource_usart_3 clockSource);
@@ -361,6 +370,7 @@ constexpr inline RCC::RCC()
 		m_clockSource_system(e_clockSource_system::MSI),
 		m_clockSource_pllCommon(e_clockSource_pllCommon::NONE),
 		m_clockSource_adc(e_clockSource_adc::NONE),
+		m_clockSource_i2c_1(e_clockSource_i2c_1::APB),
 		m_clockSource_usart_1(e_clockSource_usart_1::APB2),
 		m_clockSource_usart_2(e_clockSource_usart_2::APB1),
 		m_clockSource_usart_3(e_clockSource_usart_3::APB1),
@@ -469,6 +479,15 @@ inline feedback RCC::set_clockSource(e_clockSource_adc clockSource)
 	m_clockSource_adc = clockSource;
 	
 	return(OK);
+}
+
+
+inline void RCC::set_clockSource(e_clockSource_i2c_1 clockSource)
+{
+	const uint32 mask = (uint32) clockSource;
+	
+	uint32 temp = *MCU::RCC::CCIPR & 0xFFFFCFFF;
+	*MCU::RCC::CCIPR = temp | (mask << 12);
 }
 
 
