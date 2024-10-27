@@ -24,7 +24,7 @@ class USART_2 : public UART
 		
 		
 		//	Non-static Member
-		DMA_Software m_dma_tx_software;
+		I_DMA* m_dma_rx;
 		
 		
 		//	Constructor and Destructor
@@ -35,7 +35,6 @@ class USART_2 : public UART
 		
 		//	Member Functions
 		inline feedback startup();
-		static inline bool readyForNextTransfer();
 		
 		
 		//	Friends
@@ -68,9 +67,9 @@ class USART_2 : public UART
 
 inline USART_2::USART_2()
 	:	UART((void*) MCU::USART_2::TDR),
-		m_dma_tx_software(readyForNextTransfer)
+		m_dma_rx(nullptr)
 {
-	m_dma_tx = &m_dma_tx_software;
+	
 }
 
 
@@ -89,12 +88,6 @@ inline feedback USART_2::startup()
 {
 	//	Create Semaphore
 	return(CMOS::get().semaphore_create(this));
-}
-
-
-inline bool USART_2::readyForNextTransfer()
-{
-	return(bit::isSet(*MCU::USART_2::ISR, 7));
 }
 
 

@@ -127,7 +127,7 @@ extern void ISR_EXTI_4_TO_15();
 extern void ISR_USB();
 extern void ISR_DMA1_CH0();
 extern void ISR_DMA1_CH1_CH2();
-extern void ISR_DMA1_CH4_CH5_DMAMUX();
+extern void ISR_DMA1_CH3_CH4_DMAMUX();
 extern void ISR_ADC();
 extern void ISR_TIMER_1_BREAK_UPDATE_TRIGGER_COMMUTATION();
 extern void ISR_TIMER_1_CAPTURE_COMPARE();

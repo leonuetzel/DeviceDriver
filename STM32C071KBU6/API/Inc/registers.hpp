@@ -19,7 +19,7 @@ namespace Interrupt
 	constexpr uint16 USB																			= 24;
 	constexpr uint16 DMA1_CH0																	= 25;
 	constexpr uint16 DMA1_CH1_CH2															= 26;
-	constexpr uint16 DMA1_CH4_CH5_DMAMUX											= 27;
+	constexpr uint16 DMA1_CH3_CH4_DMAMUX											= 27;
 	constexpr uint16 ADC																			= 28;
 	constexpr uint16 TIMER_1_BREAK_UPDATE_TRIGGER_COMMUTATION	= 29;
 	constexpr uint16 TIMER_1_CAPTURE_COMPARE									= 30;
@@ -501,6 +501,16 @@ namespace MCU
 		volatile uint32* const CH2_NDTR	    			  = (volatile uint32* const) (BASE::DMA + 0x34);
 		volatile uint32* const CH2_PAR			        = (volatile uint32* const) (BASE::DMA + 0x38);
 		volatile uint32* const CH2_MAR					    = (volatile uint32* const) (BASE::DMA + 0x3C);
+		
+		volatile uint32* const CH3_CR      					= (volatile uint32* const) (BASE::DMA + 0x44);
+		volatile uint32* const CH3_NDTR	    			  = (volatile uint32* const) (BASE::DMA + 0x48);
+		volatile uint32* const CH3_PAR			        = (volatile uint32* const) (BASE::DMA + 0x4C);
+		volatile uint32* const CH3_MAR					    = (volatile uint32* const) (BASE::DMA + 0x50);
+		
+		volatile uint32* const CH4_CR      					= (volatile uint32* const) (BASE::DMA + 0x58);
+		volatile uint32* const CH4_NDTR	    			  = (volatile uint32* const) (BASE::DMA + 0x5C);
+		volatile uint32* const CH4_PAR			        = (volatile uint32* const) (BASE::DMA + 0x60);
+		volatile uint32* const CH4_MAR					    = (volatile uint32* const) (BASE::DMA + 0x64);
 	};
 	
 	namespace DMAMUX

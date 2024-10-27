@@ -74,11 +74,11 @@ class GPIO
 		enum class e_mode
 		{
 			IN					= 0x0,
-			OUT_GP_PP		= 0x4,
-			OUT_GP_OD		= 0x5,
-			AF_PP				= 0x8,
-			AF_OD				= 0x9,
-			ANALOG			= 0xC
+			OUT_GP_PP		= 0x2,
+			OUT_GP_OD		= 0x3,
+			AF_PP				= 0x4,
+			AF_OD				= 0x5,
+			ANALOG			= 0x6
 		};
 		
 		enum class e_speed

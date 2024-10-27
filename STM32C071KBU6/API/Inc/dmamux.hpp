@@ -50,7 +50,9 @@ class DMAMUX
 		{
 			DMA_CH0	= 0x00,
 			DMA_CH1	= 0x01,
-			DMA_CH2	= 0x02
+			DMA_CH2	= 0x02,
+			DMA_CH3	= 0x03,
+			DMA_CH4	= 0x04
 		};
 		
 		

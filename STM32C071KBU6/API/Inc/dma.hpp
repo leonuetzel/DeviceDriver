@@ -11,7 +11,7 @@ class DMA : public I_DMA
 {
 	public:
 		
-		static constexpr uint32 c_channel = 3;
+		static constexpr uint32 c_channel = 5;
 		
 		
 		
@@ -41,6 +41,7 @@ class DMA : public I_DMA
 		//	Friends
 		friend void ISR_DMA1_CH0();
 		friend void ISR_DMA1_CH1_CH2();
+		friend void ISR_DMA1_CH3_CH4_DMAMUX();
 		friend class STM32C071KBU6;
 		
 		
@@ -114,11 +115,13 @@ inline feedback DMA::startup(RCC& rcc, uint8 channel)
 		
 		
 		NVIC& nvic = cmos.get_nvic();
-		nvic.setPriority(Interrupt::DMA1_CH0, 		2);
-		nvic.setPriority(Interrupt::DMA1_CH1_CH2, 2);
+		nvic.setPriority(Interrupt::DMA1_CH0, 						2);
+		nvic.setPriority(Interrupt::DMA1_CH1_CH2, 				2);
+		nvic.setPriority(Interrupt::DMA1_CH3_CH4_DMAMUX,	2);
 		
 		nvic.enable(Interrupt::DMA1_CH0);
 		nvic.enable(Interrupt::DMA1_CH1_CH2);
+		nvic.enable(Interrupt::DMA1_CH3_CH4_DMAMUX);
 		
 		
 		rcc.module_clockInit(RCC::e_module::DMA, true);
