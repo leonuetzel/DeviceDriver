@@ -28,6 +28,7 @@
 #include "can_1.hpp"
 #include "can_2.hpp"
 #include "spi_3.hpp"
+#include "ethernetMAC.hpp"
 
 
 
@@ -87,6 +88,7 @@ class STM32F107RCT6
 		CAN_1 m_can_1;
 		CAN_2 m_can_2;
 		SPI_3 m_spi_3;
+		EthernetMAC m_ethernetMAC;
 		
 		
 		//	Constructor and Destructor
@@ -142,6 +144,7 @@ class STM32F107RCT6
 		constexpr inline CAN_1& get_can_1();
 		constexpr inline CAN_2& get_can_2();
 		constexpr inline SPI_3& get_spi_3();
+		constexpr inline EthernetMAC& get_ethernetMAC();
 };
 
 
@@ -242,7 +245,8 @@ inline STM32F107RCT6::STM32F107RCT6()
 		m_i2c_2(),
 		m_can_1(),
 		m_can_2(),
-		m_spi_3()
+		m_spi_3(),
+		m_ethernetMAC()
 {
 	
 }
@@ -364,6 +368,10 @@ inline feedback STM32F107RCT6::startup()
 		return(FAIL);
 	}
 	if(m_spi_3.startup() != OK)
+	{
+		return(FAIL);
+	}
+	if(m_ethernetMAC.startup() != OK)
 	{
 		return(FAIL);
 	}
@@ -556,4 +564,10 @@ constexpr inline CAN_2& STM32F107RCT6::get_can_2()
 constexpr inline SPI_3& STM32F107RCT6::get_spi_3()
 {
 	return(m_spi_3);
+}
+
+
+constexpr inline EthernetMAC& STM32F107RCT6::get_ethernetMAC()
+{
+	return(m_ethernetMAC);
 }

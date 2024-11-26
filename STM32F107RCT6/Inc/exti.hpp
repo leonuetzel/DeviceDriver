@@ -65,7 +65,7 @@ class EXTI
 		inline feedback init_interrupt_internal(e_line line, bool interrupt);
 		inline void softwareTrigger(uint32 line);
 		
-		inline feedback clear_pendingBit(uint32 pin);
+		inline feedback clear_pendingBit(GPIO::e_pin pin);
 		inline feedback clear_pendingBit(e_line line);
 };
 
@@ -197,14 +197,11 @@ inline void EXTI::softwareTrigger(uint32 line)
 
 
 
-inline feedback EXTI::clear_pendingBit(uint32 pin)
+inline feedback EXTI::clear_pendingBit(GPIO::e_pin pin)
 {
-	if(pin > 15)
-	{
-		return(FAIL);
-	}
+	const uint32 pinNumber = GPIO::get_pinNumber(pin);
 	
-	bit::set(*MCU::EXTI::PR, pin);
+	bit::set(*MCU::EXTI::PR, pinNumber);
 	
 	return(OK);
 }
