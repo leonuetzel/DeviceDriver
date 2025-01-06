@@ -24,8 +24,16 @@
 /*                      						Public	  			 						 						 */
 /*****************************************************************************/
 
-void CRC::init(uint8 initialValue, uint8 polynomial, bool reverseOutputData, bool reverseInputData)
+feedback CRC::init(uint8 initialValue, uint8 polynomial, bool reverseOutputData, bool reverseInputData)
 {
+	//	Check if Semaphore is locked
+	CMOS& cmos = CMOS::get();
+	if(cmos.semaphore_isOwnedByRunningThread(this) == false)
+	{
+		return(FAIL);
+	}
+	
+	
 	//	CRC Initial Value
 	*MCU::CRC::INIT = initialValue;
 	
@@ -53,11 +61,22 @@ void CRC::init(uint8 initialValue, uint8 polynomial, bool reverseOutputData, boo
 	
 	//	Polynomial
 	*MCU::CRC::POL = polynomial;
+	
+	
+	return(OK);
 }
 
 
-void CRC::init(uint16 initialValue, uint16 polynomial, bool reverseOutputData, bool reverseInputData)
+feedback CRC::init(uint16 initialValue, uint16 polynomial, bool reverseOutputData, bool reverseInputData)
 {
+	//	Check if Semaphore is locked
+	CMOS& cmos = CMOS::get();
+	if(cmos.semaphore_isOwnedByRunningThread(this) == false)
+	{
+		return(FAIL);
+	}
+	
+	
 	//	CRC Initial Value
 	*MCU::CRC::INIT = initialValue;
 	
@@ -85,11 +104,22 @@ void CRC::init(uint16 initialValue, uint16 polynomial, bool reverseOutputData, b
 	
 	//	Polynomial
 	*MCU::CRC::POL = polynomial;
+	
+	
+	return(OK);
 }
 
 
-void CRC::init(uint32 initialValue, uint32 polynomial, bool reverseOutputData, bool reverseInputData)
+feedback CRC::init(uint32 initialValue, uint32 polynomial, bool reverseOutputData, bool reverseInputData)
 {
+	//	Check if Semaphore is locked
+	CMOS& cmos = CMOS::get();
+	if(cmos.semaphore_isOwnedByRunningThread(this) == false)
+	{
+		return(FAIL);
+	}
+	
+	
 	//	CRC Initial Value
 	*MCU::CRC::INIT = initialValue;
 	
@@ -118,6 +148,9 @@ void CRC::init(uint32 initialValue, uint32 polynomial, bool reverseOutputData, b
 	
 	//	Polynomial
 	*MCU::CRC::POL = polynomial;
+	
+	
+	return(OK);
 }
 
 
@@ -128,6 +161,14 @@ void CRC::init(uint32 initialValue, uint32 polynomial, bool reverseOutputData, b
 
 CRC& CRC::operator<<(uint8 data)
 {
+	//	Check if Semaphore is locked
+	CMOS& cmos = CMOS::get();
+	if(cmos.semaphore_isOwnedByRunningThread(this) == false)
+	{
+		return(*this);
+	}
+	
+	
 	//	Explicit 8-Bit Write Access
 	volatile uint8* const DR = (volatile uint8* const) MCU::CRC::DR;
 	*DR = data;
@@ -137,6 +178,14 @@ CRC& CRC::operator<<(uint8 data)
 
 CRC& CRC::operator<<(uint16 data)
 {
+	//	Check if Semaphore is locked
+	CMOS& cmos = CMOS::get();
+	if(cmos.semaphore_isOwnedByRunningThread(this) == false)
+	{
+		return(*this);
+	}
+	
+	
 	//	Explicit 16-Bit Write Access
 	volatile uint16* const DR = (volatile uint16* const) MCU::CRC::DR;
 	*DR = data;
@@ -146,6 +195,14 @@ CRC& CRC::operator<<(uint16 data)
 
 CRC& CRC::operator<<(uint32 data)
 {
+	//	Check if Semaphore is locked
+	CMOS& cmos = CMOS::get();
+	if(cmos.semaphore_isOwnedByRunningThread(this) == false)
+	{
+		return(*this);
+	}
+	
+	
 	//	Explicit 32-Bit Write Access
 	volatile uint32* const DR = (volatile uint32* const) MCU::CRC::DR;
 	*DR = data;
@@ -160,5 +217,13 @@ CRC& CRC::operator<<(uint32 data)
 
 uint32 CRC::operator()() const
 {
+	//	Check if Semaphore is locked
+	CMOS& cmos = CMOS::get();
+	if(cmos.semaphore_isOwnedByRunningThread(this) == false)
+	{
+		return(0);
+	}
+	
+	
 	return(*MCU::CRC::DR);
 }

@@ -48,9 +48,9 @@ class CRC: public I_CRC
 		
 	public:
 		
-		void init(uint8 initialValue, uint8 polynomial, bool reverseOutputData = false, bool reverseInputData = false) override;
-		void init(uint16 initialValue, uint16 polynomial, bool reverseOutputData = false, bool reverseInputData = false) override;
-		void init(uint32 initialValue, uint32 polynomial, bool reverseOutputData = false, bool reverseInputData = false) override;
+		feedback init(uint8 initialValue, uint8 polynomial, bool reverseOutputData = false, bool reverseInputData = false) override;
+		feedback init(uint16 initialValue, uint16 polynomial, bool reverseOutputData = false, bool reverseInputData = false) override;
+		feedback init(uint32 initialValue, uint32 polynomial, bool reverseOutputData = false, bool reverseInputData = false) override;
 		
 		CRC& operator<<(uint8 data) override;
 		CRC& operator<<(uint16 data) override;
@@ -93,6 +93,15 @@ inline CRC::~CRC()
 inline feedback CRC::startup(RCC& rcc)
 {
 	rcc.module_clockInit(RCC::e_module::CRC, true);
+	
+	
+	//	Create Semaphore
+	CMOS& cmos = CMOS::get();
+	if(cmos.semaphore_create(this) != OK)
+	{
+		return(FAIL);
+	}
+	
 	
 	return(OK);
 }
