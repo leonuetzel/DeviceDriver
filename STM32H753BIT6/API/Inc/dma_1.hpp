@@ -110,6 +110,11 @@ inline feedback DMA_1::startup(RCC& rcc, uint8 channel)
 	}
 	
 	
+	//	Create Event
+	auto& channelInfo = m_channelInfo[m_channel];
+	channelInfo.first() = cmos.event_create();
+	
+	
 	//	Init Interrupts only once
 	if(channel == 0)
 	{

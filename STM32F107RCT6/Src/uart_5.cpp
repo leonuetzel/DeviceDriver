@@ -24,7 +24,7 @@
 /*                      						Public	  			 						 						 */
 /*****************************************************************************/
 
-feedback UART_5::init(uint32 baud, e_databits databits, e_stopbits stopbits, e_parity parity, uint8* rxBuffer, uint32 rxBufferSize, uint8* txBuffer, uint32 txBufferSize)
+feedback UART_5::init(uint32 baud, e_databits databits, e_parity parity, e_stopbits stopbits, uint8* rxBuffer, uint32 rxBufferSize, uint8* txBuffer, uint32 txBufferSize)
 {
 	//	Check if Semaphore is locked
 	CMOS& cmos = CMOS::get();

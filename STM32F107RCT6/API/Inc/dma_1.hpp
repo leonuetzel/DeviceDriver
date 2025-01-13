@@ -109,15 +109,14 @@ inline feedback DMA_1::startup(RCC& rcc, uint8 channel)
 	}
 	
 	
+	//	Create Event
+	auto& channelInfo = m_channelInfo[m_channel];
+	channelInfo.first() = cmos.event_create();
+	
+	
 	//	Init Interrupts and Events only once
 	if(channel == 0)
 	{
-		for(auto& i: m_channelInfo)
-		{
-			i.first() = cmos.event_create();
-		}
-		
-		
 		NVIC& nvic = cmos.get_nvic();
 		nvic.setPriority(Interrupt::DMA1_CH0, 10);
 		nvic.setPriority(Interrupt::DMA1_CH1, 10);

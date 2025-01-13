@@ -44,6 +44,7 @@ void DMA_2::executeCallback(uint8 channel)
 	if(callback != nullptr)
 	{
 		callback();
+		channelInfo.second() = nullptr;
 	}
 	
 	

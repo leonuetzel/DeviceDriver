@@ -46,12 +46,12 @@ CODE_RAM void DMA_1::executeCallback(uint8 channel)
 	if(callback != nullptr)
 	{
 		callback();
+		channelInfo.second() = nullptr;
 	}
 	
 	
 	//	Wakeup Thread
 	CMOS::get().event_emit(channelInfo.first());
-	channelInfo.first() = CMOS::eventID_invalid;
 }
 
 

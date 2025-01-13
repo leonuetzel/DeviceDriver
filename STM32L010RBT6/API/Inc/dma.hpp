@@ -139,6 +139,11 @@ inline feedback DMA::startup(RCC& rcc, uint8 channel)
 	}
 	
 	
+	//	Create Event
+	auto& channelInfo = m_channelInfo[m_channel];
+	channelInfo.first() = cmos.event_create();
+	
+	
 	//	Init Interrupts only once
 	if(channel == 0)
 	{
@@ -150,7 +155,6 @@ inline feedback DMA::startup(RCC& rcc, uint8 channel)
 		nvic.enable(Interrupt::DMA_CH0);
 		nvic.enable(Interrupt::DMA_CH1_CH2);
 		nvic.enable(Interrupt::DMA_CH3_TO_CH6);
-		
 		
 		
 		rcc.module_clockInit(RCC::e_module::DMA, true);
