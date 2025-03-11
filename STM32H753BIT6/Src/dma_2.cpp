@@ -8,15 +8,18 @@
 /*                    Globals and Static Initialization					 						 */
 /*****************************************************************************/
 
-Pair<uint16, I_DMA::f_callback> DMA_2::m_channelInfo[c_channel] =
+//	First: Event ID
+//	Second: Callback Function
+//	Third: IsCircular Mode Transfer - dont set callback to nullptr after Transfer if true
+Triplet<uint16, I_DMA::f_callback, bool> DMA_2::m_channelInfo[c_channel] =
 {
-	Pair<uint16, I_DMA::f_callback>(CMOS::eventID_invalid, nullptr),
-	Pair<uint16, I_DMA::f_callback>(CMOS::eventID_invalid, nullptr),
-	Pair<uint16, I_DMA::f_callback>(CMOS::eventID_invalid, nullptr),
-	Pair<uint16, I_DMA::f_callback>(CMOS::eventID_invalid, nullptr),
-	Pair<uint16, I_DMA::f_callback>(CMOS::eventID_invalid, nullptr),
-	Pair<uint16, I_DMA::f_callback>(CMOS::eventID_invalid, nullptr),
-	Pair<uint16, I_DMA::f_callback>(CMOS::eventID_invalid, nullptr)
+	Triplet<uint16, I_DMA::f_callback, bool>(CMOS::eventID_invalid, nullptr, false),
+	Triplet<uint16, I_DMA::f_callback, bool>(CMOS::eventID_invalid, nullptr, false),
+	Triplet<uint16, I_DMA::f_callback, bool>(CMOS::eventID_invalid, nullptr, false),
+	Triplet<uint16, I_DMA::f_callback, bool>(CMOS::eventID_invalid, nullptr, false),
+	Triplet<uint16, I_DMA::f_callback, bool>(CMOS::eventID_invalid, nullptr, false),
+	Triplet<uint16, I_DMA::f_callback, bool>(CMOS::eventID_invalid, nullptr, false),
+	Triplet<uint16, I_DMA::f_callback, bool>(CMOS::eventID_invalid, nullptr, false)
 };
 
 
@@ -46,7 +49,10 @@ CODE_RAM void DMA_2::executeCallback(uint8 channel)
 	if(callback != nullptr)
 	{
 		callback();
-		channelInfo.second() = nullptr;
+		if(channelInfo.third() == false)
+		{
+			callback = nullptr;
+		}
 	}
 	
 	
@@ -160,6 +166,7 @@ CODE_RAM feedback DMA_2::transfer(const void* source, const void* destination, e
 	//	Set Callback Function
 	auto& channelInfo(m_channelInfo[m_channel]);
 	channelInfo.second() = callback;
+	channelInfo.third() = circularMode;
 	
 	
 	//	Clear Interrupt Flags
