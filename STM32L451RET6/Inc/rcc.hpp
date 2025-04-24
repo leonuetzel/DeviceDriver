@@ -182,30 +182,32 @@ class RCC
 		
 		enum class e_clockSource_i2c_1: uint8
 		{
-			APB					= 0x0,
-			SYSTEM			= 0x1,
-			HSI16				= 0x2
+			APB												= 0x0,
+			SYSTEM										= 0x1,
+			HSI16											= 0x2
 		};
 
 		enum class e_clockSource_i2c_2: uint8
 		{
-			APB					= 0x0,
-			SYSTEM			= 0x1,
-			HSI16				= 0x2
+			APB												= 0x0,
+			SYSTEM										= 0x1,
+			HSI16											= 0x2
 		};
 
 		enum class e_clockSource_i2c_3: uint8
 		{
-			APB					= 0x0,
-			SYSTEM			= 0x1,
-			HSI16				= 0x2
+			APB												= 0x0,
+			SYSTEM										= 0x1,
+			HSI16											= 0x2
 		};
 
 		enum class e_clockSource_i2c_4: uint8
 		{
-			APB					= 0x0,
-			SYSTEM			= 0x1
-			// HSI16 = 0x2 (Not possible because CCPIR2[1] is read-only and reset to be 0
+			APB												= 0x0,
+			SYSTEM										= 0x1,
+			HSI16											= 0x2
+			//	HSI16 is theoretically not possible because CCPIR2[1] is read-only and reset to be 0 according to RM0394 Rev. 4 Chapter 6.4.31
+			//	We guess this is a Typo
 		};
 		
 		enum class e_clockSource_lpuart_1: uint8
@@ -398,9 +400,9 @@ constexpr inline RCC::RCC()
 		m_clockSource_pllCommon(e_clockSource_pllCommon::NONE),
 		m_clockSource_adc(e_clockSource_adc::NONE),
 		m_clockSource_i2c_1(e_clockSource_i2c_1::APB),
-		m_clockSource_i2c_1(e_clockSource_i2c_2::APB),
-		m_clockSource_i2c_1(e_clockSource_i2c_3::APB),
-		m_clockSource_i2c_1(e_clockSource_i2c_4::APB),
+		m_clockSource_i2c_2(e_clockSource_i2c_2::APB),
+		m_clockSource_i2c_3(e_clockSource_i2c_3::APB),
+		m_clockSource_i2c_4(e_clockSource_i2c_4::APB),
 		m_clockSource_usart_1(e_clockSource_usart_1::APB2),
 		m_clockSource_usart_2(e_clockSource_usart_2::APB1),
 		m_clockSource_usart_3(e_clockSource_usart_3::APB1),
@@ -543,7 +545,7 @@ inline void RCC::set_clockSource(e_clockSource_i2c_4 clockSource)
 {
 	const uint32 mask = (uint32) clockSource;
 	
-	uint32 temp = *MCU::RCC::CCIPR2 & 0xFFFFFFFE;
+	uint32 temp = *MCU::RCC::CCIPR2 & 0xFFFFFFFC;
 	*MCU::RCC::CCIPR2 = temp | (mask << 0);
 }
 
