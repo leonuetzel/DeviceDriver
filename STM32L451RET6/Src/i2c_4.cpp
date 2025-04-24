@@ -24,7 +24,7 @@
 /*                      						Public	  			 						 						 */
 /*****************************************************************************/
 
-feedback I2C_3::init(e_mode mode, RCC::e_clockSource_i2c_3 clockSource, bool analogFilterEnable, uint8 digitalFilterLength)
+feedback I2C_4::init(e_mode mode, RCC::e_clockSource_i2c_4 clockSource, bool analogFilterEnable, uint8 digitalFilterLength)
 {
 	//	Boundary Check
 	if(digitalFilterLength > 15 || (uint8) mode > 2)
@@ -39,13 +39,13 @@ feedback I2C_3::init(e_mode mode, RCC::e_clockSource_i2c_3 clockSource, bool ana
 	uint32 clock_in = 0;
 	switch(clockSource)
 	{
-		case RCC::e_clockSource_i2c_3::APB:
+		case RCC::e_clockSource_i2c_4::APB:
 		{
 			clock_in = rcc.get_clock_apb1();
 		}
 		break;
 		
-		case RCC::e_clockSource_i2c_3::SYSTEM:
+		case RCC::e_clockSource_i2c_4::SYSTEM:
 		{
 			clock_in = rcc.get_clock_system();
 		}
@@ -140,27 +140,27 @@ feedback I2C_3::init(e_mode mode, RCC::e_clockSource_i2c_3 clockSource, bool ana
 										if(SCLL == SCLH)
 										{
 											uint32 timingRegister = (PRESC << 28) | (SCLDEL << 20) | (SDADEL << 16) | (SCLH << 8) | SCLL;
-											*MCU::I2C_3::TIMINGR = timingRegister;
+											*MCU::I2C_4::TIMINGR = timingRegister;
 											
 											
 											//	Analog Filters
 											if(analogFilterEnable == false)
 											{
-												bit::set(*MCU::I2C_3::CR1, 12);
+												bit::set(*MCU::I2C_4::CR1, 12);
 											}
 											else
 											{
-												bit::clear(*MCU::I2C_3::CR1, 12);
+												bit::clear(*MCU::I2C_4::CR1, 12);
 											}
 											
 											
 											//	Digital Filters
-											const uint32 temp = *MCU::I2C_3::CR1 & 0xFFFFF0FF;
-											*MCU::I2C_3::CR1 = temp | (digitalFilterLength << 8);
+											const uint32 temp = *MCU::I2C_4::CR1 & 0xFFFFF0FF;
+											*MCU::I2C_4::CR1 = temp | (digitalFilterLength << 8);
 											
 											
 											//	Enable I2C
-											bit::set(*MCU::I2C_3::CR1, 0);
+											bit::set(*MCU::I2C_4::CR1, 0);
 											
 											
 											return(OK);
@@ -183,7 +183,7 @@ feedback I2C_3::init(e_mode mode, RCC::e_clockSource_i2c_3 clockSource, bool ana
 
 
 
-CODE_RAM feedback I2C_3::start(uint8 slaveAddress, bool write, uint8 numberOfBytes, uint32 timeout_ms)
+CODE_RAM feedback I2C_4::start(uint8 slaveAddress, bool write, uint8 numberOfBytes, uint32 timeout_ms)
 {
 	if(slaveAddress > 0x7F)
 	{
@@ -197,7 +197,7 @@ CODE_RAM feedback I2C_3::start(uint8 slaveAddress, bool write, uint8 numberOfByt
 		writeMask = 1;
 	}
 	
-	*MCU::I2C_3::CR2 = 0x02003000 | (numberOfBytes << 16) | (writeMask << 10) | (slaveAddress << 1);
+	*MCU::I2C_4::CR2 = 0x02003000 | (numberOfBytes << 16) | (writeMask << 10) | (slaveAddress << 1);
 	
 	
 	volatile uint64& ticks = CMOS::get().get_ticks();
@@ -205,7 +205,7 @@ CODE_RAM feedback I2C_3::start(uint8 slaveAddress, bool write, uint8 numberOfByt
 	if(write == true)
 	{
 		//	Wait for TX Buffer to be free
-		while(bit::isCleared(*MCU::I2C_3::ISR, 1))
+		while(bit::isCleared(*MCU::I2C_4::ISR, 1))
 		{
 			//	Check for Timeout
 			const uint32 timeWaited_ms = (ticks - timestampStart) / (CMOS::c_clock_systick / 1000);
@@ -216,10 +216,10 @@ CODE_RAM feedback I2C_3::start(uint8 slaveAddress, bool write, uint8 numberOfByt
 			
 			
 			//	Check if NACK received
-			if(bit::isSet(*MCU::I2C_3::ISR, 4))
+			if(bit::isSet(*MCU::I2C_4::ISR, 4))
 			{
 				//	Clear NACK Flag
-				bit::set(*MCU::I2C_3::ICR, 4);
+				bit::set(*MCU::I2C_4::ICR, 4);
 				return(FAIL);
 			}
 			else
@@ -228,7 +228,7 @@ CODE_RAM feedback I2C_3::start(uint8 slaveAddress, bool write, uint8 numberOfByt
 				//	This means, that we received an ACK
 				if(numberOfBytes == 0 && timeWaited_ms >= timeout_ms / 2)
 				{
-					if(bit::isCleared(*MCU::I2C_3::ISR, 15))
+					if(bit::isCleared(*MCU::I2C_4::ISR, 15))
 					{
 						break;
 					}
@@ -239,7 +239,7 @@ CODE_RAM feedback I2C_3::start(uint8 slaveAddress, bool write, uint8 numberOfByt
 	else
 	{
 		//	Wait for RX Buffer to be not empty
-		while(bit::isCleared(*MCU::I2C_3::ISR, 2))
+		while(bit::isCleared(*MCU::I2C_4::ISR, 2))
 		{
 			//	Check for Timeout
 			const uint32 timeWaited_ms = (ticks - timestampStart) / (CMOS::c_clock_systick / 1000);
@@ -250,10 +250,10 @@ CODE_RAM feedback I2C_3::start(uint8 slaveAddress, bool write, uint8 numberOfByt
 			
 			
 			//	Check if NACK received
-			if(bit::isSet(*MCU::I2C_3::ISR, 4))
+			if(bit::isSet(*MCU::I2C_4::ISR, 4))
 			{
 				//	Clear NACK Flag
-				bit::set(*MCU::I2C_3::ICR, 4);
+				bit::set(*MCU::I2C_4::ICR, 4);
 				return(FAIL);
 			}
 			else
@@ -262,7 +262,7 @@ CODE_RAM feedback I2C_3::start(uint8 slaveAddress, bool write, uint8 numberOfByt
 				//	This means, that we received an ACK
 				if(numberOfBytes == 0 && timeWaited_ms >= timeout_ms / 2)
 				{
-					if(bit::isCleared(*MCU::I2C_3::ISR, 15))
+					if(bit::isCleared(*MCU::I2C_4::ISR, 15))
 					{
 						break;
 					}
@@ -276,15 +276,15 @@ CODE_RAM feedback I2C_3::start(uint8 slaveAddress, bool write, uint8 numberOfByt
 }
 
 
-CODE_RAM void I2C_3::stop()
+CODE_RAM void I2C_4::stop()
 {
-	bit::set(*MCU::I2C_3::CR2, 14);
+	bit::set(*MCU::I2C_4::CR2, 14);
 }
 
 
-CODE_RAM feedback I2C_3::tx(uint8 data, uint32 timeout_ms)
+CODE_RAM feedback I2C_4::tx(uint8 data, uint32 timeout_ms)
 {
-	if((*MCU::I2C_3::CR2 & 0x00FF0000) == 0)
+	if((*MCU::I2C_4::CR2 & 0x00FF0000) == 0)
 	{
 		return(FAIL);
 	}
@@ -296,7 +296,7 @@ CODE_RAM feedback I2C_3::tx(uint8 data, uint32 timeout_ms)
 	
 	
 	//	Wait for TX Buffer to be free
-	while(bit::isCleared(*MCU::I2C_3::ISR, 1))
+	while(bit::isCleared(*MCU::I2C_4::ISR, 1))
 	{
 		//	Check for Timeout
 		const uint32 timeWaited_ms = (ticks - timestampStart) / (CMOS::c_clock_systick / 1000);
@@ -307,28 +307,28 @@ CODE_RAM feedback I2C_3::tx(uint8 data, uint32 timeout_ms)
 		
 		
 		//	Check if NACK received
-		if(bit::isSet(*MCU::I2C_3::ISR, 4))
+		if(bit::isSet(*MCU::I2C_4::ISR, 4))
 		{
 			//	Clear NACK Flag
-			bit::set(*MCU::I2C_3::ICR, 4);
+			bit::set(*MCU::I2C_4::ICR, 4);
 			return(FAIL);
 		}
 	}
 	
-	*MCU::I2C_3::TXDR = data;
+	*MCU::I2C_4::TXDR = data;
 	
 	return(OK);
 }
 
 
-CODE_RAM uint8 I2C_3::rx(uint32 timeout_ms)
+CODE_RAM uint8 I2C_4::rx(uint32 timeout_ms)
 {
 	//	Timeout
 	volatile uint64& ticks = CMOS::get().get_ticks();
 	const uint64 timestampStart = ticks;
 	
 	
-	while(bit::isCleared(*MCU::I2C_3::ISR, 2))
+	while(bit::isCleared(*MCU::I2C_4::ISR, 2))
 	{
 		//	Check for Timeout
 		const uint32 timeWaited_ms = (ticks - timestampStart) / (CMOS::c_clock_systick / 1000);
@@ -338,7 +338,7 @@ CODE_RAM uint8 I2C_3::rx(uint32 timeout_ms)
 		}
 	}
 	
-	uint8 data = *MCU::I2C_3::RXDR & 0x000000FF;
+	uint8 data = *MCU::I2C_4::RXDR & 0x000000FF;
 	
 	return(data);
 }
