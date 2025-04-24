@@ -12,6 +12,9 @@
 #include "flash.hpp"
 #include "gpio.hpp"
 #include "i2c_1.hpp"
+#include "i2c_2.hpp"
+#include "i2c_3.hpp"
+#include "i2c_4.hpp"
 #include "pwr.hpp"
 #include "rcc.hpp"
 #include "syscfg.hpp"
@@ -69,6 +72,9 @@ class STM32L451RET6
 		DMA_2 m_dma_2[DMA_2::c_channel];
 		ADC_1 m_adc_1;
 		I2C_1 m_i2c_1;
+		I2C_2 m_i2c_2;
+		I2C_3 m_i2c_3;
+		I2C_4 m_i2c_4;
 		USART_1 m_usart_1;
 		USART_2 m_usart_2;
 		USART_3 m_usart_3;
@@ -119,6 +125,9 @@ class STM32L451RET6
 		constexpr inline DMA_2& get_dma_2(uint8 channel);
 		constexpr inline ADC_1& get_adc_1();
 		constexpr inline I2C_1& get_i2c_1();
+		constexpr inline I2C_2& get_i2c_2();
+		constexpr inline I2C_3& get_i2c_3();
+		constexpr inline I2C_4& get_i2c_4();
 		constexpr inline USART_1& get_usart_1();
 		constexpr inline USART_2& get_usart_2();
 		constexpr inline USART_3& get_usart_3();
@@ -225,6 +234,9 @@ inline STM32L451RET6::STM32L451RET6()
 		m_dma_2(),
 		m_adc_1(),
 		m_i2c_1(),
+		m_i2c_2(),
+		m_i2c_3(),
+		m_i2c_4(),
 		m_usart_1(),
 		m_usart_2(),
 		m_usart_3(),
@@ -310,6 +322,18 @@ inline feedback STM32L451RET6::startup()
 		return(FAIL);
 	}
 	if(m_i2c_1.startup(m_rcc) != OK)
+	{
+		return(FAIL);
+	}
+	if(m_i2c_2.startup(m_rcc) != OK)
+	{
+		return(FAIL);
+	}
+	if(m_i2c_3.startup(m_rcc) != OK)
+	{
+		return(FAIL);
+	}
+	if(m_i2c_4.startup(m_rcc) != OK)
 	{
 		return(FAIL);
 	}
@@ -457,6 +481,24 @@ constexpr inline ADC_1& STM32L451RET6::get_adc_1()
 constexpr inline I2C_1& STM32L451RET6::get_i2c_1()
 {
 	return(m_i2c_1);
+}
+
+
+constexpr inline I2C_2& STM32L451RET6::get_i2c_2()
+{
+	return(m_i2c_2);
+}
+
+
+constexpr inline I2C_3& STM32L451RET6::get_i2c_3()
+{
+	return(m_i2c_3);
+}
+
+
+constexpr inline I2C_4& STM32L451RET6::get_i2c_4()
+{
+	return(m_i2c_4);
 }
 
 
