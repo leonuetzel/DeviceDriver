@@ -543,7 +543,7 @@ inline void RCC::set_clockSource(e_clockSource_i2c_4 clockSource)
 {
 	const uint32 mask = (uint32) clockSource;
 	
-	uint32 temp = *MCU::RCC::CCIPR2 & 0xFFFFFFFC;
+	uint32 temp = *MCU::RCC::CCIPR2 & 0xFFFFFFFE;
 	*MCU::RCC::CCIPR2 = temp | (mask << 0);
 }
 
