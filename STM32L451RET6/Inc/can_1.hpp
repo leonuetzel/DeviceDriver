@@ -48,8 +48,8 @@ class CAN_1: public I_CAN
 		//	Friends
 		friend class STM32L451RET6;
 		friend void ISR_CAN_1_TX();
-		friend void ISR_CAN_1_RX_0();
-		friend void ISR_CAN_1_RX_1();
+		friend void ISR_CAN_1_RX0();
+		friend void ISR_CAN_1_RX1();
 		friend void ISR_CAN_1_SCE();
 		
 		

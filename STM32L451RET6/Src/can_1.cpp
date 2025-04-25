@@ -449,7 +449,7 @@ feedback CAN_1::init(uint32 baudRate, uint32 rxBufferSize, uint32 txBufferSize)
 	nvic.setPriority(Interrupt::CAN_1_TX,		10);
 	nvic.setPriority(Interrupt::CAN_1_RX0,	10);
 	nvic.setPriority(Interrupt::CAN_1_RX1,	10);
-	nvic.setPriority(Interrupt::CAN_1_SCE,		10);
+	nvic.setPriority(Interrupt::CAN_1_SCE,	10);
 	nvic.enable(Interrupt::CAN_1_TX);
 	nvic.enable(Interrupt::CAN_1_RX0);
 	nvic.enable(Interrupt::CAN_1_RX1);
@@ -753,7 +753,7 @@ void ISR_CAN_1_TX()
 }
 
 
-void ISR_CAN_1_RX_0()
+void ISR_CAN_1_RX0()
 {
 	if(CAN_1::m_this != nullptr)
 	{
@@ -807,7 +807,7 @@ void ISR_CAN_1_RX_0()
 }
 
 
-void ISR_CAN_1_RX_1()
+void ISR_CAN_1_RX1()
 {
 	if(CAN_1::m_this != nullptr)
 	{

@@ -323,6 +323,9 @@ void EXCEPTION_RESET()
 	extern uint32 __memory_SRAM_1_start__;
 	extern uint32 __memory_SRAM_1_size__;
 	
+	extern uint32 __memory_SRAM_2_start__;
+	extern uint32 __memory_SRAM_2_size__;
+	
 	
 	
 	extern uint32 __cmos_data_flash_start__;
@@ -341,8 +344,11 @@ void EXCEPTION_RESET()
 	
 	
 	//	Convenience
-	uint32* const				c_memory_SRAM_start	= (uint32*) &__memory_SRAM_1_start__;
-	const uint32				c_memory_SRAM_size	= (uint32)  &__memory_SRAM_1_size__;
+	uint32* const				c_memory_SRAM_1_start	= (uint32*) &__memory_SRAM_1_start__;
+	const uint32				c_memory_SRAM_1_size	= (uint32)  &__memory_SRAM_1_size__;
+	
+	uint32* const				c_memory_SRAM_2_start	= (uint32*) &__memory_SRAM_2_start__;
+	const uint32				c_memory_SRAM_2_size	= (uint32)  &__memory_SRAM_2_size__;
 	
 	
 	
@@ -363,7 +369,9 @@ void EXCEPTION_RESET()
 	
 	//	Zero Memories - IMPORTANT: Dont clear Stackpointer
 	constexpr uint32 c_stackpointerMemoryInBytes = 128;
-	STM32L451RET6::zeroOutRAM(c_memory_SRAM_start, c_memory_SRAM_size - c_stackpointerMemoryInBytes);
+	STM32L451RET6::zeroOutRAM(c_memory_SRAM_1_start, c_memory_SRAM_1_size - c_stackpointerMemoryInBytes);
+	
+	STM32L451RET6::zeroOutRAM(c_memory_SRAM_2_start, c_memory_SRAM_2_size);
 	
 	
 	//	Set Stackpointer to reserved Stack Memory
@@ -377,7 +385,7 @@ void EXCEPTION_RESET()
 	
 	
 	//	Zero Memory that couldnt be cleared before Stackpointer Moving
-	STM32L451RET6::zeroOutRAM(c_memory_SRAM_start + (c_memory_SRAM_size - c_stackpointerMemoryInBytes) / 4, c_stackpointerMemoryInBytes);
+	STM32L451RET6::zeroOutRAM(c_memory_SRAM_1_start + (c_memory_SRAM_1_size - c_stackpointerMemoryInBytes) / 4, c_stackpointerMemoryInBytes);
 	
 	
 	//	Copy non-zero-initialized Variables to SRAM
