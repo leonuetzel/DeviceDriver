@@ -24,15 +24,15 @@
 /*                      						Public	  			 						 						 */
 /*****************************************************************************/
 
-feedback Timer_3::init(uint32 frequency, bool interrupt)
+feedback Timer_2::init(uint32 frequency, bool interrupt)
 {
 	//	Reset Timer
 	RCC& rcc = STM32F107RCT6::get().get_rcc();
-	rcc.module_reset(RCC::e_module::TIMER_3);
+	rcc.module_reset(RCC::e_module::TIMER_2);
 	
 	
 	//	Enable Clock
-	rcc.module_clockInit(RCC::e_module::TIMER_3, true);
+	rcc.module_clockInit(RCC::e_module::TIMER_2, true);
 	
 	
 	//	Clock
@@ -51,25 +51,25 @@ feedback Timer_3::init(uint32 frequency, bool interrupt)
 	}
 	
 	
-	*MCU::TIMER_3::PSC = prescaler - 1;
-	*MCU::TIMER_3::ARR = (clock_divided / frequency) - 1;
+	*MCU::TIMER_2::PSC = prescaler - 1;
+	*MCU::TIMER_2::ARR = (clock_divided / frequency) - 1;
 
 	if(interrupt == true)
 	{
-		bit::set(*MCU::TIMER_3::DIER, 0);
+		bit::set(*MCU::TIMER_2::DIER, 0);
 	}
 	else
 	{
-		bit::clear(*MCU::TIMER_3::DIER, 0);
+		bit::clear(*MCU::TIMER_2::DIER, 0);
 	}
 	
 	
 	//  Only OVF/UVF triggers Interrupt
-	bit::set(*MCU::TIMER_3::CR1, 2);
+	bit::set(*MCU::TIMER_2::CR1, 2);
 	
 	
 	//  Enable Timer
-	bit::set(*MCU::TIMER_3::CR1, 0);
+	bit::set(*MCU::TIMER_2::CR1, 0);
 	
 	
 	return(OK);

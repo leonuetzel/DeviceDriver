@@ -13,6 +13,7 @@
 #include "afio.hpp"
 #include "exti.hpp"
 #include "timer_1.hpp"
+#include "timer_2.hpp"
 #include "timer_3.hpp"
 #include "timer_4.hpp"
 #include "dma_1.hpp"
@@ -73,6 +74,7 @@ class STM32F107RCT6
 		EXTI m_exti;
 		RTC m_rtc;
 		Timer_1 m_timer_1;
+		Timer_2 m_timer_2;
 		Timer_3 m_timer_3;
 		Timer_4 m_timer_4;
 		DMA_1 m_dma_1[DMA_1::c_channel];
@@ -129,6 +131,7 @@ class STM32F107RCT6
 		constexpr inline EXTI& get_exti();
 		constexpr inline RTC& get_rtc();
 		constexpr inline Timer_1& get_timer_1();
+		constexpr inline Timer_2& get_timer_2();
 		constexpr inline Timer_3& get_timer_3();
 		constexpr inline Timer_4& get_timer_4();
 		constexpr inline DMA_1& get_dma_1(uint8 channel);
@@ -232,6 +235,7 @@ inline STM32F107RCT6::STM32F107RCT6()
 		m_exti(),
 		m_rtc(),
 		m_timer_1(),
+		m_timer_2(),
 		m_timer_3(),
 		m_timer_4(),
 		m_dma_1(),
@@ -302,6 +306,10 @@ inline feedback STM32F107RCT6::startup()
 		return(FAIL);
 	}
 	if(m_timer_1.startup() != OK)
+	{
+		return(FAIL);
+	}
+	if(m_timer_2.startup() != OK)
 	{
 		return(FAIL);
 	}
@@ -464,6 +472,12 @@ constexpr inline RTC& STM32F107RCT6::get_rtc()
 constexpr inline Timer_1& STM32F107RCT6::get_timer_1()
 {
 	return(m_timer_1);
+}
+
+
+constexpr inline Timer_2& STM32F107RCT6::get_timer_2()
+{
+	return(m_timer_2);
 }
 
 

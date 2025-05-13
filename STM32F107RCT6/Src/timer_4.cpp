@@ -26,7 +26,7 @@
 
 feedback Timer_4::init(uint32 frequency, bool interrupt)
 {
-	//	Reset Timer 4
+	//	Reset Timer
 	RCC& rcc = STM32F107RCT6::get().get_rcc();
 	rcc.module_reset(RCC::e_module::TIMER_4);
 	
