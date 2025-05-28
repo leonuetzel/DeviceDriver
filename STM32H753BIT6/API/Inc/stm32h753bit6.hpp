@@ -48,6 +48,9 @@
 #include "sdmmc_1.hpp"
 #include "sdmmc_2.hpp"
 
+#include "can_1.hpp"
+#include "can_2.hpp"
+
 
 
 
@@ -122,6 +125,10 @@ class STM32H753BIT6
 		SDMMC_1 m_sdmmc_1;
 		SDMMC_2 m_sdmmc_2;
 		
+		CAN_1 m_can_1;
+		CAN_2 m_can_2;
+		
+		
 		inline STM32H753BIT6();
 		STM32H753BIT6(const STM32H753BIT6& stm32h753bit6) = delete;
 		inline ~STM32H753BIT6();
@@ -185,6 +192,9 @@ class STM32H753BIT6
 		
 		constexpr inline SDMMC_1& get_sdmmc_1();
 		constexpr inline SDMMC_2& get_sdmmc_2();
+		
+		constexpr inline CAN_1& get_can_1();
+		constexpr inline CAN_2& get_can_2();
 };
 
 
@@ -387,7 +397,10 @@ inline STM32H753BIT6::STM32H753BIT6()
 		m_i2c_2(),
 		
 		m_sdmmc_1(m_hsem[17]),
-		m_sdmmc_2(m_hsem[18])
+		m_sdmmc_2(m_hsem[18]),
+		
+		m_can_1(),
+		m_can_2()
 {
 	
 }
@@ -686,4 +699,21 @@ constexpr inline SDMMC_1& STM32H753BIT6::get_sdmmc_1()
 constexpr inline SDMMC_2& STM32H753BIT6::get_sdmmc_2()
 {
 	return(m_sdmmc_2);
+}
+
+
+
+
+
+
+
+constexpr inline CAN_1& STM32H753BIT6::get_can_1()
+{
+	return(m_can_1);
+}
+
+
+constexpr inline CAN_2& STM32H753BIT6::get_can_2()
+{
+	return(m_can_2);
 }

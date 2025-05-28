@@ -324,7 +324,6 @@ feedback STM32H753BIT6::startup()
 	}
 	
 	
-	
 	if(m_exti.startup() != OK)
 	{
 		return(FAIL);
@@ -333,7 +332,6 @@ feedback STM32H753BIT6::startup()
 	{
 		return(FAIL);
 	}
-	
 	
 	
 	if(m_dma2d.startup(m_rcc) != OK)
@@ -364,7 +362,6 @@ feedback STM32H753BIT6::startup()
 	}
 	
 	
-	
 	if(m_adc_1.startup() != OK)
 	{
 		return(FAIL);
@@ -377,7 +374,6 @@ feedback STM32H753BIT6::startup()
 	{
 		return(FAIL);
 	}
-	
 	
 	
 	if(m_timer_1.startup() != OK)
@@ -414,7 +410,6 @@ feedback STM32H753BIT6::startup()
 	}
 	
 	
-	
 	if(m_usart_1.startup() != OK)
 	{
 		return(FAIL);
@@ -429,7 +424,6 @@ feedback STM32H753BIT6::startup()
 	}
 	
 	
-	
 	if(m_fmc.startup() != OK)
 	{
 		return(FAIL);
@@ -438,7 +432,6 @@ feedback STM32H753BIT6::startup()
 	{
 		return(FAIL);
 	}
-	
 	
 	
 	if(m_i2c_1.startup(m_rcc) != OK)
@@ -451,7 +444,6 @@ feedback STM32H753BIT6::startup()
 	}
 	
 	
-	
 	if(m_sdmmc_1.startup() != OK)
 	{
 		return(FAIL);
@@ -461,6 +453,15 @@ feedback STM32H753BIT6::startup()
 		return(FAIL);
 	}
 	
+	
+	if(m_can_1.startup() != OK)
+	{
+		return(FAIL);
+	}
+	if(m_can_2.startup() != OK)
+	{
+		return(FAIL);
+	}
 	
 	
 	return(OK);

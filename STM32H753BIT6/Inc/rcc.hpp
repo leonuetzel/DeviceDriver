@@ -153,83 +153,90 @@ class RCC
 			SAI_4											= 0x0815
 		};
 		
-		enum class e_clockSource_mco_1
+		enum class e_clockSource_mco_1 : uint8
 		{
-			HSI												= 0x0,
-			LSE												= 0x1,
-			HSE												= 0x2,
-			PLL1Q											= 0x3,
-			HSI48											= 0x4
+			HSI					= 0x0,
+			LSE					= 0x1,
+			HSE					= 0x2,
+			PLL1Q				= 0x3,
+			HSI48				= 0x4
 		};
 		
-		enum class e_clockSource_mco_2
+		enum class e_clockSource_mco_2 : uint8
 		{
-			SYSTEMCLOCK								= 0x0,
-			PLL2P											= 0x1,
-			HSE												= 0x2,
-			PLL1P											= 0x3,
-			CSI												= 0x4,
-			LSI												= 0x5
+			SYSTEMCLOCK	= 0x0,
+			PLL2P				= 0x1,
+			HSE					= 0x2,
+			PLL1P				= 0x3,
+			CSI					= 0x4,
+			LSI					= 0x5
 		};
 		
-		enum class e_clockSource_system
+		enum class e_clockSource_system : uint8
 		{
-			HSI												= 0x0,
-			CSI												= 0x1,
-			HSE												= 0x2,
-			PLL1											= 0x3
+			HSI					= 0x0,
+			CSI					= 0x1,
+			HSE					= 0x2,
+			PLL1				= 0x3
 		};
 		
-		enum class e_clockSource_perck
+		enum class e_clockSource_perck : uint8
 		{
 			HSI,
 			CSI,
 			HSE
 		};
 		
-		enum class e_clockSource_pll
+		enum class e_clockSource_pll : uint8
 		{
-			HSI												= 0x0,
-			CSI												= 0x1,
-			HSE												= 0x2,
-			NONE											= 0x3
+			HSI					= 0x0,
+			CSI					= 0x1,
+			HSE					= 0x2,
+			NONE				= 0x3
 		};
 		
-		enum class e_pll_range
+		enum class e_pll_range : uint8
 		{
 			MEDIUM,
 			WIDE
 		};
 		
-		enum class e_clockSource_adc
+		enum class e_clockSource_adc : uint8
 		{
-			PLL_2_P										= 0x0,
-			PLL_3_R										= 0x1,
-			PERCK											= 0x2
+			PLL_2_P			= 0x0,
+			PLL_3_R			= 0x1,
+			PERCK				= 0x2
 		};
 		
-		enum class e_clockSource_sdmmc
+		enum class e_clockSource_sdmmc : uint8
 		{
-			PLL_1_Q										= 0x0,
-			PLL_2_R										= 0x1
+			PLL_1_Q			= 0x0,
+			PLL_2_R			= 0x1
 		};
 		
-		enum class e_clockSource_uart
+		enum class e_clockSource_uart : uint8
 		{
-			BUS_CLOCK									= 0x0,
-			PLL_2_Q										= 0x1,
-			PLL_3_Q										= 0x2,
-			HSI												= 0x3,
-			CSI												= 0x4,
-			LSE												= 0x5
+			BUS_CLOCK		= 0x0,
+			PLL_2_Q			= 0x1,
+			PLL_3_Q			= 0x2,
+			HSI					= 0x3,
+			CSI					= 0x4,
+			LSE					= 0x5
 		};
 		
-		enum class e_clockSource_fmc
+		enum class e_clockSource_fmc : uint8
 		{
 			BUS_CLOCK		= 0x0,
 			PLL_1_Q			= 0x1,
 			PLL_2_R			= 0x2,
 			PERCK				= 0x3
+		};
+		
+		enum class e_clockSource_can : uint8
+		{
+			HSE					= 0x0,
+			PLL_1_Q			= 0x1,
+			PLL_2_Q			= 0x2
 		};
 		
 		enum class e_resetReason
@@ -266,6 +273,7 @@ class RCC
 		e_clockSource_uart m_clockSource_uart_1_6;
 		e_clockSource_uart m_clockSource_uart_234578;
 		e_clockSource_fmc m_clockSource_fmc;
+		e_clockSource_can m_clockSource_can;
 		
 		e_pll_range m_pll_1_range;
 		e_pll_range m_pll_2_range;
@@ -348,6 +356,7 @@ class RCC
 		feedback set_clockSource(e_clockSource_sdmmc clockSource);
 		feedback set_clockSource(e_clockSource_uart clockSource, uint32 uartNumber);
 		feedback set_clockSource(e_clockSource_fmc clockSource);
+		feedback set_clockSource(e_clockSource_can clockSource);
 		
 		constexpr inline e_clockSource_perck get_clockSource_perck();
 		constexpr inline e_clockSource_adc get_clockSource_adc();
@@ -355,6 +364,7 @@ class RCC
 		constexpr inline e_clockSource_uart get_clockSource_uart_1_6();
 		constexpr inline e_clockSource_uart get_clockSource_uart_234578();
 		constexpr inline e_clockSource_fmc get_clockSource_fmc();
+		constexpr inline e_clockSource_can get_clockSource_can();
 		
 		constexpr inline uint32 get_clock_pll_1();
 		constexpr inline uint32 get_clock_pll_2();
@@ -409,6 +419,7 @@ constexpr inline RCC::RCC(PWR& pwr, Flash& flash)
 		m_clockSource_uart_1_6(e_clockSource_uart::BUS_CLOCK),
 		m_clockSource_uart_234578(e_clockSource_uart::BUS_CLOCK),
 		m_clockSource_fmc(e_clockSource_fmc::BUS_CLOCK),
+		m_clockSource_can(e_clockSource_can::HSE),
 		
 		m_pll_1_range(e_pll_range::WIDE),
 		m_pll_2_range(e_pll_range::WIDE),
@@ -503,6 +514,12 @@ constexpr inline RCC::e_clockSource_uart RCC::get_clockSource_uart_234578()
 constexpr inline RCC::e_clockSource_fmc RCC::get_clockSource_fmc()
 {
 	return(m_clockSource_fmc);
+}
+
+
+constexpr inline RCC::e_clockSource_can RCC::get_clockSource_can()
+{
+	return(m_clockSource_can);
 }
 
 

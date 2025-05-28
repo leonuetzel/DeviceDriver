@@ -1255,3 +1255,19 @@ feedback RCC::set_clockSource(e_clockSource_fmc clockSource)
 	m_clockSource_fmc = clockSource;
 	return(OK);
 }
+
+
+feedback RCC::set_clockSource(e_clockSource_can clockSource)
+{
+	if(m_clockSource_can == clockSource)
+	{
+		return(OK);
+	}
+	
+	uint32 mask = (uint32) clockSource;
+	uint32 temp = *MCU::RCC::D2_CCIP1R & 0xCFFFFFFF;
+	*MCU::RCC::D2_CCIP1R = temp | (mask << 28);
+	
+	m_clockSource_can = clockSource;
+	return(OK);
+}
