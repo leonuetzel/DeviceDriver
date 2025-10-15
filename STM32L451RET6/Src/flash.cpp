@@ -16,7 +16,120 @@
 /*                      						Private	  			 						 						 */
 /*****************************************************************************/
 
+SECTION(bootloader) feedback Flash::lock_FPEC()
+{
+	//	Check if its unlocked
+	if(bit::isCleared(*MCU::FLASH::CR, 31) == true)
+	{
+		//	Lock FPEC (Flash Programming/Erasing Controller) by setting LOCK Bit in FLASH_CR
+		bit::set(*MCU::FLASH::CR, 31);
+	}
+	return(OK);
+}
 
+
+SECTION(bootloader) feedback Flash::unlock_FPEC()
+{
+	//	Check if its already unlocked
+	if(bit::isCleared(*MCU::FLASH::CR, 31) == true)
+	{
+		return(OK);
+	}
+	
+	
+	//	Unlock FPEC (Flash Programming/Erasing Controller) by writing two Key Values to FLASH_KEYR
+	*MCU::FLASH::KEY = c_key1;
+	*MCU::FLASH::KEY = c_key2;
+	
+	
+	//	Wait a short time to ensure that the unlock is processed
+	for(uint32 i = 0; i < 100; i++)
+	{
+		asm volatile("nop");
+	}
+	
+	
+	//	Check if unlock was successful
+	if(bit::isCleared(*MCU::FLASH::CR, 31) == true)
+	{
+		return(OK);
+	}
+	return(FAIL);
+}
+
+
+
+
+
+
+
+SECTION(bootloader) feedback Flash::write2Words(uint32 dataAtAddress, uint32 dataAtAddressPlus4Byte, volatile uint64* address)
+{
+	//	Check that Address is in valid Flash Range
+	extern uint32 __memory_FLASH_start__;
+	extern uint32 __memory_FLASH_size__;
+	uint32* const flashStartAddress	= (uint32*) &__memory_FLASH_start__;
+	const uint32 flashSize					= (uint32)	&__memory_FLASH_size__;
+	
+	if(((uint32*) address) < flashStartAddress)
+	{
+		return(FAIL);
+	}
+	if(((uint32*) address) >= flashStartAddress + flashSize / 4)
+	{
+		return(FAIL);
+	}
+	
+	
+	//	Wait for Busy-Flag to be reset
+	while(bit::isSet(*MCU::FLASH::SR, 16) == true)
+	{
+		
+	}
+	
+	
+	//	Enable End of Operation Interrupt
+	//	This is necessary for EOP Bit to be set after a Programming Operation (we dont use the Interrupt)
+	bit::set(*MCU::FLASH::CR, 24);
+	
+	
+	//	Set Programming Bit
+	bit::set(*MCU::FLASH::CR, 0);
+	
+	
+	//	Program
+	const uint32 addressInt = (uint32) address;
+	uint32* const addressPlus0 = (uint32*) (addressInt + 0);
+	uint32* const addressPlus4 = (uint32*) (addressInt + 4);
+	
+	*addressPlus0 = dataAtAddress;
+	*addressPlus4 = dataAtAddressPlus4Byte;
+	
+	
+	//	Wait for Busy-Flag to be reset
+	while(bit::isSet(*MCU::FLASH::SR, 16) == true)
+	{
+		
+	}
+	
+	
+	//	Check that Programming Operation succeeded by reading EOP Bit in SR
+	if(bit::isSet(*MCU::FLASH::SR, 0) == false)
+	{
+		//	Clear Programming Bit
+		bit::clear(*MCU::FLASH::CR, 0);
+		return(FAIL);
+	}
+	
+	
+	//	Reset EOP Bit
+	bit::set(*MCU::FLASH::SR, 0);
+	
+	
+	//	Clear Programming Bit
+	bit::clear(*MCU::FLASH::CR, 0);
+	return(OK);
+}
 
 
 
@@ -80,19 +193,39 @@ feedback Flash::set_waitStates(uint32 clock_ahb, PWR::e_voltageScaling voltageSc
 
 
 
-feedback Flash::write(uint32 dataAtAddress, uint32 dataAtAddressPlus4Byte, volatile uint64* address)
+SECTION(bootloader) feedback Flash::write(uint32 dataAtAddress, uint32 dataAtAddressPlus4Byte, volatile uint64* address)
 {
-	//	Check that Address is in valid Flash Range
-	extern uint32 __memory_FLASH_start__;
-	extern uint32 __memory_FLASH_size__;
-	uint32* const flashStartAddress	= (uint32*) &__memory_FLASH_start__;
-	const uint32 flashSize					= (uint32)	&__memory_FLASH_size__;
+	//	Wait for Busy-Flag to be reset
+	while(bit::isSet(*MCU::FLASH::SR, 16) == true)
+	{
+		
+	}
 	
-	if(((uint32*) address) < flashStartAddress)
+	
+	//	Unlock Access to Flash Registers
+	if(unlock_FPEC() != OK)
 	{
 		return(FAIL);
 	}
-	if(((uint32*) address) >= flashStartAddress + flashSize / 4)
+	
+	
+	if(write2Words(dataAtAddress, dataAtAddressPlus4Byte, address) != OK)
+	{
+		//	Lock Access to Flash Registers
+		lock_FPEC();
+		return(FAIL);
+	}
+	
+	
+	//	Lock Access to Flash Registers
+	return(lock_FPEC());
+}
+
+
+feedback Flash::write(const Array<uint32>& data, volatile uint64* address)
+{
+	const uint32 numberOfWords = data.get_size();
+	if(numberOfWords % 2 != 0)
 	{
 		return(FAIL);
 	}
@@ -112,22 +245,38 @@ feedback Flash::write(uint32 dataAtAddress, uint32 dataAtAddressPlus4Byte, volat
 	}
 	
 	
-	//	Enable End of Operation Interrupt
-	//	This is necessary for EOP Bit to be set after a Programming Operation (we dont use the Interrupt)
-	bit::set(*MCU::FLASH::CR, 24);
+	for(uint32 i = 0; i < numberOfWords / 2; i++)
+	{
+		if(write2Words(data[2 * i + 0], data[2 * i + 1], address + i) != OK)
+		{
+			//	Lock Access to Flash Registers
+			lock_FPEC();
+			return(FAIL);
+		}
+	}
 	
 	
-	//	Set Programming Bit
-	bit::set(*MCU::FLASH::CR, 0);
+	//	Lock Access to Flash Registers
+	return(lock_FPEC());
+}
+
+
+SECTION(bootloader) feedback Flash::writePage(uint32* data, uint32 pageNumber)
+{
+	if(pageNumber >= c_numberOfPages || data == nullptr)
+	{
+		return(FAIL);
+	}
+	constexpr uint32 numberOfWords = c_pageSizeInBytes / 4;
 	
 	
-	//	Program
-	const uint32 addressInt = (uint32) address;
-	uint32* const addressPlus0 = (uint32*) (addressInt + 0);
-	uint32* const addressPlus4 = (uint32*) (addressInt + 4);
+	//	Flash Start Address
+	extern uint32 __memory_FLASH_start__;
+	const uint32 flashStart	= (uint32) &__memory_FLASH_start__;
 	
-	*addressPlus0 = dataAtAddress;
-	*addressPlus4 = dataAtAddressPlus4Byte;
+	
+	//	Page Start Address
+	volatile uint64* address = (volatile uint64*) (flashStart + pageNumber * c_pageSizeInBytes);
 	
 	
 	//	Wait for Busy-Flag to be reset
@@ -137,36 +286,8 @@ feedback Flash::write(uint32 dataAtAddress, uint32 dataAtAddressPlus4Byte, volat
 	}
 	
 	
-	//	Check that Programming Operation succeeded by reading EOP Bit in SR
-	if(bit::isSet(*MCU::FLASH::SR, 0) == false)
-	{
-		//	Clear Programming Bit
-		bit::clear(*MCU::FLASH::CR, 0);
-		
-		
-		//	Lock Access to Flash Registers
-		lock_FPEC();
-		return(FAIL);
-	}
-	
-	
-	//	Reset EOP Bit
-	bit::set(*MCU::FLASH::SR, 0);
-	
-	
-	//	Clear Programming Bit
-	bit::clear(*MCU::FLASH::CR, 0);
-	
-	
-	//	Lock Access to Flash Registers
-	return(lock_FPEC());
-}
-
-
-feedback Flash::write(const Array<uint32>& data, volatile uint64* address)
-{
-	const uint32 numberOfWords = data.get_size();
-	if(numberOfWords % 2 != 0)
+	//	Unlock Access to Flash Registers
+	if(unlock_FPEC() != OK)
 	{
 		return(FAIL);
 	}
@@ -174,16 +295,21 @@ feedback Flash::write(const Array<uint32>& data, volatile uint64* address)
 	
 	for(uint32 i = 0; i < numberOfWords / 2; i++)
 	{
-		if(write(data[2 * i + 0], data[2 * i + 1], address + i) != OK)
+		if(write2Words(data[2 * i + 0], data[2 * i + 1], address + i) != OK)
 		{
+			//	Lock Access to Flash Registers
+			lock_FPEC();
 			return(FAIL);
 		}
 	}
-	return(OK);
+	
+	
+	//	Lock Access to Flash Registers
+	return(lock_FPEC());
 }
 
 
-feedback Flash::erase(uint32 pageNumber)
+SECTION(bootloader) feedback Flash::erase(uint32 pageNumber)
 {
 	if(pageNumber >= c_numberOfPages)
 	{
@@ -256,7 +382,7 @@ feedback Flash::erase(uint32 pageNumber)
 }
 
 
-feedback Flash::erase()
+SECTION(bootloader) feedback Flash::erase()
 {
 	//	Wait for Busy-Flag to be reset
 	while(bit::isSet(*MCU::FLASH::SR, 0) == true)

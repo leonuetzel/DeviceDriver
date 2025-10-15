@@ -24,7 +24,7 @@
 /*                      						Public	  			 						 						 */
 /*****************************************************************************/
 
-CODE_RAM feedback GPIO::init_pin(e_pin pin, e_mode mode, e_speed speed, e_pupd pupd)
+CODE_RAM feedback GPIO::init_pin(MCU::PIN pin, e_mode mode, e_speed speed, e_pupd pupd)
 {
 	const uint32 port = get_portNumber(pin);
 	const uint32 pinNumber = get_pinNumber(pin);

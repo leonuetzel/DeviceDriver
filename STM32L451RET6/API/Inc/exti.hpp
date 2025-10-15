@@ -78,14 +78,14 @@ class EXTI
 		
 	public:
 		
-		feedback init_GPIO_interrupt(GPIO::e_pin pin, e_edge edge);
+		feedback init_GPIO_interrupt(MCU::PIN pin, e_edge edge);
 		feedback init_interrupt_internal(e_line line, bool interrupt);
 		feedback init_event_internal(e_line line, bool event);
 		
-		inline feedback clear_pendingBit(GPIO::e_pin pin);
+		feedback clear_pendingBit(MCU::PIN pin);
 		feedback clear_pendingBit(e_line line);
 		
-		inline bool isPending(GPIO::e_pin pin);
+		bool isPending(MCU::PIN pin);
 		bool isPending(e_line line);
 };
 
@@ -139,15 +139,3 @@ inline feedback EXTI::startup()
 /*                      						Public	  			 						 						 */
 /*****************************************************************************/
 
-inline feedback EXTI::clear_pendingBit(GPIO::e_pin pin)
-{
-	bit::set(*MCU::EXTI::PR1, GPIO::get_pinNumber(pin));
-	
-	return(OK);
-}
-
-
-inline bool EXTI::isPending(GPIO::e_pin pin)
-{
-	return(bit::isSet(*MCU::EXTI::PR1, GPIO::get_pinNumber(pin)));
-}

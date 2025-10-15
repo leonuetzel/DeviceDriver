@@ -24,10 +24,11 @@
 /*                      						Public	  			 						 						 */
 /*****************************************************************************/
 
-feedback EXTI::init_GPIO_interrupt(GPIO::e_pin pin, e_edge edge)
+feedback EXTI::init_GPIO_interrupt(MCU::PIN pin, e_edge edge)
 {
-	const uint8 portNumber = GPIO::get_portNumber(pin);
-	const uint8 pinNumber = GPIO::get_pinNumber(pin);
+	GPIO& gpio = STM32L451RET6::get().get_gpio();
+	const uint8 portNumber = gpio.get_portNumber(pin);
+	const uint8 pinNumber = gpio.get_pinNumber(pin);
 	
 	
 	volatile uint32* address = MCU::SYSCFG::EXTI_CR1 + pinNumber / 4;
@@ -145,6 +146,14 @@ feedback EXTI::init_event_internal(e_line line, bool event)
 
 
 
+feedback EXTI::clear_pendingBit(MCU::PIN pin)
+{
+	GPIO& gpio = STM32L451RET6::get().get_gpio();
+	*MCU::EXTI::PR1 = 1 << gpio.get_pinNumber(pin);
+	return(OK);
+}
+
+
 feedback EXTI::clear_pendingBit(e_line line)
 {
 	//	Boundary Check
@@ -163,9 +172,16 @@ feedback EXTI::clear_pendingBit(e_line line)
 	
 	
 	//	Clear pending Bit by writing 1 to it
-	bit::set(*PR, bit);
+	*PR = 1 << bit;
 	
 	return(OK);
+}
+
+
+bool EXTI::isPending(MCU::PIN pin)
+{
+	GPIO& gpio = STM32L451RET6::get().get_gpio();
+	return(bit::isSet(*MCU::EXTI::PR1, gpio.get_pinNumber(pin)));
 }
 
 

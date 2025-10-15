@@ -38,8 +38,9 @@ class Flash
 		
 		//	Member Functions
 		inline feedback startup();
-		inline feedback lock_FPEC();
-		inline feedback unlock_FPEC();
+		feedback lock_FPEC();
+		feedback unlock_FPEC();
+		feedback write2Words(uint32 dataAtAddress, uint32 dataAtAddressPlus4Byte, volatile uint64* address);
 		
 		
 		//	Friends
@@ -55,6 +56,7 @@ class Flash
 		
 		feedback write(uint32 dataAtAddress, uint32 dataAtAddressPlus4Byte, volatile uint64* address);
 		feedback write(const Array<uint32>& data, volatile uint64* address);
+		feedback writePage(uint32* data, uint32 pageNumber);
 		feedback erase(uint32 pageNumber);
 		feedback erase();
 };
@@ -94,41 +96,6 @@ inline Flash::~Flash()
 inline feedback Flash::startup()
 {
 	return(OK);
-}
-
-
-inline feedback Flash::lock_FPEC()
-{
-	//	Check if its unlocked
-	if(bit::isCleared(*MCU::FLASH::CR, 31) == true)
-	{
-		//	Lock FPEC (Flash Programming/Erasing Controller) by setting LOCK Bit in FLASH_CR
-		bit::set(*MCU::FLASH::CR, 31);
-	}
-	return(OK);
-}
-
-
-inline feedback Flash::unlock_FPEC()
-{
-	//	Check if its already unlocked
-	if(bit::isCleared(*MCU::FLASH::CR, 31) == true)
-	{
-		return(OK);
-	}
-	
-	
-	//	Unlock FPEC (Flash Programming/Erasing Controller) by writing two Key Values to FLASH_KEYR
-	*MCU::FLASH::KEY = c_key1;
-	*MCU::FLASH::KEY = c_key2;
-	
-	
-	//	Check if unlock was successful
-	if(bit::isCleared(*MCU::FLASH::CR, 31) == true)
-	{
-		return(OK);
-	}
-	return(FAIL);
 }
 
 

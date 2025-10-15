@@ -87,7 +87,7 @@ class STM32L451RET6
 		
 		//	Constructor and Destructor
 		inline STM32L451RET6();
-		STM32L451RET6(const STM32L451RET6& stm32l010rbt6) = delete;
+		STM32L451RET6(const STM32L451RET6& stm32l451ret6) = delete;
 		inline ~STM32L451RET6();
 		
 		
