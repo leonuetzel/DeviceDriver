@@ -232,6 +232,13 @@ class RCC
 			HSI16											= 0x2
 		};
 		
+		enum class e_clockSource_can: uint8
+		{
+			HSE												= 0x0,
+			PLL_Q											= 0x1,
+			APB1											= 0x2
+		};
+		
 		
 		
 		
@@ -267,6 +274,7 @@ class RCC
 		e_clockSource_i2c_2 m_clockSource_i2c_2;
 		e_clockSource_i2c_3 m_clockSource_i2c_3;
 		e_clockSource_i2c_4 m_clockSource_i2c_4;
+		e_clockSource_can m_clockSource_can;
 		
 		bool m_hsi16_enabled;
 		bool m_hsi48_enabled;
@@ -343,6 +351,7 @@ class RCC
 		inline void set_clockSource(e_clockSource_i2c_2 clockSource);
 		inline void set_clockSource(e_clockSource_i2c_3 clockSource);
 		inline void set_clockSource(e_clockSource_i2c_4 clockSource);
+		inline void set_clockSource(e_clockSource_can clockSource);
 		
 		feedback init_pll(uint32 clock_out, uint32 prescaler_p, uint32 prescaler_q, uint32 prescaler_r);
 		
@@ -379,6 +388,7 @@ class RCC
 		constexpr inline uint32 get_clock_uart_4() const;
 		constexpr inline uint32 get_clock_uart_5() const;
 		constexpr inline uint32 get_clock_lpuart_1() const;
+		constexpr inline uint32 get_clock_can() const;
 };
 
 
@@ -413,6 +423,7 @@ constexpr inline RCC::RCC()
 		m_clockSource_i2c_2(e_clockSource_i2c_2::APB1),
 		m_clockSource_i2c_3(e_clockSource_i2c_3::APB1),
 		m_clockSource_i2c_4(e_clockSource_i2c_4::APB1),
+		m_clockSource_can(e_clockSource_can::HSE),
 		
 		m_hsi16_enabled(true),
 		m_hsi48_enabled(false),
@@ -596,6 +607,8 @@ inline void RCC::set_clockSource(e_clockSource_i2c_1 clockSource)
 	
 	uint32 temp = *MCU::RCC::CCIPR & 0xFFFFCFFF;
 	*MCU::RCC::CCIPR = temp | (mask << 12);
+	
+	m_clockSource_i2c_1 = clockSource;
 }
 
 
@@ -605,6 +618,8 @@ inline void RCC::set_clockSource(e_clockSource_i2c_2 clockSource)
 	
 	uint32 temp = *MCU::RCC::CCIPR & 0xFFFF3FFF;
 	*MCU::RCC::CCIPR = temp | (mask << 14);
+	
+	m_clockSource_i2c_2 = clockSource;
 }
 
 
@@ -614,6 +629,8 @@ inline void RCC::set_clockSource(e_clockSource_i2c_3 clockSource)
 	
 	uint32 temp = *MCU::RCC::CCIPR & 0xFFFCFFFF;
 	*MCU::RCC::CCIPR = temp | (mask << 16);
+	
+	m_clockSource_i2c_3 = clockSource;
 }
 
 
@@ -623,6 +640,19 @@ inline void RCC::set_clockSource(e_clockSource_i2c_4 clockSource)
 	
 	uint32 temp = *MCU::RCC::CCIPR2 & 0xFFFFFFFC;
 	*MCU::RCC::CCIPR2 = temp | (mask << 0);
+	
+	m_clockSource_i2c_4 = clockSource;
+}
+
+
+inline void RCC::set_clockSource(e_clockSource_can clockSource)
+{
+	const uint32 mask = (uint32) clockSource;
+	
+	uint32 temp = *MCU::RCC::CCIPR & 0xFCFFFFFF;
+	*MCU::RCC::CCIPR = temp | (mask << 24);
+	
+	m_clockSource_can = clockSource;
 }
 
 
@@ -1011,6 +1041,38 @@ constexpr inline uint32 RCC::get_clock_lpuart_1() const
 		case e_clockSource_lpuart_1::LSE:
 		{
 			return(m_clock_lse);
+		}
+		break;
+		
+		default:
+		{
+			return(0);
+		}
+		break;
+	}
+	return(0);
+}
+
+
+constexpr inline uint32 RCC::get_clock_can() const
+{
+	switch(m_clockSource_can)
+	{
+		case e_clockSource_can::HSE:
+		{
+			return(m_clock_hse);
+		}
+		break;
+		
+		case e_clockSource_can::PLL_Q:
+		{
+			return(m_clock_pll / m_prescaler_pll_q);
+		}
+		break;
+		
+		case e_clockSource_can::APB1:
+		{
+			return(m_clock_apb1);
 		}
 		break;
 		

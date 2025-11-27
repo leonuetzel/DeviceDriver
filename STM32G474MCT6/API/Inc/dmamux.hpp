@@ -170,7 +170,7 @@ class DMAMUX
 		
 		
 		//	Member Functions
-		inline feedback startup();
+		feedback startup();
 		
 		
 		//	Friends
@@ -209,17 +209,6 @@ constexpr inline DMAMUX::DMAMUX()
 inline DMAMUX::~DMAMUX()
 {
 	
-}
-
-
-
-
-
-
-
-inline feedback DMAMUX::startup()
-{
-	return(OK);
 }
 
 

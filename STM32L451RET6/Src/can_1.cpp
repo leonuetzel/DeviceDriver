@@ -464,6 +464,13 @@ feedback CAN_1::init(uint32 baudRate, uint32 rxBufferSize, uint32 txBufferSize)
 }
 
 
+feedback CAN_1::stop()
+{
+	bit::set(*MCU::CAN_1::MCR, 0);
+	return(OK);
+}
+
+
 
 
 
@@ -537,9 +544,9 @@ feedback CAN_1::tx(const CAN_Frame& canFrame)
 }
 
 
-feedback CAN_1::rx(CAN_Frame& canFrame)
+feedback CAN_1::rx(CAN_Frame& canFrame, uint32 fifoID)
 {
-	if(m_rxBuffer == nullptr)
+	if(m_rxBuffer == nullptr || fifoID > 0)
 	{
 		return(FAIL);
 	}
@@ -589,8 +596,12 @@ feedback CAN_1::rx(CAN_Frame& canFrame)
 }
 
 
-uint32 CAN_1::get_numberOfUnread() const
+uint32 CAN_1::get_numberOfUnread(uint32 fifoID) const
 {
+	if(fifoID > 0 || m_rxBuffer == nullptr)
+	{
+		return(0);
+	}
 	return(m_rxBuffer->get_numberOfUnread());
 }
 

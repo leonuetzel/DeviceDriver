@@ -16,7 +16,12 @@
 /*                      						Private	  			 						 						 */
 /*****************************************************************************/
 
-
+feedback DMAMUX::startup()
+{
+	RCC& rcc = STM32G474MCT6::get().get_rcc();
+	rcc.module_clockInit(RCC::e_module::DMAMUX, true);
+	return(OK);
+}
 
 
 

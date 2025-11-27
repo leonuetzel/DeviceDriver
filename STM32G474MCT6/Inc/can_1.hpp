@@ -6,11 +6,12 @@
 
 
 
-class CAN_2: public I_CAN
+class CAN_1: public I_CAN
 {
 	public:
 		
-		
+		static constexpr uint32 numberOfStandardFilterElements = 28;
+		static constexpr uint32 numberOfExtendedFilterElements =  8;
 		
 		
 		
@@ -19,37 +20,32 @@ class CAN_2: public I_CAN
 	private:
 		
 		//	Static Member
-		static CAN_2* m_this;
+		static CAN_1* m_this;
 		
 		
 		//	Non-static Member
 		const uint16 m_eventID_frameReadyToRead;
-		RingbufferDynamic<CAN_Frame>* m_rxBuffer;
-		RingbufferDynamic<CAN_Frame>* m_txBuffer;
 		UniqueArray<e_error> m_errors;
 		e_state m_state;
 		uint32 m_baudRate;
+		Array<s_filterElement> m_standardFilterElements;
+		Array<s_filterElement> m_extendedFilterElements;
 		
 		
 		//	Constructor and Destructor
-		inline CAN_2();
-		CAN_2(const CAN_2& can_2) = delete;
-		inline ~CAN_2();
+		inline CAN_1();
+		CAN_1(const CAN_1& can_1) = delete;
+		inline ~CAN_1();
 		
 		
 		//	Member Functions
 		inline feedback startup();
-		feedback extractFrame(CAN_Frame& canFrame, uint32 RI, uint32 RDT, uint32 RDL, uint32 RDH);
-		
-		feedback writeToTxMailbox(const CAN_Frame& canFrame);
 		
 		
 		//	Friends
-		friend class STM32F107RCT6;
-		friend void ISR_CAN2_TX();
-		friend void ISR_CAN2_RX_0();
-		friend void ISR_CAN2_RX_1();
-		friend void ISR_CAN2_SCE();
+		friend class STM32G474MCT6;
+		friend void ISR_FDCAN_1_IT0();
+		friend void ISR_FDCAN_1_IT1();
 		
 		
 		
@@ -57,7 +53,7 @@ class CAN_2: public I_CAN
 		
 	public:
 		
-		feedback init(uint32 baudRate, uint32 rxBufferSize = 32, uint32 txBufferSize = 32);
+		feedback init(uint32 baudRate, const Array<s_filterElement>& standardfilterElements, const Array<s_filterElement>& extendedfilterElements);
 		feedback stop() override;
 		
 		feedback tx(const CAN_Frame& canFrame) override;
@@ -90,10 +86,8 @@ class CAN_2: public I_CAN
 /*                      						Private	  			 						 						 */
 /*****************************************************************************/
 
-inline CAN_2::CAN_2()
+inline CAN_1::CAN_1()
 	:	m_eventID_frameReadyToRead(CMOS::get().event_create()),
-		m_rxBuffer(nullptr),
-		m_txBuffer(nullptr),
 		m_errors(),
 		m_state(e_state::ERROR_ACTIVE),
 		m_baudRate(0)
@@ -102,37 +96,9 @@ inline CAN_2::CAN_2()
 }
 
 
-inline CAN_2::~CAN_2()
+inline CAN_1::~CAN_1()
 {
-	CMOS& cmos = CMOS::get();
 	
-	
-	//	Rx Buffer
-	if(m_rxBuffer != nullptr)
-	{
-		//	Free Memory of the Buffer itself
-		delete m_rxBuffer;
-		
-		
-		//	Delete the corresponding Semaphore (needs to be locked by this Thread to erase)
-		cmos.semaphore_lock(m_rxBuffer);
-		cmos.semaphore_erase(m_rxBuffer);
-	}
-	m_rxBuffer = nullptr;
-	
-	
-	//	Tx Buffer
-	if(m_txBuffer != nullptr)
-	{
-		//	Free Memory of the Buffer itself
-		delete m_txBuffer;
-		
-		
-		//	Delete the corresponding Semaphore (needs to be locked by this Thread to erase)
-		cmos.semaphore_lock(m_txBuffer);
-		cmos.semaphore_erase(m_txBuffer);
-	}
-	m_txBuffer = nullptr;
 }
 
 
@@ -141,7 +107,7 @@ inline CAN_2::~CAN_2()
 
 
 
-inline feedback CAN_2::startup()
+inline feedback CAN_1::startup()
 {
 	//	Create Semaphore
 	return(CMOS::get().semaphore_create(this));

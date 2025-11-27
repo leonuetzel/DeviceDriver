@@ -273,7 +273,7 @@ feedback CAN_1::init(uint32 baudRate)
 	//	Dont accept any Frames, that are not matching any Filter Element
 	//	Apply normal Filters to Standard Remote Frames
 	//	Apply normal Filters to Extended Remote Frames
-	*MCU::FDCAN_1::FDCAN::GFC = (0x03 < 4) | (0x03 << 2);
+	*MCU::FDCAN_1::FDCAN::GFC = (0x03 << 4) | (0x03 << 2);
 	
 	
 	//	Set up the Standard Filter Element
@@ -342,6 +342,13 @@ feedback CAN_1::init(uint32 baudRate)
 	bit::clear(*MCU::FDCAN_1::FDCAN::CCCR, 0);
 	
 	
+	return(OK);
+}
+
+
+feedback CAN_1::stop()
+{
+	bit::set(*MCU::FDCAN_1::FDCAN::CCCR, 0);
 	return(OK);
 }
 
@@ -417,8 +424,14 @@ feedback CAN_1::tx(const CAN_Frame& canFrame)
 }
 
 
-feedback CAN_1::rx(CAN_Frame& canFrame)
+feedback CAN_1::rx(CAN_Frame& canFrame, uint32 fifoID)
 {
+	if(fifoID > 1)
+	{
+		return(FAIL);
+	}
+	
+	
 	//	Subscribe to Frame Ready Event
 	CMOS& cmos = CMOS::get();
 	if(cmos.event_subscribe(m_eventID_frameReadyToRead) != OK)
@@ -430,8 +443,8 @@ feedback CAN_1::rx(CAN_Frame& canFrame)
 	while(1)
 	{
 		//	Wait for a Frame to be ready to read
-		//	This is indicated by the Rx FIFO 0 Fill Level
-		while(get_numberOfUnread() == 0)
+		//	This is indicated by the Rx FIFO Fill Level
+		while(get_numberOfUnread(fifoID) == 0)
 		{
 			cmos.event_listen(m_eventID_frameReadyToRead);
 			cmos.sleep_untilEvent(m_eventID_frameReadyToRead);
@@ -439,9 +452,19 @@ feedback CAN_1::rx(CAN_Frame& canFrame)
 		
 		
 		//	Get the Get-Index of the Rx FIFO 0, indicating the Offset in the Message RAM
-		const uint32 offsetRxFifo0InWords = (*MCU::FDCAN_1::FDCAN::RXF0C & 0x0000FFFC) >> 2;
-		const uint32 getIndex = (*MCU::FDCAN_1::FDCAN::RXF0S & 0x00003F00) >> 8;
-		volatile uint32* const R = MCU::FDCAN_MSG_RAM + offsetRxFifo0InWords + (getIndex * 4);
+		volatile uint32* RXFnC = MCU::FDCAN_1::FDCAN::RXF0C;
+		if(fifoID == 1)
+		{
+			RXFnC = MCU::FDCAN_1::FDCAN::RXF1C;
+		}
+		volatile uint32* RXFnS = MCU::FDCAN_1::FDCAN::RXF0S;
+		if(fifoID == 1)
+		{
+			RXFnS = MCU::FDCAN_1::FDCAN::RXF1S;
+		}
+		const uint32 offsetRxFifoInWords = (*RXFnC & 0x0000FFFC) >> 2;
+		const uint32 getIndex = (*RXFnS & 0x00003F00) >> 8;
+		volatile uint32* const R = MCU::FDCAN_MSG_RAM + offsetRxFifoInWords + (getIndex * 4);
 		
 		
 		//	Check for FDCAN Frame (not supported by this Implementation)
@@ -478,7 +501,12 @@ feedback CAN_1::rx(CAN_Frame& canFrame)
 		
 		
 		//	Set the Acknowledge Index to indicate the last read Message to the CAN Controller
-		*MCU::FDCAN_1::FDCAN::RXF0A = getIndex;
+		volatile uint32* RXFnA = MCU::FDCAN_1::FDCAN::RXF0A;
+		if(fifoID == 1)
+		{
+			RXFnA = MCU::FDCAN_1::FDCAN::RXF1A;
+		}
+		*RXFnA = getIndex;
 		
 		
 		return(OK);
@@ -487,9 +515,17 @@ feedback CAN_1::rx(CAN_Frame& canFrame)
 }
 
 
-uint32 CAN_1::get_numberOfUnread() const
+uint32 CAN_1::get_numberOfUnread(uint32 fifoID) const
 {
-	return(*MCU::FDCAN_1::FDCAN::RXF0S & 0x0000007F);
+	if(fifoID == 0)
+	{
+		return(*MCU::FDCAN_1::FDCAN::RXF0S & 0x0000007F);
+	}
+	if(fifoID == 1)
+	{
+		return(*MCU::FDCAN_1::FDCAN::RXF1S & 0x0000007F);
+	}
+	return(0);
 }
 
 

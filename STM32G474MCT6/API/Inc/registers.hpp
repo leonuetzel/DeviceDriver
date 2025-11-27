@@ -159,6 +159,7 @@ namespace MCU
 		constexpr uint32 LP_UART_1									= APB1 + 0x00008000;
 		constexpr uint32 I2C_4											= APB1 + 0x00008400;
 		constexpr uint32 UCPD												= APB1 + 0x0000A000;
+		constexpr uint32 FDCAN_MSG_RAM							= APB1 + 0x0000A400;
 		
 		constexpr uint32 SYSCFG											= APB2 + 0x00000000;
 		constexpr uint32 VREFBUF										= APB2 + 0x00000030;
@@ -621,6 +622,8 @@ namespace MCU
 		volatile uint32* const TX_EFS								= (volatile uint32* const) (BASE::FDCAN_1 + 0x0E4);
 		volatile uint32* const TX_EFA								= (volatile uint32* const) (BASE::FDCAN_1 + 0x0E8);
 		volatile uint32* const CKDIV								= (volatile uint32* const) (BASE::FDCAN_1 + 0x100);
+		
+		volatile uint32* const MSG_RAM							= (volatile uint32* const) (BASE::FDCAN_MSG_RAM + 0x000);
 	}
 	
 	namespace FDCAN_2
@@ -661,7 +664,8 @@ namespace MCU
 		volatile uint32* const TX_BCIE							= (volatile uint32* const) (BASE::FDCAN_2 + 0x0E0);
 		volatile uint32* const TX_EFS								= (volatile uint32* const) (BASE::FDCAN_2 + 0x0E4);
 		volatile uint32* const TX_EFA								= (volatile uint32* const) (BASE::FDCAN_2 + 0x0E8);
-		volatile uint32* const CKDIV								= (volatile uint32* const) (BASE::FDCAN_2 + 0x100);
+		
+		volatile uint32* const MSG_RAM							= (volatile uint32* const) (BASE::FDCAN_MSG_RAM + 0x350);
 	}
 	
 	namespace FDCAN_3
@@ -702,7 +706,8 @@ namespace MCU
 		volatile uint32* const TX_BCIE							= (volatile uint32* const) (BASE::FDCAN_3 + 0x0E0);
 		volatile uint32* const TX_EFS								= (volatile uint32* const) (BASE::FDCAN_3 + 0x0E4);
 		volatile uint32* const TX_EFA								= (volatile uint32* const) (BASE::FDCAN_3 + 0x0E8);
-		volatile uint32* const CKDIV								= (volatile uint32* const) (BASE::FDCAN_3 + 0x100);
+		
+		volatile uint32* const MSG_RAM							= (volatile uint32* const) (BASE::FDCAN_MSG_RAM + 0x6A0);
 	}
 	
 	namespace PWR

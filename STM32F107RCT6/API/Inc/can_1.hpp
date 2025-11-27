@@ -59,11 +59,12 @@ class CAN_1: public I_CAN
 	public:
 		
 		feedback init(uint32 baudRate, uint32 rxBufferSize = 32, uint32 txBufferSize = 32);
+		feedback stop() override;
 		
 		feedback tx(const CAN_Frame& canFrame) override;
-		feedback rx(CAN_Frame& canFrame) override;
+		feedback rx(CAN_Frame& canFrame, uint32 fifoID = 0) override;
 		
-		uint32 get_numberOfUnread() const override;
+		uint32 get_numberOfUnread(uint32 fifoID = 0) const override;
 		bool is_dataAvailable() const override;
 		
 		uint16 get_eventID() override;

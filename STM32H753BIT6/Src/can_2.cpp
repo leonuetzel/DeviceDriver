@@ -273,7 +273,7 @@ feedback CAN_2::init(uint32 baudRate)
 	//	Dont accept any Frames, that are not matching any Filter Element
 	//	Apply normal Filters to Standard Remote Frames
 	//	Apply normal Filters to Extended Remote Frames
-	*MCU::FDCAN_2::FDCAN::GFC = (0x03 < 4) | (0x03 << 2);
+	*MCU::FDCAN_2::FDCAN::GFC = (0x03 << 4) | (0x03 << 2);
 	
 	
 	//	Set up the Standard Filter Element
@@ -342,6 +342,13 @@ feedback CAN_2::init(uint32 baudRate)
 	bit::clear(*MCU::FDCAN_2::FDCAN::CCCR, 0);
 	
 	
+	return(OK);
+}
+
+
+feedback CAN_2::stop()
+{
+	bit::set(*MCU::FDCAN_2::FDCAN::CCCR, 0);
 	return(OK);
 }
 
@@ -417,7 +424,7 @@ feedback CAN_2::tx(const CAN_Frame& canFrame)
 }
 
 
-feedback CAN_2::rx(CAN_Frame& canFrame)
+feedback CAN_2::rx(CAN_Frame& canFrame, uint32 fifoID)
 {
 	//	Subscribe to Frame Ready Event
 	CMOS& cmos = CMOS::get();
@@ -487,9 +494,17 @@ feedback CAN_2::rx(CAN_Frame& canFrame)
 }
 
 
-uint32 CAN_2::get_numberOfUnread() const
+uint32 CAN_2::get_numberOfUnread(uint32 fifoID) const
 {
-	return(*MCU::FDCAN_2::FDCAN::RXF0S & 0x0000007F);
+	if(fifoID == 0)
+	{
+		return(*MCU::FDCAN_2::FDCAN::RXF0S & 0x0000007F);
+	}
+	if(fifoID == 1)
+	{
+		return(*MCU::FDCAN_2::FDCAN::RXF1S & 0x0000007F);
+	}
+	return(0);
 }
 
 
