@@ -1,6 +1,5 @@
 #pragma once
 
-#include "registers.hpp"
 #include "cmos.hpp"
 
 
@@ -25,14 +24,27 @@ class SYSCFG
 		
 	private:
 		
+		//	Static Member
+		
+		
+		
+		//	Non-static Member
 		bool m_overdriveEnabled;
 		e_package m_package;
 		
+		
+		
+		//	Constructor and Destructor
 		constexpr inline SYSCFG();
 		SYSCFG(const SYSCFG& syscfg) = delete;
 		inline ~SYSCFG();
 		
 		
+		//	Member Functions
+		feedback startup();
+		
+		
+		//	Friends
 		friend class STM32H753BIT6;
 		
 		
@@ -40,8 +52,6 @@ class SYSCFG
 		
 		
 	public:
-		
-		feedback startup();
 		
 		feedback set_overdrive(bool enable);
 		bool get_overdriveEnabled();

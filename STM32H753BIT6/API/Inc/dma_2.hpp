@@ -1,7 +1,6 @@
 #pragma once
 
 #include "cmos.hpp"
-#include "rcc.hpp"
 
 
 
@@ -34,8 +33,8 @@ class DMA_2: public I_DMA
 		
 		
 		//	Member Functions
+		feedback startup(uint8 channel);
 		static void executeCallback(uint8 channel);
-		inline feedback startup(RCC& rcc, uint8 channel);
 		
 		
 		//	Friends
@@ -83,64 +82,6 @@ constexpr inline DMA_2::DMA_2()
 inline DMA_2::~DMA_2()
 {
 	
-}
-
-
-
-
-
-
-
-inline feedback DMA_2::startup(RCC& rcc, uint8 channel)
-{
-	//	Check Channel Boundaries
-	if(m_channel != c_channel || channel >= c_channel)
-	{
-		return(FAIL);
-	}
-	
-	m_channel = channel;
-	
-	
-	//	Create Semaphore
-	CMOS& cmos = CMOS::get();
-	if(cmos.semaphore_create(this) != OK)
-	{
-		return(FAIL);
-	}
-	
-	
-	//	Create Event
-	auto& channelInfo = m_channelInfo[m_channel];
-	channelInfo.first() = cmos.event_create();
-	
-	
-	//	Init Interrupts only once
-	if(channel == 0)
-	{
-		NVIC& nvic = cmos.get_nvic();
-		nvic.setPriority(Interrupt::DMA_2_CH0, 10);
-		nvic.setPriority(Interrupt::DMA_2_CH1, 10);
-		nvic.setPriority(Interrupt::DMA_2_CH2, 10);
-		nvic.setPriority(Interrupt::DMA_2_CH3, 10);
-		nvic.setPriority(Interrupt::DMA_2_CH4, 10);
-		nvic.setPriority(Interrupt::DMA_2_CH5, 10);
-		nvic.setPriority(Interrupt::DMA_2_CH6, 10);
-		nvic.setPriority(Interrupt::DMA_2_CH7, 10);
-		
-		nvic.enable(Interrupt::DMA_2_CH0);
-		nvic.enable(Interrupt::DMA_2_CH1);
-		nvic.enable(Interrupt::DMA_2_CH2);
-		nvic.enable(Interrupt::DMA_2_CH3);
-		nvic.enable(Interrupt::DMA_2_CH4);
-		nvic.enable(Interrupt::DMA_2_CH5);
-		nvic.enable(Interrupt::DMA_2_CH6);
-		nvic.enable(Interrupt::DMA_2_CH7);
-		
-		
-		rcc.module_clockInit(RCC::e_module::DMA_2, true);
-	}
-	return(OK);
 }
 
 

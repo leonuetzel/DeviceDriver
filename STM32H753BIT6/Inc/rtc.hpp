@@ -1,8 +1,6 @@
 #pragma once
 
-#include "registers.hpp"
 #include "cmos.hpp"
-#include "rcc.hpp"
 
 
 
@@ -26,19 +24,29 @@ class RTC
 		
 	private:
 		
-		RCC& m_rcc;
+		//	Static Member
 		
+		
+		
+		//	Non-static Member
 		uint32 m_clockIn;
 		e_clockSource m_clockSource;
 		
-		constexpr inline RTC(RCC& rcc);
+		
+		//	Constructor and Destructor
+		constexpr inline RTC();
 		RTC(const RTC& rtc) = delete;
 		inline ~RTC();
+		
+		
+		//	Member Functions
+		feedback startup();
 		
 		feedback initClock(e_clockSource clockSource, Time time);
 		void set_alarm();
 		
 		
+		//	Friends
 		friend class STM32H753BIT6;
 		
 		
@@ -46,8 +54,6 @@ class RTC
 		
 		
 	public:
-		
-		feedback startup();
 		
 		Time read();
 };
@@ -66,9 +72,8 @@ class RTC
 /*                      						Private	  			 						 						 */
 /*****************************************************************************/
 
-constexpr inline RTC::RTC(RCC& rcc)
-	: m_rcc(rcc),
-		m_clockIn(0),
+constexpr inline RTC::RTC()
+	: m_clockIn(0),
 		m_clockSource(e_clockSource::NONE)
 {
 	

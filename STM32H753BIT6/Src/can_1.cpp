@@ -338,6 +338,28 @@ feedback CAN_1::init(uint32 baudRate)
 	nvic.enable(Interrupt::FDCAN_1_INT0);
 	
 	
+	//	Initialize Error Array
+	m_errors.erase();
+	m_errors[e_error::STUFFING														] = false;
+	m_errors[e_error::FORM																] = false;
+	m_errors[e_error::ACK																	] = false;
+	m_errors[e_error::BIT_RECESSIVE												] = false;
+	m_errors[e_error::BIT_DOMINANT												] = false;
+	m_errors[e_error::CRC																	] = false;
+	m_errors[e_error::SET_BY_SOFTWARE											] = false;
+	m_errors[e_error::ACCESS_TO_RESERVED_AREA							] = false;
+	m_errors[e_error::PROTOCOL_ERROR_IN_DATA_PHASE				] = false;
+	m_errors[e_error::PROTOCOL_ERROR_IN_ARBITRATION_PHASE	] = false;
+	m_errors[e_error::WATCHDOG_INTERRUPT									] = false;
+	m_errors[e_error::ERROR_LOGGING_OVERFLOW							] = false;
+	m_errors[e_error::TIMEOUT															] = false;
+	m_errors[e_error::MESSAGE_RAM_ACCESS_FAILURE					] = false;
+	m_errors[e_error::TX_EVENT_FIFO_ELEMENT_LOST					] = false;
+	m_errors[e_error::RX_FIFO_OVERFLOW										] = false;
+	m_errors[e_error::TX_RINGBUFFER_OVERFLOW							] = false;
+	m_errors[e_error::RX_RINGBUFFER_OVERFLOW							] = false;
+	
+	
 	//	Start CAN Transmissions by clearing INIT Bit in CCCR Register
 	bit::clear(*MCU::FDCAN_1::FDCAN::CCCR, 0);
 	
@@ -364,7 +386,7 @@ feedback CAN_1::tx(const CAN_Frame& canFrame)
 	if(bit::isSet(*MCU::FDCAN_1::FDCAN::TXFQS, 21) == true)
 	{
 		//	Tx Buffer is full
-		m_errors += e_error::TX_RINGBUFFER_OVERFLOW;
+		m_errors[e_error::TX_RINGBUFFER_OVERFLOW] = true;
 		return(FAIL);
 	}
 	
@@ -564,7 +586,7 @@ CAN_1::e_state CAN_1::get_state()
 	const uint8 LEC = PSR & 0x00000007;
 	if(LEC < 0x7)
 	{
-		m_errors += (e_error) LEC;
+		m_errors[(e_error) LEC] = true;
 	}
 	
 	
@@ -587,7 +609,7 @@ CAN_1::e_state CAN_1::get_state()
 }
 
 
-const UniqueArray<CAN_1::e_error>& CAN_1::get_errors() const
+const UniquePairArray<CAN_1::e_error, bool>& CAN_1::get_errors() const
 {
 	return(m_errors);
 }
@@ -641,21 +663,21 @@ void ISR_FDCAN_1_INT0()
 		
 		if(bit::isSet(IR, 29) == true)
 		{
-			can.m_errors += I_CAN::e_error::ACCESS_TO_RESERVED_AREA;
+			can.m_errors[I_CAN::e_error::ACCESS_TO_RESERVED_AREA] = true;
 			
 			//	Clear the Interrupt Flag
 			bit::set(*MCU::FDCAN_1::FDCAN::IR, 29);
 		}
 		if(bit::isSet(IR, 28) == true)
 		{
-			can.m_errors += I_CAN::e_error::PROTOCOL_ERROR_IN_DATA_PHASE;
+			can.m_errors[I_CAN::e_error::PROTOCOL_ERROR_IN_DATA_PHASE] = true;
 			
 			//	Clear the Interrupt Flag
 			bit::set(*MCU::FDCAN_1::FDCAN::IR, 28);
 		}
 		if(bit::isSet(IR, 27) == true)
 		{
-			can.m_errors += I_CAN::e_error::PROTOCOL_ERROR_IN_ARBITRATION_PHASE;
+			can.m_errors[I_CAN::e_error::PROTOCOL_ERROR_IN_ARBITRATION_PHASE] = true;
 			
 			//	Clear the Interrupt Flag
 			bit::set(*MCU::FDCAN_1::FDCAN::IR, 27);
@@ -683,21 +705,21 @@ void ISR_FDCAN_1_INT0()
 		}
 		if(bit::isSet(IR, 22) == true)
 		{
-			can.m_errors += I_CAN::e_error::ERROR_LOGGING_OVERFLOW;
+			can.m_errors[I_CAN::e_error::ERROR_LOGGING_OVERFLOW] = true;
 			
 			//	Clear the Interrupt Flag
 			bit::set(*MCU::FDCAN_1::FDCAN::IR, 22);
 		}
 		if(bit::isSet(IR, 17) == true)
 		{
-			can.m_errors += I_CAN::e_error::MESSAGE_RAM_ACCESS_FAILURE;
+			can.m_errors[I_CAN::e_error::MESSAGE_RAM_ACCESS_FAILURE] = true;
 			
 			//	Clear the Interrupt Flag
 			bit::set(*MCU::FDCAN_1::FDCAN::IR, 17);
 		}
 		if(bit::isSet(IR, 3) == true)
 		{
-			can.m_errors += I_CAN::e_error::RX_FIFO_OVERFLOW;
+			can.m_errors[I_CAN::e_error::RX_FIFO_OVERFLOW] = true;
 			
 			//	Clear the Interrupt Flag
 			bit::set(*MCU::FDCAN_1::FDCAN::IR, 3);

@@ -1,8 +1,6 @@
 #pragma once
 
-#include "registers.hpp"
 #include "cmos.hpp"
-#include "rcc.hpp"
 
 
 
@@ -34,16 +32,26 @@ class VREFBUF
 		
 	private:
 		
-		RCC& m_rcc;
+		//	Static Member
 		
+		
+		
+		//	Non-static Member
 		e_mode m_mode;
 		e_voltage m_voltage;
 		
-		constexpr inline VREFBUF(RCC& rcc);
+		
+		//	Constructor and Destructor
+		constexpr inline VREFBUF();
 		VREFBUF(const VREFBUF& vrefbuf) = delete;
 		inline ~VREFBUF();
 		
 		
+		//	Member Functions
+		feedback startup();
+		
+		
+		//	Friends
 		friend class STM32H753BIT6;
 		
 		
@@ -51,8 +59,6 @@ class VREFBUF
 		
 		
 	public:
-		
-		feedback startup();
 		
 		feedback set_mode(e_mode mode);
 		feedback set_voltage(e_voltage voltage);
@@ -72,9 +78,8 @@ class VREFBUF
 /*                      						Private	  			 						 						 */
 /*****************************************************************************/
 
-constexpr inline VREFBUF::VREFBUF(RCC& rcc)
-	: m_rcc(rcc),
-		m_mode(e_mode::EXTERNAL),
+constexpr inline VREFBUF::VREFBUF()
+	: m_mode(e_mode::EXTERNAL),
 		m_voltage(e_voltage::VOLTAGE_2V5)
 {
 	

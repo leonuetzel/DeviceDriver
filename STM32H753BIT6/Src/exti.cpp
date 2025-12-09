@@ -1,4 +1,4 @@
-#include "../Inc/exti.hpp"
+#include "../Inc/stm32h753bit6.hpp"
 
 
 
@@ -16,14 +16,6 @@
 /*                      						Private	  			 						 						 */
 /*****************************************************************************/
 
-
-
-
-
-/*****************************************************************************/
-/*                      						Public	  			 						 						 */
-/*****************************************************************************/
-
 feedback EXTI::startup()
 {
 	return(OK);
@@ -31,14 +23,15 @@ feedback EXTI::startup()
 
 
 
+/*****************************************************************************/
+/*                      						Public	  			 						 						 */
+/*****************************************************************************/
 
-
-
-
-feedback EXTI::init_GPIO_interrupt(GPIO::e_pin pin, e_edge edge)
+feedback EXTI::init_GPIO_interrupt(MCU::PIN pin, e_edge edge)
 {
-	const uint32 port = GPIO::get_portNumber(pin);
-	const uint32 pinNumber = GPIO::get_pinNumber(pin);
+	GPIO& gpio = STM32H753BIT6::get().get_gpio();
+	const uint32 port = gpio.get_portNumber(pin);
+	const uint32 pinNumber = gpio.get_pinNumber(pin);
 	
 	
 	
@@ -80,9 +73,10 @@ feedback EXTI::init_GPIO_interrupt(GPIO::e_pin pin, e_edge edge)
 }
 
 
-feedback EXTI::set_GPIO_interrupt_state(GPIO::e_pin pin, bool enable)
+feedback EXTI::set_GPIO_interrupt_state(MCU::PIN pin, bool enable)
 {
-	const uint32 pinNumber = GPIO::get_pinNumber(pin);
+	GPIO& gpio = STM32H753BIT6::get().get_gpio();
+	const uint32 pinNumber = gpio.get_pinNumber(pin);
 	
 	if(enable == true)
 	{

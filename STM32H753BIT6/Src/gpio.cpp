@@ -1,4 +1,4 @@
-#include "../Inc/gpio.hpp"
+#include "../Inc/stm32h753bit6.hpp"
 
 
 
@@ -16,16 +16,10 @@
 /*                      						Private	  			 						 						 */
 /*****************************************************************************/
 
-
-
-
-
-/*****************************************************************************/
-/*                      						Public	  			 						 						 */
-/*****************************************************************************/
-
-feedback GPIO::startup(RCC& rcc)
+feedback GPIO::startup()
 {
+	RCC& rcc = STM32H753BIT6::get().get_rcc();
+	
 	rcc.module_reset(RCC::e_module::GPIO_A);
 	rcc.module_clockInit(RCC::e_module::GPIO_A, true);
 	
@@ -64,11 +58,11 @@ feedback GPIO::startup(RCC& rcc)
 
 
 
+/*****************************************************************************/
+/*                      						Public	  			 						 						 */
+/*****************************************************************************/
 
-
-
-
-CODE_RAM feedback GPIO::init_pin(e_pin pin, e_mode mode, e_speed speed, e_pupd pupd)
+CODE_RAM feedback GPIO::init_pin(MCU::PIN pin, e_mode mode, e_speed speed, e_pupd pupd)
 {
 	const uint32 port = get_portNumber(pin);
 	const uint32 pinNumber = get_pinNumber(pin);
@@ -177,85 +171,6 @@ CODE_RAM feedback GPIO::init_pin(e_pin pin, e_mode mode, e_speed speed, e_pupd p
 	*reg_pupd = temp | (mask << (2 * pinNumber));
 	
 	
-	
-	return(OK);
-}
-
-
-CODE_RAM void GPIO::set_pin(e_pin pin)
-{
-	const uint32 port = get_portNumber(pin);
-	const uint32 pinNumber = get_pinNumber(pin);
-	
-	volatile uint32* address = MCU::GPIO_A::BSRR + port * 0x00000100;
-	bit::set(*address, pinNumber);
-}
-
-
-CODE_RAM void GPIO::clear_pin(e_pin pin)
-{
-	const uint32 port = get_portNumber(pin);
-	const uint32 pinNumber = get_pinNumber(pin);
-	
-	volatile uint32* address = MCU::GPIO_A::BSRR + port * 0x00000100;
-	bit::set(*address, pinNumber + 16);
-}
-
-
-CODE_RAM void GPIO::toggle_pin(e_pin pin)
-{
-	const uint32 port = get_portNumber(pin);
-	const uint32 pinNumber = get_pinNumber(pin);
-	
-	volatile uint32* address = MCU::GPIO_A::ODR + port * 0x00000100;
-	if(bit::isSet(*address, pinNumber))
-	{
-		clear_pin(pin);
-	}
-	else
-	{
-		set_pin(pin);
-	}
-}
-
-
-CODE_RAM bool GPIO::get_pinLevel(e_pin pin)
-{
-	const uint32 port = get_portNumber(pin);
-	const uint32 pinNumber = get_pinNumber(pin);
-	
-	volatile uint32* address = MCU::GPIO_A::IDR + port * 0x00000100;
-	if(bit::isSet(*address, pinNumber))
-	{
-		return(true);
-	}
-	return(false);
-}
-
-
-CODE_RAM feedback GPIO::set_AF(e_AF alternateFunction)
-{
-	uint32 port = (((uint32) alternateFunction) & 0x00000F00) >> 8;
-	
-	uint32 mask = ((uint32) alternateFunction) & 0x000000FF;
-	uint8 pin = (mask & 0xF0) >> 4;
-	uint32 offset = 0;
-	
-	if(pin < 8)
-	{
-		volatile uint32* address = MCU::GPIO_A::AFRL + port * 0x00000100;
-		offset = 4 * pin;
-		uint32 temp = *address & (0xFFFFFFFF - (0x0000000F << offset));
-		*address = temp | ((mask & 0x0F) << offset);
-	}
-	else
-	{
-		pin -= 8;
-		volatile uint32* address = MCU::GPIO_A::AFRH + port * 0x00000100;
-		offset = 4 * pin;
-		uint32 temp = *address & (0xFFFFFFFF - (0x0000000F << offset));
-		*address = temp | ((mask & 0x0F) << offset);
-	}
 	
 	return(OK);
 }

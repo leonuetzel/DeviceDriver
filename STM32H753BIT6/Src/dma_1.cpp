@@ -28,6 +28,60 @@ Triplet<uint16, I_DMA::f_callback, bool> DMA_1::m_channelInfo[c_channel] =
 /*                      						Private	  			 						 						 */
 /*****************************************************************************/
 
+feedback DMA_1::startup(uint8 channel)
+{
+	//	Check Channel Boundaries
+	if(m_channel != c_channel || channel >= c_channel)
+	{
+		return(FAIL);
+	}
+	
+	m_channel = channel;
+	
+	
+	//	Create Semaphore
+	CMOS& cmos = CMOS::get();
+	if(cmos.semaphore_create(this) != OK)
+	{
+		return(FAIL);
+	}
+	
+	
+	//	Create Event
+	auto& channelInfo = m_channelInfo[m_channel];
+	channelInfo.first() = cmos.event_create();
+	
+	
+	//	Init Interrupts only once
+	if(channel == 0)
+	{
+		NVIC& nvic = cmos.get_nvic();
+		nvic.setPriority(Interrupt::DMA_1_CH0, 10);
+		nvic.setPriority(Interrupt::DMA_1_CH1, 10);
+		nvic.setPriority(Interrupt::DMA_1_CH2, 10);
+		nvic.setPriority(Interrupt::DMA_1_CH3, 10);
+		nvic.setPriority(Interrupt::DMA_1_CH4, 10);
+		nvic.setPriority(Interrupt::DMA_1_CH5, 10);
+		nvic.setPriority(Interrupt::DMA_1_CH6, 10);
+		nvic.setPriority(Interrupt::DMA_1_CH7, 10);
+		
+		nvic.enable(Interrupt::DMA_1_CH0);
+		nvic.enable(Interrupt::DMA_1_CH1);
+		nvic.enable(Interrupt::DMA_1_CH2);
+		nvic.enable(Interrupt::DMA_1_CH3);
+		nvic.enable(Interrupt::DMA_1_CH4);
+		nvic.enable(Interrupt::DMA_1_CH5);
+		nvic.enable(Interrupt::DMA_1_CH6);
+		nvic.enable(Interrupt::DMA_1_CH7);
+		
+		
+		RCC& rcc = STM32H753BIT6::get().get_rcc();
+		rcc.module_clockInit(RCC::e_module::DMA_1, true);
+	}
+	return(OK);
+}
+
+
 CODE_RAM void DMA_1::executeCallback(uint8 channel)
 {
 	//	Get Channel Registers

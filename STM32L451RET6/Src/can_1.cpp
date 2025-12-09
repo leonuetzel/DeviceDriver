@@ -436,6 +436,28 @@ feedback CAN_1::init(uint32 baudRate, uint32 rxBufferSize, uint32 txBufferSize)
 	bit::set(*MCU::CAN_1::IER, 0);
 	
 	
+	//	Initialize Error Array
+	m_errors.erase();
+	m_errors[e_error::STUFFING														] = false;
+	m_errors[e_error::FORM																] = false;
+	m_errors[e_error::ACK																	] = false;
+	m_errors[e_error::BIT_RECESSIVE												] = false;
+	m_errors[e_error::BIT_DOMINANT												] = false;
+	m_errors[e_error::CRC																	] = false;
+	m_errors[e_error::SET_BY_SOFTWARE											] = false;
+	m_errors[e_error::ACCESS_TO_RESERVED_AREA							] = false;
+	m_errors[e_error::PROTOCOL_ERROR_IN_DATA_PHASE				] = false;
+	m_errors[e_error::PROTOCOL_ERROR_IN_ARBITRATION_PHASE	] = false;
+	m_errors[e_error::WATCHDOG_INTERRUPT									] = false;
+	m_errors[e_error::ERROR_LOGGING_OVERFLOW							] = false;
+	m_errors[e_error::TIMEOUT															] = false;
+	m_errors[e_error::MESSAGE_RAM_ACCESS_FAILURE					] = false;
+	m_errors[e_error::TX_EVENT_FIFO_ELEMENT_LOST					] = false;
+	m_errors[e_error::RX_FIFO_OVERFLOW										] = false;
+	m_errors[e_error::TX_RINGBUFFER_OVERFLOW							] = false;
+	m_errors[e_error::RX_RINGBUFFER_OVERFLOW							] = false;
+	
+	
 	//	Set CAN to Normal Operation
 	bit::clear(*MCU::CAN_1::MCR, 0);
 	
@@ -656,7 +678,7 @@ CAN_1::e_state CAN_1::get_state()
 }
 
 
-const UniqueArray<CAN_1::e_error>& CAN_1::get_errors() const
+const UniquePairArray<CAN_1::e_error, bool>& CAN_1::get_errors() const
 {
 	return(m_errors);
 }
@@ -771,7 +793,7 @@ void ISR_CAN_1_RX0()
 		CAN_1& can = *CAN_1::m_this;
 		if(bit::isSet(*MCU::CAN_1::RF0R, 4) == true)
 		{
-			can.m_errors += I_CAN::e_error::RX_FIFO_OVERFLOW;
+			can.m_errors[I_CAN::e_error::RX_FIFO_OVERFLOW] = true;
 		}
 		
 		
@@ -825,7 +847,7 @@ void ISR_CAN_1_RX1()
 		CAN_1& can = *CAN_1::m_this;
 		if(bit::isSet(*MCU::CAN_1::RF1R, 4) == true)
 		{
-			can.m_errors += I_CAN::e_error::RX_FIFO_OVERFLOW;
+			can.m_errors[I_CAN::e_error::RX_FIFO_OVERFLOW] = true;
 		}
 		
 		
@@ -906,7 +928,7 @@ void ISR_CAN_1_SCE()
 		const uint8 LEC = (ESR & 0x00000070) >> 4;
 		if(LEC > 0)
 		{
-			can.m_errors += (CAN_1::e_error) LEC;
+			can.m_errors[(CAN_1::e_error) LEC] = true;
 		}
 		
 		

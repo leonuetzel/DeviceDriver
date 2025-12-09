@@ -150,6 +150,7 @@ class STM32H753BIT6
 		
 		
 		constexpr inline Debug& get_debug();
+		constexpr inline SYSCFG& get_syscfg();
 		constexpr inline PWR& get_pwr();
 		constexpr inline Flash& get_flash();
 		constexpr inline RCC& get_rcc();
@@ -356,16 +357,16 @@ extern void ISR_WAKEUP_PIN_0_TO_5();
 inline STM32H753BIT6::STM32H753BIT6()
 	: m_debug(),
 		m_syscfg(),
-		m_pwr(m_syscfg),
+		m_pwr(),
 		m_flash(),
-		m_rcc(m_pwr, m_flash),
-		m_backupSRAM(m_rcc),
+		m_rcc(),
+		m_backupSRAM(),
 		m_gpio(),
 		m_hsem(),
-		m_rtc(m_rcc),
+		m_rtc(),
 		
 		m_exti(),
-		m_vrefbuf(m_rcc),
+		m_vrefbuf(),
 		
 		m_dma2d(m_hsem[16]),
 		m_mdma(),
@@ -377,20 +378,20 @@ inline STM32H753BIT6::STM32H753BIT6()
 		m_adc_2(),
 		m_adc_3(),
 		
-		m_timer_1(m_rcc),
-		m_timer_2(m_rcc),
-		m_timer_3(m_rcc),
-		m_timer_12(m_rcc),
-		m_timer_13(m_rcc),
-		m_timer_15(m_rcc),
-		m_timer_16(m_rcc),
-		m_timer_17(m_rcc),
+		m_timer_1(),
+		m_timer_2(),
+		m_timer_3(),
+		m_timer_12(),
+		m_timer_13(),
+		m_timer_15(),
+		m_timer_16(),
+		m_timer_17(),
 		
 		m_usart_1(),
 		m_uart_5(),
 		m_uart_7(),
 		
-		m_fmc(m_rcc),
+		m_fmc(),
 		m_ltdc(),
 		
 		m_i2c_1(),
@@ -440,6 +441,12 @@ inline STM32H753BIT6& STM32H753BIT6::get()
 constexpr inline Debug& STM32H753BIT6::get_debug()
 {
 	return(m_debug);
+}
+
+
+constexpr inline SYSCFG& STM32H753BIT6::get_syscfg()
+{
+	return(m_syscfg);
 }
 
 

@@ -1,12 +1,6 @@
 #pragma once
 
-#include "registers.hpp"
 #include "cmos.hpp"
-#include "rcc.hpp"
-#include "ltdc.hpp"
-
-#include "graphics/i_graphicAccelerator.hpp"
-#include "i_semaphore.hpp"
 
 
 
@@ -24,15 +18,27 @@ class DMA2D: public I_GraphicAccelerator
 		
 	private:
 		
+		//	Static Member
 		static I_Semaphore* m_semaphore;
 		static f_callback m_callback;
 		
+		
+		//	Non-static Member
+		
+		
+		
+		//	Constructor and Destructor
 		constexpr inline DMA2D(I_Semaphore& semaphore);
 		DMA2D(const DMA2D& dma2d) = delete;
 		inline ~DMA2D();
 		
+		
+		//	Member Functions
+		feedback startup();
 		void lock();
 		
+		
+		//	Friends
 		friend void ISR_DMA2D();
 		friend class STM32H753BIT6;
 		
@@ -41,8 +47,6 @@ class DMA2D: public I_GraphicAccelerator
 		
 		
 	public:
-		
-		feedback startup(RCC& rcc);
 		
 		bool is_available() const																																																																															override;
 		uint16 get_wakeUpInterrupt() const																																																																										override;

@@ -1,8 +1,6 @@
 #pragma once
 
-#include "registers.hpp"
 #include "cmos.hpp"
-#include "rcc.hpp"
 
 
 
@@ -18,12 +16,25 @@ class BackupSRAM
 		
 	private:
 		
-		RCC& m_rcc;
+		//	Static Member
 		
-		constexpr inline BackupSRAM(RCC& rcc);
+		
+		
+		//	Non-static Member
+		
+		
+		
+		//	Constructor and Destructor
+		constexpr inline BackupSRAM();
 		BackupSRAM(const BackupSRAM& backupSRAM) = delete;
 		inline ~BackupSRAM();
 		
+		
+		//	Member Functions
+		feedback startup();
+		
+		
+		//	Friends
 		friend class STM32H753BIT6;
 		
 		
@@ -31,8 +42,6 @@ class BackupSRAM
 		
 		
 	public:
-		
-		feedback startup();
 		
 		void writeProtection(bool enable);
 };
@@ -51,8 +60,7 @@ class BackupSRAM
 /*                      						Private	  			 						 						 */
 /*****************************************************************************/
 
-constexpr inline BackupSRAM::BackupSRAM(RCC& rcc)
-	: m_rcc(rcc)
+constexpr inline BackupSRAM::BackupSRAM()
 {
 	
 }

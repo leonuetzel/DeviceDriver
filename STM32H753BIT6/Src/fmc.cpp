@@ -1,4 +1,4 @@
-#include "../Inc/fmc.hpp"
+#include "../Inc/stm32h753bit6.hpp"
 
 
 
@@ -15,6 +15,20 @@
 /*****************************************************************************/
 /*                      						Private	  			 						 						 */
 /*****************************************************************************/
+
+feedback FMC::startup()
+{
+	RCC& rcc = STM32H753BIT6::get().get_rcc();
+	rcc.module_reset(RCC::e_module::FMC);
+	rcc.module_clockInit(RCC::e_module::FMC, true);
+	
+	
+	//	Disable NOR/PSRAM Bank1 (enabled by Default after Reset)
+	bit::clear(*MCU::FMC::BCR1, 0);
+	
+	return(OK);
+}
+
 
 feedback FMC::memory_check(uint32 startAddress, uint32 sizeInBytes, uint32 pattern)
 {
@@ -49,17 +63,7 @@ feedback FMC::memory_check(uint32 startAddress, uint32 sizeInBytes, uint32 patte
 /*                      						Public	  			 						 						 */
 /*****************************************************************************/
 
-feedback FMC::startup()
-{
-	m_rcc.module_reset(RCC::e_module::FMC);
-	m_rcc.module_clockInit(RCC::e_module::FMC, true);
-	
-	
-	//	Disable NOR/PSRAM Bank1 (enabled by Default after Reset)
-	bit::clear(*MCU::FMC::BCR1, 0);
-	
-	return(OK);
-}
+
 
 
 
@@ -87,7 +91,8 @@ feedback FMC::init(RCC::e_clockSource_fmc clockSource, e_SDRAM_bank bank, s_SDRA
 	}
 	
 	CMOS& cmos = CMOS::get();
-	m_rcc.set_clockSource(clockSource);
+	RCC& rcc = STM32H753BIT6::get().get_rcc();
+	rcc.set_clockSource(clockSource);
 	
 	volatile uint32* fmc_sdcr	= MCU::FMC::SDCR1 + (uint32) bank;
 	volatile uint32* fmc_sdtr	= MCU::FMC::SDTR1 + (uint32) bank;
@@ -194,22 +199,22 @@ feedback FMC::init(RCC::e_clockSource_fmc clockSource, e_SDRAM_bank bank, s_SDRA
 	
 	//	Set Refresh Rate
 	uint32 clock = 0;
-	switch(m_rcc.get_clockSource_fmc())
+	switch(rcc.get_clockSource_fmc())
 	{
 		case RCC::e_clockSource_fmc::BUS_CLOCK:
-			clock = m_rcc.get_clock_ahb();
+			clock = rcc.get_clock_ahb();
 			break;
 			
 		case RCC::e_clockSource_fmc::PLL_1_Q:
-			clock = m_rcc.get_clock_pll_1_q();
+			clock = rcc.get_clock_pll_1_q();
 			break;
 			
 		case RCC::e_clockSource_fmc::PLL_2_R:
-			clock = m_rcc.get_clock_pll_2_r();
+			clock = rcc.get_clock_pll_2_r();
 			break;
 			
 		case RCC::e_clockSource_fmc::PERCK:
-			clock = m_rcc.get_clock_perck();
+			clock = rcc.get_clock_perck();
 			break;
 			
 		default:

@@ -16,16 +16,9 @@
 /*                      						Private	  			 						 						 */
 /*****************************************************************************/
 
-
-
-
-
-/*****************************************************************************/
-/*                      						Public	  			 						 						 */
-/*****************************************************************************/
-
-feedback LTDC::startup(RCC& rcc)
+feedback LTDC::startup()
 {
+	RCC& rcc = STM32H753BIT6::get().get_rcc();
 	rcc.module_reset(RCC::e_module::LTDC);
 	rcc.module_clockInit(RCC::e_module::LTDC, true);
 	
@@ -34,9 +27,9 @@ feedback LTDC::startup(RCC& rcc)
 
 
 
-
-
-
+/*****************************************************************************/
+/*                      						Public	  			 						 						 */
+/*****************************************************************************/
 
 feedback LTDC::init(s_displayData displayData, Array<RectGraphic> layer)
 {

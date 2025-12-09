@@ -1,8 +1,6 @@
 #pragma once
 
-#include "registers.hpp"
 #include "cmos.hpp"
-#include "pwr.hpp"
 
 
 
@@ -18,14 +16,26 @@ class Flash
 		
 	private:
 		
+		//	Static Member
+		
+		
+		
+		//	Non-static Member
 		uint8 m_waitStates;
 		uint8 m_programmingDelay;
 		
+		
+		//	Constructor and Destructor
 		constexpr inline Flash();
 		Flash(const Flash& flash) = delete;
 		inline ~Flash();
 		
 		
+		//	Member Functions
+		feedback startup();
+		
+		
+		//	Friends
 		friend class STM32H753BIT6;
 		
 		
@@ -33,8 +43,6 @@ class Flash
 		
 		
 	public:
-		
-		feedback startup();
 		
 		feedback set_waitStates(uint32 clock_ahb, PWR::e_voltageLevel voltageLevel);
 		void enable_ECC();

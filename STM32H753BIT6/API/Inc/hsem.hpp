@@ -1,9 +1,7 @@
 #pragma once
 
-#include "registers.hpp"
 #include "cmos.hpp"
-#include "i_semaphore.hpp"
-#include "rcc.hpp"
+
 
 
 
@@ -20,13 +18,25 @@ class HSEM	:	public I_Semaphore
 		
 	private:
 		
+		//	Static Member
+		
+		
+		
+		//	Non-static Member
 		uint32 m_number;
 		
+		
+		//	Constructor and Destructor
 		constexpr inline HSEM();
 		HSEM(const HSEM& hsem) = delete;
 		inline ~HSEM();
 		
-		friend void ISR_HSEM();
+		
+		//	Member Functions
+		feedback startup(uint8 number);
+		
+		
+		//	Friends
 		friend class STM32H753BIT6;
 		
 		
@@ -34,8 +44,6 @@ class HSEM	:	public I_Semaphore
 		
 		
 	public:
-		
-		feedback startup(RCC& rcc, uint8 number);
 		
 		virtual feedback lock()					override;
 		virtual feedback unlock()				override;

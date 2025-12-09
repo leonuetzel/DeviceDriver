@@ -1,8 +1,6 @@
 #pragma once
 
-#include "registers.hpp"
 #include "cmos.hpp"
-#include "rcc.hpp"
 
 
 
@@ -96,18 +94,27 @@ class FMC
 		
 	private:
 		
-		RCC& m_rcc;
+		//	Static Member
 		
+		
+		
+		//	Non-static Member
 		s_SDRAM_config m_sdram_1;
 		s_SDRAM_config m_sdram_2;
 		
-		constexpr inline FMC(RCC& rcc);
+		
+		//	Constructor and Destructor
+		constexpr inline FMC();
 		FMC(const FMC& fmc) = delete;
 		inline ~FMC();
 		
+		
+		//	Member Functions
+		feedback startup();
 		feedback memory_check(uint32 startAddress, uint32 sizeInBytes, uint32 pattern);
 		
 		
+		//	Friends
 		friend class STM32H753BIT6;
 		
 		
@@ -115,8 +122,6 @@ class FMC
 		
 		
 	public:
-		
-		feedback startup();
 		
 		feedback init(RCC::e_clockSource_fmc clockSource, e_SDRAM_bank bank, s_SDRAM_config memoryData);
 };
@@ -135,9 +140,8 @@ class FMC
 /*                      						Private	  			 						 						 */
 /*****************************************************************************/
 
-constexpr inline FMC::FMC(RCC& rcc)
-	:	m_rcc(rcc),
-		m_sdram_1(),
+constexpr inline FMC::FMC()
+	:	m_sdram_1(),
 		m_sdram_2()
 {
 	

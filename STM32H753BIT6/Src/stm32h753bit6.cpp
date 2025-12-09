@@ -307,13 +307,13 @@ feedback STM32H753BIT6::startup()
 	{
 		return(FAIL);
 	}
-	if(m_gpio.startup(m_rcc) != OK)
+	if(m_gpio.startup() != OK)
 	{
 		return(FAIL);
 	}
 	for(uint32 i = 0; i < HSEM::c_number; i++)
 	{
-		if(m_hsem[i].startup(m_rcc, i) != OK)
+		if(m_hsem[i].startup(i) != OK)
 		{
 			return(FAIL);
 		}
@@ -334,11 +334,11 @@ feedback STM32H753BIT6::startup()
 	}
 	
 	
-	if(m_dma2d.startup(m_rcc) != OK)
+	if(m_dma2d.startup() != OK)
 	{
 		return(FAIL);
 	}
-	if(m_mdma.startup(m_rcc) != OK)
+	if(m_mdma.startup() != OK)
 	{
 		return(FAIL);
 	}
@@ -348,14 +348,14 @@ feedback STM32H753BIT6::startup()
 	}
 	for(uint32 i = 0; i < DMA_1::c_channel; i++)
 	{
-		if(m_dma_1[i].startup(m_rcc, i) != OK)
+		if(m_dma_1[i].startup(i) != OK)
 		{
 			return(FAIL);
 		}
 	}
 	for(uint32 i = 0; i < DMA_2::c_channel; i++)
 	{
-		if(m_dma_2[i].startup(m_rcc, i) != OK)
+		if(m_dma_2[i].startup(i) != OK)
 		{
 			return(FAIL);
 		}
@@ -428,17 +428,17 @@ feedback STM32H753BIT6::startup()
 	{
 		return(FAIL);
 	}
-	if(m_ltdc.startup(m_rcc) != OK)
+	if(m_ltdc.startup() != OK)
 	{
 		return(FAIL);
 	}
 	
 	
-	if(m_i2c_1.startup(m_rcc) != OK)
+	if(m_i2c_1.startup() != OK)
 	{
 		return(FAIL);
 	}
-	if(m_i2c_2.startup(m_rcc) != OK)
+	if(m_i2c_2.startup() != OK)
 	{
 		return(FAIL);
 	}

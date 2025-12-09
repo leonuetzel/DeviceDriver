@@ -1,9 +1,6 @@
 #pragma once
 
-#include "registers.hpp"
 #include "cmos.hpp"
-#include "graphics/i_displayDriver.hpp"
-#include "rcc.hpp"
 
 
 
@@ -21,6 +18,11 @@ class LTDC	:	public I_DisplayDriver
 		
 	private:
 		
+		//	Static Member
+		
+		
+		
+		//	Non-static Member
 		const uint16 m_eventID;
 		uint8 m_fps;
 		
@@ -29,10 +31,18 @@ class LTDC	:	public I_DisplayDriver
 		uint32 m_layerNumber;
 		Color m_colorBackground;
 		
+		
+		//	Constructor and Destructor
 		inline LTDC();
 		LTDC(const LTDC& ltdc) = delete;
 		inline ~LTDC();
 		
+		
+		//	Member Functions
+		feedback startup();
+		
+		
+		//	Friends
 		friend void ISR_LTDC();
 		friend class STM32H753BIT6;
 		
@@ -42,7 +52,6 @@ class LTDC	:	public I_DisplayDriver
 		
 	public:
 		
-		feedback startup(RCC& rcc);
 		feedback init(s_displayData displayData, Array<RectGraphic> layer);
 		
 		

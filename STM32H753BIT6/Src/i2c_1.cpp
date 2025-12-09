@@ -16,7 +16,12 @@
 /*                      						Private	  			 						 						 */
 /*****************************************************************************/
 
-
+feedback I2C_1::startup()
+{
+	RCC& rcc = STM32H753BIT6::get().get_rcc();
+	rcc.module_clockInit(RCC::e_module::I2C_1, true);
+	return(OK);
+}
 
 
 

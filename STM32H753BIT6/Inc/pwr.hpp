@@ -1,7 +1,5 @@
 #pragma once
 
-#include "registers.hpp"
-#include "syscfg.hpp"
 #include "cmos.hpp"
 
 
@@ -26,14 +24,25 @@ class PWR
 		
 	private:
 		
-		SYSCFG& m_syscfg;
+		//	Static Member
+		
+		
+		
+		//	Non-static Member
 		e_voltageLevel m_voltageLevel;
 		
-		constexpr inline PWR(SYSCFG& syscfg);
+		
+		//	Constructor and Destructor
+		constexpr inline PWR();
 		PWR(const PWR& pwr) = delete;
 		inline ~PWR();
 		
 		
+		//	Member Functions
+		feedback startup();
+		
+		
+		//	Friends
 		friend class STM32H753BIT6;
 		
 		
@@ -41,8 +50,6 @@ class PWR
 		
 		
 	public:
-		
-		feedback startup();
 		
 		feedback set_voltageLevel(e_voltageLevel voltageLevel);
 		e_voltageLevel get_voltageLevel();
@@ -64,9 +71,8 @@ class PWR
 /*                      						Private	  			 						 						 */
 /*****************************************************************************/
 
-constexpr inline PWR::PWR(SYSCFG& syscfg)
-	:	m_syscfg(syscfg),
-		m_voltageLevel(e_voltageLevel::VOS_3)
+constexpr inline PWR::PWR()
+	:	m_voltageLevel(e_voltageLevel::VOS_3)
 {
 	
 }

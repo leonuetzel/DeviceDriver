@@ -27,7 +27,7 @@ class CAN_1: public I_CAN
 		bool m_txISR_active;
 		RingbufferDynamic<CAN_Frame>* m_rxBuffer;
 		RingbufferDynamic<CAN_Frame>* m_txBuffer;
-		UniqueArray<e_error> m_errors;
+		UniquePairArray<e_error, bool> m_errors;
 		e_state m_state;
 		uint32 m_baudRate;
 		
@@ -69,7 +69,7 @@ class CAN_1: public I_CAN
 		
 		uint16 get_eventID() override;
 		I_CAN::e_state get_state() override;
-		const UniqueArray<e_error>& get_errors() const override;
+		const UniquePairArray<e_error, bool>& get_errors() const override;
 		void clearErrors() override;
 		
 		uint32 get_baudRate() const override;

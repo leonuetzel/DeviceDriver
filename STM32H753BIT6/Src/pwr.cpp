@@ -1,4 +1,4 @@
-#include "../Inc/pwr.hpp"
+#include "../Inc/stm32h753bit6.hpp"
 
 
 
@@ -16,14 +16,6 @@
 /*                      						Private	  			 						 						 */
 /*****************************************************************************/
 
-
-
-
-
-/*****************************************************************************/
-/*                      						Public	  			 						 						 */
-/*****************************************************************************/
-
 feedback PWR::startup()
 {
 	return(OK);
@@ -31,9 +23,9 @@ feedback PWR::startup()
 
 
 
-
-
-
+/*****************************************************************************/
+/*                      						Public	  			 						 						 */
+/*****************************************************************************/
 
 PWR::e_voltageLevel PWR::get_requiredVoltageLevel(uint32 divider_pll_1_p, uint32 divider_pll_1_q, uint32 divider_pll_1_r, uint32 clock_pll_1, bool pll_1_range_wide)
 {
@@ -84,7 +76,8 @@ feedback PWR::set_voltageLevel(e_voltageLevel voltageLevel)
 	
 	if(m_voltageLevel == e_voltageLevel::VOS_0)																																										//	Deactivate Voltage Scaling 0
 	{
-		m_syscfg.set_overdrive(false);
+		SYSCFG& syscfg = STM32H753BIT6::get().get_syscfg();
+		syscfg.set_overdrive(false);
 	}
 	
 	
@@ -105,7 +98,8 @@ feedback PWR::set_voltageLevel(e_voltageLevel voltageLevel)
 	
 	if(voltageLevel == e_voltageLevel::VOS_0)
 	{
-		m_syscfg.set_overdrive(true);
+		SYSCFG& syscfg = STM32H753BIT6::get().get_syscfg();
+		syscfg.set_overdrive(true);
 		while(bit::isCleared(*MCU::PWR::D3_CR, 13))																																									//	Wait for Voltage to settle
 		{
 			

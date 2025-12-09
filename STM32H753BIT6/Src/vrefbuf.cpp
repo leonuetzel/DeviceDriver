@@ -1,4 +1,4 @@
-#include "../Inc/vrefbuf.hpp"
+#include "../Inc/stm32h753bit6.hpp"
 
 
 
@@ -16,26 +16,18 @@
 /*                      						Private	  			 						 						 */
 /*****************************************************************************/
 
-
+feedback VREFBUF::startup()
+{
+	RCC& m_rcc = STM32H753BIT6::get().get_rcc();
+	m_rcc.module_clockInit(RCC::e_module::VREF, true);
+	return(OK);
+}
 
 
 
 /*****************************************************************************/
 /*                      						Public	  			 						 						 */
 /*****************************************************************************/
-
-feedback VREFBUF::startup()
-{
-	m_rcc.module_clockInit(RCC::e_module::VREF, true);
-	
-	return(OK);
-}
-
-
-
-
-
-
 
 feedback VREFBUF::set_mode(e_mode mode)
 {

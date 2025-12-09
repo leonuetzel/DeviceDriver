@@ -1,6 +1,5 @@
 #pragma once
 
-#include "registers.hpp"
 #include "cmos.hpp"
 
 
@@ -184,11 +183,25 @@ class DMAMUX
 		
 	private:
 		
+		//	Static Member
+		
+		
+		
+		//	Non-static Member
+		
+		
+		
+		//	Constructor and Destructor
 		constexpr inline DMAMUX();
 		DMAMUX(const DMAMUX& dmamux) = delete;
 		inline ~DMAMUX();
 		
 		
+		//	Member Functions
+		feedback startup();
+		
+		
+		//	Friends
 		friend class STM32H753BIT6;
 		
 		
@@ -196,8 +209,6 @@ class DMAMUX
 		
 		
 	public:
-		
-		feedback startup();
 		
 		feedback map(e_input input, e_output output);
 };

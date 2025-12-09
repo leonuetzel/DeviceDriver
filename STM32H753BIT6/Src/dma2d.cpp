@@ -1,4 +1,4 @@
-#include "../Inc/dma2d.hpp"
+#include "../Inc/stm32h753bit6.hpp"
 
 
 
@@ -16,6 +16,14 @@ I_GraphicAccelerator::f_callback DMA2D::m_callback;
 /*****************************************************************************/
 /*                      						Private	  			 						 						 */
 /*****************************************************************************/
+
+feedback DMA2D::startup()
+{
+	RCC& rcc = STM32H753BIT6::get().get_rcc();
+	rcc.module_clockInit(RCC::e_module::DMA2D, true);
+	return(OK);
+}
+
 
 CODE_RAM void DMA2D::lock()
 {
@@ -39,18 +47,6 @@ CODE_RAM void DMA2D::lock()
 /*****************************************************************************/
 /*                      						Public	  			 						 						 */
 /*****************************************************************************/
-
-feedback DMA2D::startup(RCC& rcc)
-{
-	rcc.module_clockInit(RCC::e_module::DMA2D, true);
-	return(OK);
-}
-
-
-
-
-
-
 
 CODE_RAM bool DMA2D::is_available() const
 {

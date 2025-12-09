@@ -1,4 +1,4 @@
-#include "../Inc/timer_16.hpp"
+#include "../Inc/stm32h753bit6.hpp"
 
 
 
@@ -16,14 +16,6 @@
 /*                      						Private	  			 						 						 */
 /*****************************************************************************/
 
-
-
-
-
-/*****************************************************************************/
-/*                      						Public	  			 						 						 */
-/*****************************************************************************/
-
 feedback Timer_16::startup()
 {
 	return(OK);
@@ -31,13 +23,14 @@ feedback Timer_16::startup()
 
 
 
-
-
-
+/*****************************************************************************/
+/*                      						Public	  			 						 						 */
+/*****************************************************************************/
 
 feedback Timer_16::init(uint32 frequency, bool enableInterrupt)
 {
-	uint32 clock = m_rcc.get_clock_apb2_timer();
+	RCC& rcc = STM32H753BIT6::get().get_rcc();
+	const uint32 clock = rcc.get_clock_apb2_timer();
 	
 	uint32 prescaler = 1;
 	uint32 clock_divided = clock;
@@ -50,13 +43,13 @@ feedback Timer_16::init(uint32 frequency, bool enableInterrupt)
 		}
 		clock_divided = clock / prescaler;
 	}
-
-
-	m_rcc.module_clockInit(RCC::e_module::TIMER_16, true);
-
+	
+	
+	rcc.module_clockInit(RCC::e_module::TIMER_16, true);
+	
 	*MCU::TIMER_16::PSC = prescaler - 1;
 	*MCU::TIMER_16::ARR = (clock_divided / frequency) - 1;
-
+	
 	if(enableInterrupt == true)
 	{
 		bit::set(*MCU::TIMER_16::DIER, 0);
@@ -65,8 +58,8 @@ feedback Timer_16::init(uint32 frequency, bool enableInterrupt)
 	{
 		bit::clear(*MCU::TIMER_16::DIER, 0);
 	}
-
-
+	
+	
 	bit::set(*MCU::TIMER_16::CR1, 2);                                                                                             //  Only OVF/UVF triggers Interrupt
 	
 	bit::set(*MCU::TIMER_16::CR1, 0);                                                                                             //  Enable Timer
@@ -91,7 +84,7 @@ void Timer_16::init_pwm(e_channel channel)
 			bit::clear(*MCU::TIMER_16::CCER, 1);                                                                                      //  Channel 1 Active High
 			bit::set(*MCU::TIMER_16::CCER, 0);                                                                                        //  Channel 1 Enable
 			break;
-		
+			
 		default:
 			return;
 	}
@@ -107,7 +100,7 @@ CODE_RAM void Timer_16::set_pwm(e_channel channel, uint32 dutycycle_ppm)
 		case e_channel::CHANNEL_1:
 			*MCU::TIMER_16::CCR1 = ccr_temp;
 			break;
-
+			
 		default:
 			return;
 	}

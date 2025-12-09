@@ -1,4 +1,4 @@
-#include "../Inc/rcc.hpp"
+#include "../Inc/stm32h753bit6.hpp"
 
 
 
@@ -16,6 +16,12 @@
 /*                      						Private	  			 						 						 */
 /*****************************************************************************/
 
+feedback RCC::startup()
+{
+	return(OK);
+}
+
+
 feedback RCC::set_busPrescaler(uint32 newClock)
 {
 	m_divider_core = 1;
@@ -26,9 +32,9 @@ feedback RCC::set_busPrescaler(uint32 newClock)
 	m_divider_apb4 = 1;
 	
 	
-	
+	//	Core Prescaler
 	uint32 mask_core = 0x7;
-	while(newClock / m_divider_core > c_clock_core_max)																																						//	Core Prescaler
+	while(newClock / m_divider_core > c_clock_core_max)
 	{
 		m_divider_core *= 2;
 		mask_core++;
@@ -44,9 +50,9 @@ feedback RCC::set_busPrescaler(uint32 newClock)
 	m_clock_core = newClock / m_divider_core;
 	
 	
-	
+	//	AHB Prescaler
 	uint32 mask_ahb = 0x7;
-	while(m_clock_core / m_divider_ahb > c_clock_ahb_max)																																					//	AHB Prescaler
+	while(m_clock_core / m_divider_ahb > c_clock_ahb_max)
 	{
 		m_divider_ahb *= 2;
 		mask_ahb++;
@@ -62,9 +68,9 @@ feedback RCC::set_busPrescaler(uint32 newClock)
 	m_clock_ahb = m_clock_core / m_divider_ahb;
 	
 	
-	
+	//	APB1 Prescaler
 	uint32 mask_apb1 = 0x3;
-	while(m_clock_ahb / m_divider_apb1 > c_clock_apb1_max)																																				//	APB1 Prescaler
+	while(m_clock_ahb / m_divider_apb1 > c_clock_apb1_max)
 	{
 		m_divider_apb1 *= 2;
 		mask_apb1++;
@@ -81,9 +87,9 @@ feedback RCC::set_busPrescaler(uint32 newClock)
 	}
 	
 	
-	
+	//	APB2 Prescaler
 	uint32 mask_apb2 = 0x3;
-	while(m_clock_ahb / m_divider_apb2 > c_clock_apb2_max)																																				//	APB2 Prescaler
+	while(m_clock_ahb / m_divider_apb2 > c_clock_apb2_max)
 	{
 		m_divider_apb2 *= 2;
 		mask_apb2++;
@@ -100,9 +106,9 @@ feedback RCC::set_busPrescaler(uint32 newClock)
 	}
 	
 	
-	
+	//	APB3 Prescaler
 	uint32 mask_apb3 = 0x3;
-	while(m_clock_ahb / m_divider_apb3 > c_clock_apb3_max)																																				//	APB3 Prescaler
+	while(m_clock_ahb / m_divider_apb3 > c_clock_apb3_max)
 	{
 		m_divider_apb3 *= 2;
 		mask_apb3++;
@@ -114,9 +120,9 @@ feedback RCC::set_busPrescaler(uint32 newClock)
 	m_clock_apb3 = m_clock_ahb / m_divider_apb3;
 	
 	
-	
+	//	APB4 Prescaler
 	uint32 mask_apb4 = 0x3;
-	while(m_clock_ahb / m_divider_apb4 > c_clock_apb4_max)																																				//	APB4 Prescaler
+	while(m_clock_ahb / m_divider_apb4 > c_clock_apb4_max)
 	{
 		m_divider_apb4 *= 2;
 		mask_apb4++;
@@ -128,7 +134,7 @@ feedback RCC::set_busPrescaler(uint32 newClock)
 	m_clock_apb4 = m_clock_ahb / m_divider_apb4;
 	
 	
-	
+	//	Write Prescalers to Registers
 	uint32 temp = 0;
 	
 	temp |= (mask_core << 8);
@@ -142,9 +148,6 @@ feedback RCC::set_busPrescaler(uint32 newClock)
 	*MCU::RCC::D2_CFGR = temp;
 	
 	*MCU::RCC::D3_CFGR = (mask_apb4 << 4);
-	
-	
-	
 	return(OK);
 }
 
@@ -154,33 +157,37 @@ feedback RCC::set_busPrescaler(uint32 newClock)
 /*                      						Public	  			 						 						 */
 /*****************************************************************************/
 
-feedback RCC::startup()
-{
-	return(OK);
-}
-
-
-
-
-
-
 
 feedback RCC::HSE_init(bool enable)
 {
 	if(enable == true)
 	{
-		bit::clear(*MCU::RCC::CR, 18);																																															//	HSE not bypassed
-		bit::set(*MCU::RCC::CR, 19);																																																//	HSE Clock Security System Enable
-		bit::set(*MCU::RCC::CR, 16);																																																//	HSE Enable
-		while(bit::isCleared(*MCU::RCC::CR, 17))																																										//	Wait for HSE to become stable
+		//	HSE not bypassed
+		bit::clear(*MCU::RCC::CR, 18);
+		
+		
+		//	HSE Clock Security System Enable
+		bit::set(*MCU::RCC::CR, 19);
+		
+		
+		//	HSE Enable
+		bit::set(*MCU::RCC::CR, 16);
+		
+		
+		//	Wait for HSE to become stable
+		while(bit::isCleared(*MCU::RCC::CR, 17))
 		{
 			
 		}
 	}
 	else
 	{
-		bit::clear(*MCU::RCC::CR, 16);																																															//	Try to disable HSE
-		if(bit::isSet(*MCU::RCC::CR, 16))																																														//	Check if HSE is disabled
+		//	Try to disable HSE
+		bit::clear(*MCU::RCC::CR, 16);
+		
+		
+		//	Check if HSE is disabled
+		if(bit::isSet(*MCU::RCC::CR, 16))
 		{
 			return(FAIL);
 		}
@@ -194,42 +201,31 @@ feedback RCC::HSI_init(bool enable, uint8 divider)
 {
 	if(enable == true)
 	{
-		bit::set(*MCU::RCC::CR, 0);																																																	//	Enable HSI
-		while(bit::isCleared(*MCU::RCC::CR, 2))																																											//	Wait for HSI to become stable
+		//	Enable HSI
+		bit::set(*MCU::RCC::CR, 0);
+		
+		
+		//	Wait for HSI to become stable
+		while(bit::isCleared(*MCU::RCC::CR, 2))
 		{
 
 		}
 		
-		uint32 mask = 0x0;
-		switch(divider)
-		{
-			case 1:
-				mask = 0x0;
-				break;
-				
-			case 2:
-				mask = 0x1;
-				break;
-				
-			case 4:
-				mask = 0x2;
-				break;
-				
-			case 8:
-				mask = 0x3;
-				break;
-				
-			default:
-				return(FAIL);
-		}
 		
-		uint32 temp = *MCU::RCC::CR & 0xFFFFFFE7;
-		*MCU::RCC::CR = temp | (mask << 3);																																													//	Set new Divider
-		if((*MCU::RCC::CR & 0x00000018) != (mask << 3))																																							//	Check for Divider to be set correctly
+		//	Set new Divider
+		const uint32 mask = Math::log2((uint32) divider);
+		bit::fieldWrite(*MCU::RCC::CR, 3, 2, mask);
+		
+		
+		//	Check for Divider to be set correctly
+		if(bit::fieldRead(*MCU::RCC::CR, 3, 2) != mask)
 		{
 			return(FAIL);
 		}
-		while(bit::isCleared(*MCU::RCC::CR, 5))																																											//	Wait for new Frequency to match set one
+		
+		
+		//	Wait for new Frequency to match set one
+		while(bit::isCleared(*MCU::RCC::CR, 5))
 		{
 			
 		}
@@ -238,8 +234,12 @@ feedback RCC::HSI_init(bool enable, uint8 divider)
 	}
 	else
 	{
-		bit::clear(*MCU::RCC::CR, 0);																																																//	Try to disable HSI
-		if(bit::isSet(*MCU::RCC::CR, 0))																																														//	Check if HSI is disabled
+		//	Try to disable HSI
+		bit::clear(*MCU::RCC::CR, 0);
+		
+		
+		//	Check if HSI is disabled
+		if(bit::isSet(*MCU::RCC::CR, 0))
 		{
 			return(FAIL);
 		}
@@ -260,37 +260,45 @@ feedback RCC::HSI_init(bool enable, uint8 divider)
 
 feedback RCC::set_clockSource_pll(e_clockSource_pll clockSource)
 {
-	if(get_clockSource_system() == e_clockSource_system::PLL1)																																		//	Check if PLL1 delivers System Clock
+	//	Check if PLL1 delivers System Clock
+	if(get_clockSource_system() == e_clockSource_system::PLL1)
 	{
 		if(HSI_init(true, 1) != OK)
 		{
 			return(FAIL);
-		}																																																														//	Set HSI as System Clock Source
+		}
+		
+		
+		//	Set HSI as System Clock Source
 		set_clockSource_system(e_clockSource_system::HSI);
 	}
-
-	uint32 temp_rcc_cr = *MCU::RCC::CR;
-	bit::clear(*MCU::RCC::CR, 28);																																																//	Disable all PLLs
+	
+	
+	//	Disable all PLLs
+	const uint32 temp_rcc_cr = *MCU::RCC::CR;
+	bit::clear(*MCU::RCC::CR, 28);
 	bit::clear(*MCU::RCC::CR, 26);
 	bit::clear(*MCU::RCC::CR, 24);
-
-
+	
+	
+	//	Boundary Check
 	uint32 mask = (uint32) clockSource;
 	if(mask > 0x3)
 	{
 		return(FAIL);
 	}
-
-	uint32 temp = *MCU::RCC::PLL_CKSELR & 0xFFFFFFFC;
-	*MCU::RCC::PLL_CKSELR = temp | mask;
-	if((*MCU::RCC::PLL_CKSELR & 0x0000000003) != mask)
+	
+	
+	//	Set new Clock Source
+	bit::fieldWrite(*MCU::RCC::PLL_CKSELR, 0, 2, mask);
+	if(bit::fieldRead(*MCU::RCC::PLL_CKSELR, 0, 2) != mask)
 	{
 		return(FAIL);
 	}
-
-
-
-	if(bit::isSet(temp_rcc_cr, 28))																																																//	Enable PLLs if they have been enabled before
+	
+	
+	//	Enable PLLs if they have been enabled before
+	if(bit::isSet(temp_rcc_cr, 28))
 	{
 		bit::set(*MCU::RCC::CR, 28);
 		while(bit::isCleared(*MCU::RCC::CR, 29))
@@ -323,38 +331,52 @@ feedback RCC::set_clockSource_pll(e_clockSource_pll clockSource)
 
 feedback RCC::pll_1_init(uint32 clock_out, uint32 divider_p, uint32 divider_q, uint32 divider_r)
 {
+	//	Boundary Check
 	if(clock_out < 150000000 || divider_p > 128 || divider_q > 128 || divider_r > 128 || divider_p % 2 != 0)
 	{
 		return(FAIL);
 	}
-
-	uint32 clock_in = 0;																																																					//	Evaluate PLL Input Frequency
+	
+	
+	//	Evaluate PLL Input Frequency
+	uint32 clock_in = 0;
 	switch(m_clockSource_pll)
 	{
 		case e_clockSource_pll::HSI:
+		{
 			clock_in = c_clock_hsi / m_divider_hsi;
-			break;
-
+		}
+		break;
+		
 		case e_clockSource_pll::CSI:
+		{
 			clock_in = c_clock_csi;
-			break;
-
+		}
+		break;
+		
 		case e_clockSource_pll::HSE:
+		{
 			clock_in = c_clock_hse;
-			break;
-
+		}
+		break;
+		
 		default:
+		{
 			return(FAIL);
+		}
+		break;
 	}
-
+	
+	
+	//	Check Input and Output Frequency Ranges
 	if((clock_out > 420000000 && clock_in < 2000000) || clock_in < 1000000)
 	{
 		return(FAIL);
 	}
-
-
-
-	bool pllAsSystemSource = false;																																																//	Check, if PLL 1 is delivering System Clock
+	
+	
+	//	Check, if PLL 1 is delivering System Clock
+	bool pllAsSystemSource = false;
 	if(get_clockSource_system() == e_clockSource_system::PLL1)
 	{
 		pllAsSystemSource = true;
@@ -364,14 +386,18 @@ feedback RCC::pll_1_init(uint32 clock_out, uint32 divider_p, uint32 divider_q, u
 		}
 		set_clockSource_system(e_clockSource_system::HSI);
 	}
-	bit::clear(*MCU::RCC::CR, 24);																																																//	Disable PLL 1
+	
+	
+	//	Disable PLL 1
+	bit::clear(*MCU::RCC::CR, 24);
 	while(bit::isSet(*MCU::RCC::CR, 25))
 	{
-
+		
 	}
 	
 	
-	if(divider_p == 0)																																																						//	Enable or Disable Outputs
+	//	Enable or Disable Outputs
+	if(divider_p == 0)
 	{
 		bit::clear(*MCU::RCC::PLL_CFGR, 16);
 	}
@@ -397,11 +423,11 @@ feedback RCC::pll_1_init(uint32 clock_out, uint32 divider_p, uint32 divider_q, u
 	}
 	
 	
-	
+	//	Select VCO and Input Divider
 	uint32 divider_in = 1;
 	uint32 clock_in_divided = clock_in / divider_in;
-
-	if(clock_out >= 192000000 && clock_in >= 2000000)																																							//	Select VCO and Input Divider
+	
+	if(clock_out >= 192000000 && clock_in >= 2000000)
 	{
 		m_pll_1_range = e_pll_range::WIDE;
 		bit::clear(*MCU::RCC::PLL_CFGR, 1);
@@ -429,8 +455,10 @@ feedback RCC::pll_1_init(uint32 clock_out, uint32 divider_p, uint32 divider_q, u
 			clock_in_divided = clock_in / divider_in;
 		}
 	}
-
-	uint32 mask = 0;																																																							//	Set correct Input Frequency Range
+	
+	
+	//	Set correct Input Frequency Range
+	uint32 mask = 0;
 	if(clock_in_divided > 1000000 && clock_in_divided <= 2000000)
 	{
 		mask = 0x0;
@@ -456,110 +484,131 @@ feedback RCC::pll_1_init(uint32 clock_out, uint32 divider_p, uint32 divider_q, u
 			}
 		}
 	}
-
-	uint32 temp =	*MCU::RCC::PLL_CFGR & 0xFFFFFFF3;
-	*MCU::RCC::PLL_CFGR = temp | (mask << 2);
-
-
-
-	double multiplier = clock_out / clock_in_divided;																																							//	Compute Multiplier
+	bit::fieldWrite(*MCU::RCC::PLL_CFGR, 2, 2, mask);
+	
+	
+	//	Compute Multiplier
+	const double multiplier = clock_out / clock_in_divided;
 	if(multiplier < 4 || multiplier > 512)
 	{
 		return(FAIL);
 	}
-
-	uint32 multiplier_int = (uint32) multiplier;
-	uint32 multiplier_frac = (uint32) ((multiplier - multiplier_int) * 0x2000);
-
-	temp = *MCU::RCC::PLL1_DIVR & 0xFFFFFE00;																																											//	Write Multiplier Values
-	*MCU::RCC::PLL1_DIVR = temp | (multiplier_int - 1);
-		
-	bit::clear(*MCU::RCC::PLL_CFGR, 0);																																														//	PLL 1 Latch
-	temp = *MCU::RCC::PLL1_FRACR & 0xFFFF0007;
-	*MCU::RCC::PLL1_FRACR = temp | (multiplier_frac << 3);
+	
+	const uint32 multiplier_int = (uint32) multiplier;
+	const uint32 multiplier_frac = (uint32) ((multiplier - multiplier_int) * 0x2000);
+	
+	
+	//	Write Multiplier Values
+	bit::fieldWrite(*MCU::RCC::PLL1_DIVR, 0, 9, multiplier_int - 1);
+	
+	
+	//	PLL 1 Latch
+	bit::clear(*MCU::RCC::PLL_CFGR, 0);
+	bit::fieldWrite(*MCU::RCC::PLL1_FRACR, 3, 13, multiplier_frac);
 	bit::set(*MCU::RCC::PLL_CFGR, 0);
-
-	temp = *MCU::RCC::PLL_CKSELR & 0xFFFFFC0F;																																										//	Write Divider Values
-	*MCU::RCC::PLL_CKSELR = temp | (divider_in << 4);
-
-	*MCU::RCC::PLL1_DIVR &= 0x000001FF;
-	*MCU::RCC::PLL1_DIVR |= ((divider_r - 1) << 24);
-	*MCU::RCC::PLL1_DIVR |= ((divider_q - 1) << 16);
-	*MCU::RCC::PLL1_DIVR |= ((divider_p - 1) << 9);
-
 	
 	
+	//	Write Divider Values
+	bit::fieldWrite(*MCU::RCC::PLL_CKSELR, 4, 6, divider_in);
+	bit::fieldWrite(*MCU::RCC::PLL1_DIVR,  9, 7, divider_p - 1);
+	bit::fieldWrite(*MCU::RCC::PLL1_DIVR, 16, 7, divider_q - 1);
+	bit::fieldWrite(*MCU::RCC::PLL1_DIVR, 24, 7, divider_r - 1);
+	
+	
+	//	Adapt Voltage Level according to Frequency
 	bool pll_1_range_wide = false;
 	if(m_pll_1_range == e_pll_range::WIDE)
 	{
 		pll_1_range_wide = true;
 	}
-	m_pwr.set_voltageLevel(m_pwr.get_requiredVoltageLevel(divider_p, divider_q, divider_r, clock_out, pll_1_range_wide));					//	Adapt Voltage Level according to Frequency
+	
+	PWR& pwr = STM32H753BIT6::get().get_pwr();
+	pwr.set_voltageLevel(pwr.get_requiredVoltageLevel(divider_p, divider_q, divider_r, clock_out, pll_1_range_wide));
 	
 	
-	
+	//	Store Settings
 	m_divider_pll_1_p = divider_p;
 	m_divider_pll_1_q = divider_q;
 	m_divider_pll_1_r = divider_r;
 	m_clock_pll_1 = clock_out;
 	
 	
+	//	Enable PLL 1
+	bit::set(*MCU::RCC::CR, 24);
 	
-	bit::set(*MCU::RCC::CR, 24);																																																	//	Enable PLL 1
-	while(bit::isCleared(*MCU::RCC::CR, 25))																																											//	Wait for PLL 1 to lock
+	
+	//	Wait for PLL 1 to lock
+	while(bit::isCleared(*MCU::RCC::CR, 25))
 	{
-
+		
 	}
-
+	
+	
+	//	Reapply PLL 1 as System Clock Source
 	if(pllAsSystemSource == true)
 	{
 		set_clockSource_system(e_clockSource_system::PLL1);
 	}
-
 	return(OK);
 }
 
 
 feedback RCC::pll_2_init(uint32 clock_out, uint32 divider_p, uint32 divider_q, uint32 divider_r)
 {
+	//	Boundary Check
 	if(clock_out < 150000000 || divider_p > 128 || divider_q > 128 || divider_r > 128)
 	{
 		return(FAIL);
 	}
-
-	uint32 clock_in = 0;																																																					//	Evaluate PLL Input Frequency
+	
+	
+	//	Evaluate PLL Input Frequency
+	uint32 clock_in = 0;
 	switch(m_clockSource_pll)
 	{
 		case e_clockSource_pll::HSI:
+		{
 			clock_in = c_clock_hsi / m_divider_hsi;
-			break;
-
+		}
+		break;
+		
 		case e_clockSource_pll::CSI:
-				return(FAIL);
-			break;
-
-		case e_clockSource_pll::HSE:
-			clock_in = c_clock_hse;
-			break;
-
-		default:
+		{
 			return(FAIL);
+		}
+		break;
+		
+		case e_clockSource_pll::HSE:
+		{
+			clock_in = c_clock_hse;
+		}
+		break;
+		
+		default:
+		{
+			return(FAIL);
+		}
+		break;
 	}
-
+	
+	
+	//	Check Input and Output Frequency Ranges
 	if((clock_out > 420000000 && clock_in < 2000000) || clock_in < 1000000)
 	{
 		return(FAIL);
 	}
 	
 	
-	bit::clear(*MCU::RCC::CR, 26);																																																//	Disable PLL 2
+	//	Disable PLL 2
+	bit::clear(*MCU::RCC::CR, 26);
 	while(bit::isSet(*MCU::RCC::CR, 27))
 	{
 		
 	}
 	
 	
-	if(divider_p == 0)																																																						//	Enable or Disable Outputs
+	//	Enable or Disable Outputs
+	if(divider_p == 0)
 	{
 		bit::clear(*MCU::RCC::PLL_CFGR, 19);
 	}
@@ -585,11 +634,11 @@ feedback RCC::pll_2_init(uint32 clock_out, uint32 divider_p, uint32 divider_q, u
 	}
 	
 	
-	
+	//	Select VCO and Input Divider
 	uint32 divider_in = 1;
 	uint32 clock_in_divided = clock_in / divider_in;
-
-	if(clock_out >= 192000000 && clock_in >= 2000000)																																							//	Select VCO and Input Divider
+	
+	if(clock_out >= 192000000 && clock_in >= 2000000)
 	{
 		m_pll_2_range = e_pll_range::WIDE;
 		bit::clear(*MCU::RCC::PLL_CFGR, 5);
@@ -617,8 +666,10 @@ feedback RCC::pll_2_init(uint32 clock_out, uint32 divider_p, uint32 divider_q, u
 			clock_in_divided = clock_in / divider_in;
 		}
 	}
-
-	uint32 mask = 0;																																																							//	Set correct Input Frequency Range
+	
+	
+	//	Set correct Input Frequency Range
+	uint32 mask = 0;
 	if(clock_in_divided > 1000000 && clock_in_divided <= 2000000)
 	{
 		mask = 0x0;
@@ -644,92 +695,113 @@ feedback RCC::pll_2_init(uint32 clock_out, uint32 divider_p, uint32 divider_q, u
 			}
 		}
 	}
-
-	uint32 temp =	*MCU::RCC::PLL_CFGR & 0xFFFFFF3F;
-	*MCU::RCC::PLL_CFGR = temp | (mask << 6);
-
-
-
-	double multiplier = clock_out / clock_in_divided;																																							//	Compute Multiplier
+	bit::fieldWrite(*MCU::RCC::PLL_CFGR, 6, 2, mask);
+	
+	
+	//	Compute Multiplier
+	const double multiplier = clock_out / clock_in_divided;
 	if(multiplier < 4 || multiplier > 512)
 	{
 		return(FAIL);
 	}
 
-	uint32 multiplier_int = (uint32) multiplier;
-	uint32 multiplier_frac = (uint32) ((multiplier - multiplier_int) * 0x2000);
-
-	temp = *MCU::RCC::PLL2_DIVR & 0xFFFFFE00;																																											//	Write Multiplier Values
-	*MCU::RCC::PLL2_DIVR = temp | (multiplier_int - 1);
-
-	bit::clear(*MCU::RCC::PLL_CFGR, 4);																																														//	PLL 2 Latch
-	temp = *MCU::RCC::PLL2_FRACR & 0xFFFF0007;
-	*MCU::RCC::PLL2_FRACR = temp | (multiplier_frac << 3);
+	const uint32 multiplier_int = (uint32) multiplier;
+	const uint32 multiplier_frac = (uint32) ((multiplier - multiplier_int) * 0x2000);
+	
+	
+	//	Write Multiplier Values
+	bit::fieldWrite(*MCU::RCC::PLL2_DIVR, 0, 9, multiplier_int - 1);
+	
+	
+	//	PLL 2 Latch
+	bit::clear(*MCU::RCC::PLL_CFGR, 4);
+	bit::fieldWrite(*MCU::RCC::PLL2_FRACR, 3, 13, multiplier_frac);
 	bit::set(*MCU::RCC::PLL_CFGR, 4);
 	
-	temp = *MCU::RCC::PLL_CKSELR & 0xFFFC0FFF;																																										//	Write Divider Values
-	*MCU::RCC::PLL_CKSELR = temp | (divider_in << 12);
 	
-	*MCU::RCC::PLL2_DIVR &= 0x000001FF;
-	*MCU::RCC::PLL2_DIVR |= ((divider_r - 1) << 24);
-	*MCU::RCC::PLL2_DIVR |= ((divider_q - 1) << 16);
-	*MCU::RCC::PLL2_DIVR |= ((divider_p - 1) << 9);
-
+	//	Write Divider Values
+	bit::fieldWrite(*MCU::RCC::PLL_CKSELR, 12, 6, divider_in);
+	bit::fieldWrite(*MCU::RCC::PLL2_DIVR,  9, 7, divider_p - 1);
+	bit::fieldWrite(*MCU::RCC::PLL2_DIVR, 16, 7, divider_q - 1);
+	bit::fieldWrite(*MCU::RCC::PLL2_DIVR, 24, 7, divider_r - 1);
+	
+	
+	//	Store Settings
 	m_divider_pll_2_p = divider_p;
 	m_divider_pll_2_q = divider_q;
 	m_divider_pll_2_r = divider_r;
 	m_clock_pll_2 = clock_out;
 	
-	bit::set(*MCU::RCC::CR, 26);																																																	//	Enable PLL 2
-	while(bit::isCleared(*MCU::RCC::CR, 27))																																											//	Wait for PLL 2 to lock
+	
+	//	Enable PLL 2
+	bit::set(*MCU::RCC::CR, 26);
+	
+	
+	//	Wait for PLL 2 to lock
+	while(bit::isCleared(*MCU::RCC::CR, 27))
 	{
 		
 	}
-	
 	return(OK);
 }
 
 
 feedback RCC::pll_3_init(uint32 clock_out, uint32 divider_p, uint32 divider_q, uint32 divider_r)
 {
+	//	Boundary Check
 	if(clock_out < 150000000 || divider_p > 128 || divider_q > 128 || divider_r > 128)
 	{
 		return(FAIL);
 	}
-
-	uint32 clock_in = 0;																																																					//	Evaluate PLL Input Frequency
+	
+	
+	//	Evaluate PLL Input Frequency
+	uint32 clock_in = 0;
 	switch(m_clockSource_pll)
 	{
 		case e_clockSource_pll::HSI:
+		{
 			clock_in = c_clock_hsi / m_divider_hsi;
-			break;
-
+		}
+		break;
+		
 		case e_clockSource_pll::CSI:
+		{
 			return(FAIL);
-			break;
-
+		}
+		break;
+		
 		case e_clockSource_pll::HSE:
+		{
 			clock_in = c_clock_hse;
-			break;
-
+		}
+		break;
+		
 		default:
+		{
 			return(FAIL);
+		}
+		break;
 	}
-
+	
+	
+	//	Check Input and Output Frequency Ranges
 	if((clock_out > 420000000 && clock_in < 2000000) || clock_in < 1000000)
 	{
 		return(FAIL);
 	}
 	
 	
-	bit::clear(*MCU::RCC::CR, 28);																																																//	Disable PLL 3
+	//	Disable PLL 3
+	bit::clear(*MCU::RCC::CR, 28);
 	while(bit::isSet(*MCU::RCC::CR, 29))
 	{
-
+		
 	}
 	
 	
-	if(divider_p == 0)																																																						//	Enable or Disable Outputs
+	//	Enable or Disable Outputs
+	if(divider_p == 0)
 	{
 		bit::clear(*MCU::RCC::PLL_CFGR, 22);
 	}
@@ -755,11 +827,11 @@ feedback RCC::pll_3_init(uint32 clock_out, uint32 divider_p, uint32 divider_q, u
 	}
 	
 	
-	
+	//	Select VCO and Input Divider
 	uint32 divider_in = 1;
 	uint32 clock_in_divided = clock_in / divider_in;
-
-	if(clock_out >= 192000000 && clock_in >= 2000000)																																							//	Select VCO and Input Divider
+	
+	if(clock_out >= 192000000 && clock_in >= 2000000)
 	{
 		m_pll_3_range = e_pll_range::WIDE;
 		bit::clear(*MCU::RCC::PLL_CFGR, 9);
@@ -787,8 +859,10 @@ feedback RCC::pll_3_init(uint32 clock_out, uint32 divider_p, uint32 divider_q, u
 			clock_in_divided = clock_in / divider_in;
 		}
 	}
-
-	uint32 mask = 0;																																																							//	Set correct Input Frequency Range
+	
+	
+	//	Set correct Input Frequency Range
+	uint32 mask = 0;
 	if(clock_in_divided > 1000000 && clock_in_divided <= 2000000)
 	{
 		mask = 0x0;
@@ -814,48 +888,53 @@ feedback RCC::pll_3_init(uint32 clock_out, uint32 divider_p, uint32 divider_q, u
 			}
 		}
 	}
-
-	uint32 temp =	*MCU::RCC::PLL_CFGR & 0xFFFFF3FF;
-	*MCU::RCC::PLL_CFGR = temp | (mask << 10);
-
-
-
-	double multiplier = clock_out / clock_in_divided;																																							//	Compute Multiplier
+	bit::fieldWrite(*MCU::RCC::PLL_CFGR, 10, 2, mask);
+	
+	
+	//	Compute Multiplier
+	const double multiplier = clock_out / clock_in_divided;
 	if(multiplier < 4 || multiplier > 512)
 	{
 		return(FAIL);
 	}
-
-	uint32 multiplier_int = (uint32) multiplier;
-	uint32 multiplier_frac = (uint32) ((multiplier - multiplier_int) * 0x2000);
-
-	temp = *MCU::RCC::PLL3_DIVR & 0xFFFFFE00;																																											//	Write Multiplier Values
-	*MCU::RCC::PLL3_DIVR = temp | (multiplier_int - 1);
-
-	bit::clear(*MCU::RCC::PLL_CFGR, 8);																																														//	PLL 3 Latch
-	temp = *MCU::RCC::PLL3_FRACR & 0xFFFF0007;
-	*MCU::RCC::PLL3_FRACR = temp | (multiplier_frac << 3);
+	
+	const uint32 multiplier_int = (uint32) multiplier;
+	const uint32 multiplier_frac = (uint32) ((multiplier - multiplier_int) * 0x2000);
+	
+	
+	//	Write Multiplier Values
+	bit::fieldWrite(*MCU::RCC::PLL3_DIVR, 0, 9, multiplier_int - 1);
+	
+	
+	//	PLL 3 Latch
+	bit::clear(*MCU::RCC::PLL_CFGR, 8);
+	bit::fieldWrite(*MCU::RCC::PLL3_FRACR, 3, 13, multiplier_frac);
 	bit::set(*MCU::RCC::PLL_CFGR, 8);
 	
-	temp = *MCU::RCC::PLL_CKSELR & 0xFC0FFFFF;																																										//	Write Divider Values
-	*MCU::RCC::PLL_CKSELR = temp | (divider_in << 20);
 	
-	*MCU::RCC::PLL3_DIVR &= 0x000001FF;
-	*MCU::RCC::PLL3_DIVR |= ((divider_r - 1) << 24);
-	*MCU::RCC::PLL3_DIVR |= ((divider_q - 1) << 16);
-	*MCU::RCC::PLL3_DIVR |= ((divider_p - 1) << 9);
-
+	//	Write Divider Values
+	bit::fieldWrite(*MCU::RCC::PLL_CKSELR, 20, 6, divider_in);
+	bit::fieldWrite(*MCU::RCC::PLL3_DIVR,  9, 7, divider_p - 1);
+	bit::fieldWrite(*MCU::RCC::PLL3_DIVR, 16, 7, divider_q - 1);
+	bit::fieldWrite(*MCU::RCC::PLL3_DIVR, 24, 7, divider_r - 1);
+	
+	
+	//	Store Settings
 	m_divider_pll_3_p = divider_p;
 	m_divider_pll_3_q = divider_q;
 	m_divider_pll_3_r = divider_r;
 	m_clock_pll_3 = clock_out;
 	
-	bit::set(*MCU::RCC::CR, 28);																																																	//	Enable PLL 3
-	while(bit::isCleared(*MCU::RCC::CR, 29))																																											//	Wait for PLL 3 to lock
+	
+	//	Enable PLL 3
+	bit::set(*MCU::RCC::CR, 28);
+	
+	
+	//	Wait for PLL 3 to lock
+	while(bit::isCleared(*MCU::RCC::CR, 29))
 	{
 		
 	}
-
 	return(OK);
 }
 
@@ -867,8 +946,8 @@ feedback RCC::pll_3_init(uint32 clock_out, uint32 divider_p, uint32 divider_q, u
 
 RCC::e_clockSource_system RCC::get_clockSource_system()
 {
-	uint32 mask = (*MCU::RCC::CFGR & 0x00000038) >> 3;
-	return((e_clockSource_system) mask);
+	const uint32 bits = bit::fieldRead(*MCU::RCC::CFGR, 3, 3);
+	return((e_clockSource_system) bits);
 }
 
 
@@ -878,51 +957,69 @@ feedback RCC::set_clockSource_system(e_clockSource_system clockSource)
 	switch(clockSource)
 	{
 		case e_clockSource_system::HSI:
+		{
 			newClock = c_clock_hsi / m_divider_hsi;
-			break;
-
+		}
+		break;
+		
 		case e_clockSource_system::CSI:
+		{
 			newClock = c_clock_csi;
-			break;
-
+		}
+		break;
+		
 		case e_clockSource_system::HSE:
+		{
 			newClock = c_clock_hse;
-			break;
-
+		}
+		break;
+		
 		case e_clockSource_system::PLL1:
+		{
 			newClock = m_clock_pll_1 / m_divider_pll_1_p;
-			break;
-
+		}
+		break;
+		
 		default:
+		{
 			return(FAIL);
+		}
+		break;
 	}
 	
 	
-	
-	
-	
+	STM32H753BIT6& stm32 = STM32H753BIT6::get();
+	Flash& flash = stm32.get_flash();
+	PWR& pwr = stm32.get_pwr();
 	if(newClock > m_clock_system)
 	{
 		if(set_busPrescaler(newClock) != OK)
 		{
 			return(FAIL);
 		}
-		m_flash.set_waitStates(m_clock_ahb, m_pwr.get_voltageLevel());
 		
-		uint32 temp = *MCU::RCC::CFGR & 0xFFFFFFF8;																																									//	Switch System Clock Source
-		*MCU::RCC::CFGR = temp | (uint32) clockSource;
 		
-		if(get_clockSource_system() != clockSource)																																									//	Check if Switch was successful
+		flash.set_waitStates(m_clock_ahb, pwr.get_voltageLevel());
+		
+		
+		//	Switch System Clock Source
+		bit::fieldWrite(*MCU::RCC::CFGR, 0, 3, (uint32) clockSource);
+		
+		
+		//	Check if Switch was successful
+		if(get_clockSource_system() != clockSource)
 		{
 			return(FAIL);
 		}
 	}
 	else
 	{
-		uint32 temp = *MCU::RCC::CFGR & 0xFFFFFFF8;																																									//	Switch System Clock Source
-		*MCU::RCC::CFGR = temp | (uint32) clockSource;
+		//	Switch System Clock Source
+		bit::fieldWrite(*MCU::RCC::CFGR, 0, 3, (uint32) clockSource);
 		
-		if(get_clockSource_system() != clockSource)																																									//	Check if Switch was successful
+		
+		//	Check if Switch was successful
+		if(get_clockSource_system() != clockSource)
 		{
 			return(FAIL);
 		}
@@ -930,14 +1027,14 @@ feedback RCC::set_clockSource_system(e_clockSource_system clockSource)
 		{
 			return(FAIL);
 		}
-		m_flash.set_waitStates(m_clock_ahb, m_pwr.get_voltageLevel());
+		flash.set_waitStates(m_clock_ahb, pwr.get_voltageLevel());
 	}
 	
 	
-	
+	//	Store Settings
 	m_clock_system = newClock;
 	m_clockSource_system = clockSource;
-
+	
 	return(OK);
 }
 
@@ -1030,31 +1127,38 @@ feedback RCC::mco_1_init(e_clockSource_mco_1 clockSource, uint32 divider)
 {
 	if(clockSource != m_clockSource_mco_1)
 	{
-		uint32 mask = (uint32) clockSource;
+		//	Boundary Check
+		const uint32 mask = (uint32) clockSource;
 		if(mask > 0x4)
 		{
 			return(FAIL);
 		}
-
-		uint32 temp = *MCU::RCC::CFGR & 0xFE3FFFFF;
-		*MCU::RCC::CFGR = temp | (mask << 22);
-
+		
+		
+		//	Write Clock Source
+		bit::fieldWrite(*MCU::RCC::CFGR, 22, 3, mask);
+		
+		
+		//	Store Setting
 		m_clockSource_mco_1 = clockSource;
 	}
-
+	
 	if(divider != m_divider_mco_1)
 	{
+		//	Boundary Check
 		if(divider > 15)
 		{
 			return(FAIL);
 		}
-
-		uint32 temp = *MCU::RCC::CFGR & 0xFFC3FFFF;
-		*MCU::RCC::CFGR = temp | (divider << 18);
-
+		
+		
+		//	Write Divider
+		bit::fieldWrite(*MCU::RCC::CFGR, 18, 4, divider);
+		
+		
+		//	Store Setting
 		m_divider_mco_1 = divider;
 	}
-
 	return(OK);
 }
 
@@ -1063,31 +1167,38 @@ feedback RCC::mco_2_init(e_clockSource_mco_2 clockSource, uint32 divider)
 {
 	if(clockSource != m_clockSource_mco_2)
 	{
-		uint32 mask = (uint32) clockSource;
+		//	Boundary Check
+		const uint32 mask = (uint32) clockSource;
 		if(mask > 0x5)
 		{
 			return(FAIL);
 		}
-
-		uint32 temp = *MCU::RCC::CFGR & 0x1FFFFFFF;
-		*MCU::RCC::CFGR = temp | (mask << 29);
-
+		
+		
+		//	Write Clock Source
+		bit::fieldWrite(*MCU::RCC::CFGR, 29, 3, mask);
+		
+		
+		//	Store Setting
 		m_clockSource_mco_2 = clockSource;
 	}
 
 	if(divider != m_divider_mco_2)
 	{
+		//	Boundary Check
 		if(divider > 15)
 		{
 			return(FAIL);
 		}
-
-		uint32 temp = *MCU::RCC::CFGR & 0xE1FFFFFF;
-		*MCU::RCC::CFGR = temp | (divider << 25);
-
+		
+		
+		//	Write Divider
+		bit::fieldWrite(*MCU::RCC::CFGR, 25, 4, divider);
+		
+		
+		//	Store Setting
 		m_divider_mco_2 = divider;
 	}
-
 	return(OK);
 }
 
@@ -1099,10 +1210,10 @@ feedback RCC::mco_2_init(e_clockSource_mco_2 clockSource, uint32 divider)
 
 feedback RCC::module_clockInit(e_module module, bool enable)
 {
-	uint32 offset = (((uint32) module) & 0x0000FF00) >> 8;
+	const uint32 offset = (((uint32) module) & 0x0000FF00) >> 8;
 	volatile uint32* reg = MCU::RCC::AHB3_ENR + offset;
 	
-	uint32 bit = ((uint32) module) & 0x000000FF;
+	const uint32 bit = ((uint32) module) & 0x000000FF;
 	
 	if(enable == true)
 	{
@@ -1112,31 +1223,32 @@ feedback RCC::module_clockInit(e_module module, bool enable)
 	{
 		bit::clear(*reg, bit);
 	}
-	
-	
 	return(OK);
 }
 
 
 feedback RCC::module_reset(e_module module)
 {
-	uint32 offset = (((uint32) module) & 0x0000FF00) >> 8;
+	const uint32 offset = (((uint32) module) & 0x0000FF00) >> 8;
 	volatile uint32* reg = MCU::RCC::AHB3_RSTR + offset;
 	
-	uint32 bit = ((uint32) module) & 0x000000FF;
+	const uint32 bit = ((uint32) module) & 0x000000FF;
 	
+	
+	//	Set Reset Bit
 	bit::set(*reg, bit);
 	while(bit::isCleared(*reg, bit))
 	{
 		
 	}
+	
+	
+	//	Clear Reset Bit
 	bit::clear(*reg, bit);
 	while(bit::isSet(*reg, bit))
 	{
 		
 	}
-	
-	
 	return(OK);
 }
 
@@ -1148,31 +1260,44 @@ feedback RCC::module_reset(e_module module)
 
 feedback RCC::set_clockSource(e_clockSource_perck clockSource)
 {
-	uint32 temp = *MCU::RCC::D1_CCIPR & 0xCFFFFFFF;
-	uint32 mask = 0;
+	//	Determine Bit Mask
+	uint32 mask = 0x0;
 	switch(clockSource)
 	{
 		case e_clockSource_perck::HSI:
+		{
 			mask = 0x0;
 			m_clock_perck = c_clock_hsi;
-			break;
-			
+		}
+		break;
+		
 		case e_clockSource_perck::CSI:
+		{
 			mask = 0x1;
 			m_clock_perck = c_clock_csi;
-			break;
-			
+		}
+		break;
+		
 		case e_clockSource_perck::HSE:
+		{
 			mask = 0x2;
 			m_clock_perck = c_clock_hse;
-			break;
-			
+		}
+		break;
+		
 		default:
+		{
 			return(FAIL);
-			break;
+		}
+		break;
 	}
 	
-	*MCU::RCC::D1_CCIPR = temp | (mask << 28);
+	
+	//	Write Clock Source
+	bit::fieldWrite(*MCU::RCC::D1_CCIPR, 28, 2, mask);
+	
+	
+	//	Store Setting
 	m_clockSource_perck = clockSource;
 	return(OK);
 }
@@ -1180,15 +1305,18 @@ feedback RCC::set_clockSource(e_clockSource_perck clockSource)
 
 feedback RCC::set_clockSource(e_clockSource_adc clockSource)
 {
+	//	Check if Clock Source is already set
 	if(m_clockSource_adc == clockSource)
 	{
 		return(OK);
 	}
 	
-	uint32 mask = (uint32) clockSource;
-	uint32 temp = *MCU::RCC::D3_CCIPR & 0xFFFCFFFF;
-	*MCU::RCC::D3_CCIPR = temp | (mask << 16);
 	
+	//	Write Clock Source
+	bit::fieldWrite(*MCU::RCC::D3_CCIPR, 16, 2, (uint32) clockSource);
+	
+	
+	//	Store Setting
 	m_clockSource_adc = clockSource;
 	return(OK);
 }
@@ -1196,15 +1324,18 @@ feedback RCC::set_clockSource(e_clockSource_adc clockSource)
 
 feedback RCC::set_clockSource(e_clockSource_sdmmc clockSource)
 {
+	//	Check if Clock Source is already set
 	if(m_clockSource_sdmmc == clockSource)
 	{
 		return(OK);
 	}
 	
-	uint32 mask = (uint32) clockSource;
-	uint32 temp = *MCU::RCC::D1_CCIPR & 0xFFFEFFFF;
-	*MCU::RCC::D1_CCIPR = temp | (mask << 16);
 	
+	//	Write Clock Source
+	bit::fieldWrite(*MCU::RCC::D1_CCIPR, 16, 2, (uint32) clockSource);
+	
+	
+	//	Store Setting
 	m_clockSource_sdmmc = clockSource;
 	return(OK);
 }
@@ -1212,29 +1343,38 @@ feedback RCC::set_clockSource(e_clockSource_sdmmc clockSource)
 
 feedback RCC::set_clockSource(e_clockSource_uart clockSource, uint32 uartNumber)
 {
+	//	Check which UART is selected, because UART1 and UART6 share the same Bits
 	if(uartNumber == 1 || uartNumber == 6)
 	{
+		//	Check if Clock Source is already set
 		if(m_clockSource_uart_1_6 == clockSource)
 		{
 			return(OK);
 		}
-		uint32 mask = (uint32) clockSource;
-		uint32 temp = *MCU::RCC::D2_CCIP2R & 0xFFFFFFC7;
-		*MCU::RCC::D2_CCIP2R = temp | (mask << 3);
 		
+		
+		//	Write Clock Source
+		bit::fieldWrite(*MCU::RCC::D2_CCIP2R, 3, 3, (uint32) clockSource);
+		
+		
+		//	Store Setting
 		m_clockSource_uart_1_6 = clockSource;
 		return(OK);
 	}
 	else
 	{
+		//	Check if Clock Source is already set
 		if(m_clockSource_uart_234578 == clockSource)
 		{
 			return(OK);
 		}
-		uint32 mask = (uint32) clockSource;
-		uint32 temp = *MCU::RCC::D2_CCIP2R & 0xFFFFFFF8;
-		*MCU::RCC::D2_CCIP2R = temp | mask;
 		
+		
+		//	Write Clock Source
+		bit::fieldWrite(*MCU::RCC::D2_CCIP2R, 0, 3, (uint32) clockSource);
+		
+		
+		//	Store Setting
 		m_clockSource_uart_234578 = clockSource;
 		return(OK);
 	}
@@ -1243,15 +1383,18 @@ feedback RCC::set_clockSource(e_clockSource_uart clockSource, uint32 uartNumber)
 
 feedback RCC::set_clockSource(e_clockSource_fmc clockSource)
 {
+	//	Check if Clock Source is already set
 	if(m_clockSource_fmc == clockSource)
 	{
 		return(OK);
 	}
 	
-	uint32 mask = (uint32) clockSource;
-	uint32 temp = *MCU::RCC::D1_CCIPR & 0xFFFFFFFC;
-	*MCU::RCC::D1_CCIPR = temp | mask;
 	
+	//	Write Clock Source
+	bit::fieldWrite(*MCU::RCC::D1_CCIPR, 0, 2, (uint32) clockSource);
+	
+	
+	//	Store Setting
 	m_clockSource_fmc = clockSource;
 	return(OK);
 }
@@ -1259,15 +1402,18 @@ feedback RCC::set_clockSource(e_clockSource_fmc clockSource)
 
 feedback RCC::set_clockSource(e_clockSource_can clockSource)
 {
+	//	Check if Clock Source is already set
 	if(m_clockSource_can == clockSource)
 	{
 		return(OK);
 	}
 	
-	uint32 mask = (uint32) clockSource;
-	uint32 temp = *MCU::RCC::D2_CCIP1R & 0xCFFFFFFF;
-	*MCU::RCC::D2_CCIP1R = temp | (mask << 28);
 	
+	//	Write Clock Source
+	bit::fieldWrite(*MCU::RCC::D2_CCIP1R, 28, 2, (uint32) clockSource);
+	
+	
+	//	Store Setting
 	m_clockSource_can = clockSource;
 	return(OK);
 }

@@ -1,9 +1,6 @@
 #pragma once
 
-#include "registers.hpp"
 #include "cmos.hpp"
-#include "rcc.hpp"
-#include "nvic.hpp"
 
 
 
@@ -21,11 +18,25 @@ class MDMA
 		
 	private:
 		
+		//	Static Member
+		
+		
+		
+		//	Non-static Member
+		
+		
+		
+		//	Constructor and Destructor
 		constexpr inline MDMA();
 		MDMA(const MDMA& mdma) = delete;
 		inline ~MDMA();
 		
 		
+		//	Member Functions
+		feedback startup();
+		
+		
+		//	Friends
 		friend class STM32H753BIT6;
 		
 		
@@ -33,8 +44,6 @@ class MDMA
 		
 		
 	public:
-		
-		feedback startup(RCC& rcc);
 		
 		feedback copy(uint8 channel, uint8* source,	uint8* destination,		uint16 sizeInBytes);
 		feedback copy(uint8 channel, uint16* source,	uint16* destination,	uint16 sizeInBytes);

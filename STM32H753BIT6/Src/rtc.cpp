@@ -1,4 +1,4 @@
-#include "../Inc/rtc.hpp"
+#include "../Inc/stm32h753bit6.hpp"
 
 
 
@@ -16,43 +16,74 @@
 /*                      						Private	  			 						 						 */
 /*****************************************************************************/
 
+feedback RTC::startup()
+{
+	return(OK);
+}
+
+
+
+
+
+
+
 feedback RTC::initClock(e_clockSource clockSource, Time time)
 {
+	RCC& m_rcc = STM32H753BIT6::get().get_rcc();
 	m_rcc.module_clockInit(RCC::e_module::RTC, true);
 	
-	bit::set(*MCU::PWR::CR1, 8);																																																	//	Disable Write Protection of Backup Domain
 	
-	*MCU::RCC::BDCR &= 0xFFFFFCFF;																																																//	Select Clock Source
+	//	Disable Write Protection of Backup Domain
+	bit::set(*MCU::PWR::CR1, 8);
+	
+	
+	//	Select Clock Source
+	*MCU::RCC::BDCR &= 0xFFFFFCFF;
 	switch(clockSource)
 	{
 		case e_clockSource::LSE:
+		{
 			*MCU::RCC::BDCR |= 0x00000100;
 			m_clockIn = RCC::c_clock_lse;
-			break;
+		}
+		break;
 			
 		case e_clockSource::LSI:
+		{
 			*MCU::RCC::BDCR |= 0x00000200;
 			m_clockIn = m_rcc.c_clock_lsi;
-			break;
+		}
+		break;
 			
 		case e_clockSource::HSE:
+		{
 			*MCU::RCC::CFGR &= (0xFFFFFFFF - (0x3F << 8));
 			*MCU::RCC::CFGR |= (0x8 << 8);
 			*MCU::RCC::BDCR |= 0x00000300;
 			m_clockIn = RCC::c_clock_hse / 0x8;
-			break;
+		}
+		break;
 			
 		default:
+		{
 			return(FAIL);
+		}
+		break;
 	}
 	
-	bit::set(*MCU::RCC::BDCR, 15);																																																//	Enable RTC Clock
+	
+	//	Enable RTC Clock
+	bit::set(*MCU::RCC::BDCR, 15);
 	m_clockSource = clockSource;
 	
-	*MCU::RTC::WPR = 0x000000CA;																																																	//	Unlock Write Protection of RTC Registers
+	
+	//	Unlock Write Protection of RTC Registers
+	*MCU::RTC::WPR = 0x000000CA;
 	*MCU::RTC::WPR = 0x00000053;
 	
-	bit::set(*MCU::RTC::ISR, 7);																																																	//	Enter RTC Initialisation Mode
+	
+	//	Enter RTC Initialisation Mode
+	bit::set(*MCU::RTC::ISR, 7);
 	while(bit::isCleared(*MCU::RTC::ISR, 6))
 	{
 		
@@ -68,22 +99,41 @@ feedback RTC::initClock(e_clockSource clockSource, Time time)
 	*MCU::RTC::TR = ((time.hour / 10) << 20) | ((time.hour % 10) << 16) | ((time.minute / 10) << 12) | ((time.minute % 10) << 8) | ((time.second / 10) << 4) | (time.second % 10);
 	*MCU::RTC::DR = ((year / 10) << 20) | ((year % 10) << 16) | (((uint32) (time.get_weekday())) << 13) | ((time.month / 10) << 12) | ((time.month % 10) << 8) | ((time.day / 10) << 4) | (time.day % 10);
 	
-	bit::clear(*MCU::RTC::CR, 6);																																																	//	Time Format 24h
 	
-	bit::clear(*MCU::RTC::ISR, 7);																																																//	Exit RTC Initialisation Mode
+	//	Time Format 24h
+	bit::clear(*MCU::RTC::CR, 6);
+	
+	
+	//	Exit RTC Initialisation Mode
+	bit::clear(*MCU::RTC::ISR, 7);
+	
+	
 	
 	set_alarm();
-	bit::set(*MCU::RTC::CR, 12);																																																	//	Enable Alarm A Interrupt
-	bit::set(*MCU::EXTI::RTSR1, 17);																																															//	Enable Rising Trigger
-	bit::clear(*MCU::EXTI::FTSR1, 17);																																														//	Disable Falling Trigger
-	bit::set(*MCU::EXTI::CPUIMR1, 17);																																														//	Unmask *MCU::RTC::ALARM_EXTI Interrupt
 	
 	
-	*MCU::RTC::WPR = 0x000000FF;																																																	//	Lock Write Protection of RTC Registers
-	//bit::clear(*MCU::PWR::CR1, 8);																																															//	Enable Write Protection of Backup Domain
+	//	Enable Alarm A Interrupt
+	bit::set(*MCU::RTC::CR, 12);
 	
 	
+	//	Enable Rising Trigger
+	bit::set(*MCU::EXTI::RTSR1, 17);
 	
+	
+	//	Disable Falling Trigger
+	bit::clear(*MCU::EXTI::FTSR1, 17);
+	
+	
+	//	Unmask ISR_RTC_ALARM_EXTI Interrupt
+	bit::set(*MCU::EXTI::CPUIMR1, 17);
+	
+	
+	//	Lock Write Protection of RTC Registers
+	*MCU::RTC::WPR = 0x000000FF;
+	
+	
+	//	Enable Write Protection of Backup Domain
+	//bit::clear(*MCU::PWR::CR1, 8);
 	return(OK);
 }
 
@@ -92,13 +142,21 @@ void RTC::set_alarm()
 {
 	Time time(read());
 	
-	bit::set(*MCU::PWR::CR1, 8);																																																	//	Disable Write Protection of Backup Domain
+	//	Disable Write Protection of Backup Domain
+	bit::set(*MCU::PWR::CR1, 8);
 	
-	*MCU::RTC::WPR = 0x000000CA;																																																	//	Unlock Write Protection of RTC Registers
+	
+	//	Unlock Write Protection of RTC Registers
+	*MCU::RTC::WPR = 0x000000CA;
 	*MCU::RTC::WPR = 0x00000053;
 	
-	bit::clear(*MCU::RTC::CR, 8);																																																	//	Disable Alarm A
-	bit::clear(*MCU::RTC::ISR, 8);																																																//	Clear Alarm A Flag
+	
+	//	Disable Alarm A
+	bit::clear(*MCU::RTC::CR, 8);
+	
+	
+	//	Clear Alarm A Flag
+	bit::clear(*MCU::RTC::ISR, 8);
 	
 	while(bit::isCleared(*MCU::RTC::ISR, 0))
 	{
@@ -110,7 +168,9 @@ void RTC::set_alarm()
 	uint32 seconds_units = time.second % 10;
 	*MCU::RTC::ALRMAR = 0x80808000 | (seconds_tens << 4) | seconds_units;
 	
-	bit::set(*MCU::RTC::CR, 8);																																																		//	Enable Alarm A																																				//	Enable Alarm A
+	
+	//	Enable Alarm A
+	bit::set(*MCU::RTC::CR, 8);
 }
 
 
@@ -118,17 +178,6 @@ void RTC::set_alarm()
 /*****************************************************************************/
 /*                      						Public	  			 						 						 */
 /*****************************************************************************/
-
-feedback RTC::startup()
-{
-	return(OK);
-}
-
-
-
-
-
-
 
 CODE_RAM Time RTC::read()
 {

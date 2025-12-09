@@ -1,11 +1,6 @@
 #pragma once
 
-#include "registers.hpp"
 #include "cmos.hpp"
-#include "rcc.hpp"
-#include "vrefbuf.hpp"
-#include "i_dma.hpp"
-#include "dmamux.hpp"
 
 
 

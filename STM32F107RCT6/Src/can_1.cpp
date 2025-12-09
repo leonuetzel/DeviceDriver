@@ -656,7 +656,7 @@ CAN_1::e_state CAN_1::get_state()
 }
 
 
-const UniqueArray<CAN_1::e_error>& CAN_1::get_errors() const
+const UniquePairArray<CAN_1::e_error, bool>& CAN_1::get_errors() const
 {
 	return(m_errors);
 }
@@ -771,7 +771,7 @@ void ISR_CAN1_RX_0()
 		CAN_1& can = *CAN_1::m_this;
 		if(bit::isSet(*MCU::CAN_1::RF0R, 4) == true)
 		{
-			can.m_errors += I_CAN::e_error::RX_FIFO_OVERFLOW;
+			can.m_errors[I_CAN::e_error::RX_FIFO_OVERFLOW] = true;
 		}
 		
 		
@@ -825,7 +825,7 @@ void ISR_CAN1_RX_1()
 		CAN_1& can = *CAN_1::m_this;
 		if(bit::isSet(*MCU::CAN_1::RF1R, 4) == true)
 		{
-			can.m_errors += I_CAN::e_error::RX_FIFO_OVERFLOW;
+			can.m_errors[I_CAN::e_error::RX_FIFO_OVERFLOW] = true;
 		}
 		
 		
@@ -906,7 +906,7 @@ void ISR_CAN1_SCE()
 		const uint8 LEC = (ESR & 0x00000070) >> 4;
 		if(LEC > 0)
 		{
-			can.m_errors += (CAN_1::e_error) LEC;
+			can.m_errors[(CAN_1::e_error) LEC] = true;
 		}
 		
 		

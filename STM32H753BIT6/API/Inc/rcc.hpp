@@ -1,9 +1,6 @@
 #pragma once
 
-#include "registers.hpp"
 #include "cmos.hpp"
-#include "pwr.hpp"
-#include "flash.hpp"
 
 
 
@@ -260,9 +257,11 @@ class RCC
 		
 	private:
 		
-		PWR& m_pwr;
-		Flash& m_flash;
+		//	Static Member
 		
+		
+		
+		//	Non-static Member
 		e_clockSource_mco_1 m_clockSource_mco_1;
 		e_clockSource_mco_2 m_clockSource_mco_2;
 		e_clockSource_system m_clockSource_system;
@@ -315,13 +314,18 @@ class RCC
 		uint32 m_divider_apb4;
 		
 		
-		constexpr inline RCC(PWR& pwr, Flash& flash);
+		//	Constructor and Destructor
+		constexpr inline RCC();
 		RCC(const RCC& rcc) = delete;
 		inline ~RCC();
 		
+		
+		//	Member Functions
+		feedback startup();
 		feedback set_busPrescaler(uint32 newClock);
 		
 		
+		//	Friends
 		friend class STM32H753BIT6;
 		
 		
@@ -329,8 +333,6 @@ class RCC
 		
 		
 	public:
-		
-		feedback startup();
 		
 		feedback HSE_init(bool enable);
 		feedback HSI_init(bool enable, uint8 divider);
@@ -405,11 +407,8 @@ class RCC
 /*                      						Private	  			 						 						 */
 /*****************************************************************************/
 
-constexpr inline RCC::RCC(PWR& pwr, Flash& flash)
-	: m_pwr(pwr),
-		m_flash(flash),
-		
-		m_clockSource_mco_1(e_clockSource_mco_1::HSI),
+constexpr inline RCC::RCC()
+	: m_clockSource_mco_1(e_clockSource_mco_1::HSI),
 		m_clockSource_mco_2(e_clockSource_mco_2::SYSTEMCLOCK),
 		m_clockSource_system(e_clockSource_system::HSI),
 		m_clockSource_pll(e_clockSource_pll::HSI),

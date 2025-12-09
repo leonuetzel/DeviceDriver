@@ -1,4 +1,4 @@
-#include "../Inc/sdmmc_2.hpp"
+#include "../Inc/stm32h753bit6.hpp"
 
 
 
@@ -15,6 +15,17 @@
 /*****************************************************************************/
 /*                      						Private	  			 						 						 */
 /*****************************************************************************/
+
+feedback SDMMC_2::startup()
+{
+	return(OK);
+}
+
+
+
+
+
+
 
 feedback SDMMC_2::set_clockSpeed(RCC& rcc, uint32 clock)
 {
@@ -543,17 +554,6 @@ CODE_RAM feedback SDMMC_2::command_write_singleBlock(uint32 block) const
 /*****************************************************************************/
 /*                      						Public	  			 						 						 */
 /*****************************************************************************/
-
-feedback SDMMC_2::startup()
-{
-	return(OK);
-}
-
-
-
-
-
-
 
 feedback SDMMC_2::init(RCC& rcc, RCC::e_clockSource_sdmmc clockSource, f_power power, f_detect detect)
 {

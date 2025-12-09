@@ -469,7 +469,7 @@ feedback CAN_2::tx(const CAN_Frame& canFrame)
 	if(bit::isSet(*MCU::FDCAN_2::TX_FQS, 21) == true)
 	{
 		//	Tx Buffer is full
-		m_errors += e_error::TX_RINGBUFFER_OVERFLOW;
+		m_errors[e_error::TX_RINGBUFFER_OVERFLOW] = true;
 		return(FAIL);
 	}
 	
@@ -657,7 +657,7 @@ CAN_2::e_state CAN_2::get_state()
 	const uint8 LEC = PSR & 0x00000007;
 	if(LEC < 0x7)
 	{
-		m_errors += (e_error) LEC;
+		m_errors[(e_error) LEC] = true;
 	}
 	
 	
@@ -680,7 +680,7 @@ CAN_2::e_state CAN_2::get_state()
 }
 
 
-const UniqueArray<CAN_2::e_error>& CAN_2::get_errors() const
+const UniquePairArray<CAN_2::e_error, bool>& CAN_2::get_errors() const
 {
 	return(m_errors);
 }
@@ -743,7 +743,7 @@ void ISR_FDCAN_2_IT0()
 		//	Rx FIFO 1 Message lost
 		if(bit::isSet(IR, 5) == true)
 		{
-			can.m_errors += I_CAN::e_error::RX_FIFO_OVERFLOW;
+			can.m_errors[I_CAN::e_error::RX_FIFO_OVERFLOW] = true;
 			
 			//	Clear the Interrupt Flag
 			*MCU::FDCAN_2::IR = 1 << 5;
@@ -774,7 +774,7 @@ void ISR_FDCAN_2_IT0()
 		//	Rx FIFO 0 Message lost
 		if(bit::isSet(IR, 2) == true)
 		{
-			can.m_errors += I_CAN::e_error::RX_FIFO_OVERFLOW;
+			can.m_errors[I_CAN::e_error::RX_FIFO_OVERFLOW] = true;
 			
 			//	Clear the Interrupt Flag
 			*MCU::FDCAN_2::IR = 1 << 2;
@@ -817,7 +817,7 @@ void ISR_FDCAN_2_IT1()
 		//	Error: Access to reserved Area
 		if(bit::isSet(IR, 23) == true)
 		{
-			can.m_errors += I_CAN::e_error::ACCESS_TO_RESERVED_AREA;
+			can.m_errors[I_CAN::e_error::ACCESS_TO_RESERVED_AREA] = true;
 			
 			//	Clear the Interrupt Flag
 			*MCU::FDCAN_2::IR = 1 << 23;
@@ -827,7 +827,7 @@ void ISR_FDCAN_2_IT1()
 		//	Error: Protocol Error in Data Phase
 		if(bit::isSet(IR, 22) == true)
 		{
-			can.m_errors += I_CAN::e_error::PROTOCOL_ERROR_IN_DATA_PHASE;
+			can.m_errors[I_CAN::e_error::PROTOCOL_ERROR_IN_DATA_PHASE] = true;
 			
 			//	Clear the Interrupt Flag
 			*MCU::FDCAN_2::IR = 1 << 22;
@@ -837,7 +837,7 @@ void ISR_FDCAN_2_IT1()
 		//	Error: Protocol Error in Arbitration Phase
 		if(bit::isSet(IR, 21) == true)
 		{
-			can.m_errors += I_CAN::e_error::PROTOCOL_ERROR_IN_ARBITRATION_PHASE;
+			can.m_errors[I_CAN::e_error::PROTOCOL_ERROR_IN_ARBITRATION_PHASE] = true;
 			
 			//	Clear the Interrupt Flag
 			*MCU::FDCAN_2::IR = 1 << 21;
@@ -877,7 +877,7 @@ void ISR_FDCAN_2_IT1()
 		//	Error: Error Logging Overflow
 		if(bit::isSet(IR, 16) == true)
 		{
-			can.m_errors += I_CAN::e_error::ERROR_LOGGING_OVERFLOW;
+			can.m_errors[I_CAN::e_error::ERROR_LOGGING_OVERFLOW] = true;
 			
 			//	Clear the Interrupt Flag
 			*MCU::FDCAN_2::IR = 1 << 16;
@@ -887,7 +887,7 @@ void ISR_FDCAN_2_IT1()
 		//	Error: Message RAM Access Failure
 		if(bit::isSet(IR, 14) == true)
 		{
-			can.m_errors += I_CAN::e_error::MESSAGE_RAM_ACCESS_FAILURE;
+			can.m_errors[I_CAN::e_error::MESSAGE_RAM_ACCESS_FAILURE] = true;
 			
 			//	Clear the Interrupt Flag
 			*MCU::FDCAN_2::IR = 1 << 14;

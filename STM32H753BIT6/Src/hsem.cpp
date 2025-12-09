@@ -1,4 +1,4 @@
-#include "../Inc/hsem.hpp"
+#include "../Inc/stm32h753bit6.hpp"
 
 
 
@@ -16,15 +16,7 @@
 /*                      						Private	  			 						 						 */
 /*****************************************************************************/
 
-
-
-
-
-/*****************************************************************************/
-/*                      						Public	  			 						 						 */
-/*****************************************************************************/
-
-feedback HSEM::startup(RCC& rcc, uint8 number)
+feedback HSEM::startup(uint8 number)
 {
 	if(number >= c_number)
 	{
@@ -34,6 +26,7 @@ feedback HSEM::startup(RCC& rcc, uint8 number)
 	
 	if(number == 0)
 	{
+		RCC& rcc = STM32H753BIT6::get().get_rcc();
 		rcc.module_clockInit(RCC::e_module::HSEM, true);
 	}
 	return(OK);
@@ -41,9 +34,9 @@ feedback HSEM::startup(RCC& rcc, uint8 number)
 
 
 
-
-
-
+/*****************************************************************************/
+/*                      						Public	  			 						 						 */
+/*****************************************************************************/
 
 CODE_RAM feedback HSEM::lock()
 {

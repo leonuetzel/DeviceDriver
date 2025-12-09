@@ -1,9 +1,6 @@
 #pragma once
 
-#include "registers.hpp"
 #include "cmos.hpp"
-#include "rcc.hpp"
-#include "gpio.hpp"
 
 
 
@@ -24,21 +21,32 @@ class Timer_13
 		
 	private:
 		
-		RCC& m_rcc;
+		//	Static Member
 		
-		constexpr inline Timer_13(RCC& rcc);
+		
+		
+		//	Non-static Member
+		
+		
+		
+		//	Constructor and Destructor
+		constexpr inline Timer_13();
 		Timer_13(const Timer_13& timer_13) = delete;
 		inline ~Timer_13();
 		
 		
+		//	Member Functions
+		feedback startup();
+		
+		
+		//	Friends
 		friend class STM32H753BIT6;
 		
 		
 		
 		
-	public:
 		
-		feedback startup();
+	public:
 		
 		feedback init(uint32 frequency, bool enableInterrupt);
 		
@@ -60,8 +68,7 @@ class Timer_13
 /*                      						Private	  			 						 						 */
 /*****************************************************************************/
 
-constexpr inline Timer_13::Timer_13(RCC& rcc)
-	: m_rcc(rcc)
+constexpr inline Timer_13::Timer_13()
 {
 	
 }

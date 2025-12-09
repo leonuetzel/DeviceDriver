@@ -1,7 +1,7 @@
 #pragma once
 
-#include "registers.hpp"
 #include "cmos.hpp"
+
 
 
 
@@ -18,19 +18,33 @@ class Debug
 		
 	private:
 		
+		//	Static Member
+		
+		
+		
+		//	Non-static Member
 		uint16 m_revisionID;
 		uint16 m_deviceID;
 		
+		
+		//	Constructor and Destructor
 		constexpr inline Debug();
 		Debug(const Debug& debug) = delete;
 		inline ~Debug();
 		
+		
+		//	Member Functions
+		feedback startup();
+		
+		
+		//	Friends
 		friend class STM32H753BIT6;
 		
 		
-	public:
 		
-		feedback startup();
+		
+		
+	public:
 		
 		constexpr inline uint16 get_revisionID() const;
 		constexpr inline uint16 get_deviceID() const;

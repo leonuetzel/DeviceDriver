@@ -1,8 +1,6 @@
 #pragma once
 
-#include "registers.hpp"
 #include "cmos.hpp"
-#include "rcc.hpp"
 
 
 
@@ -35,7 +33,7 @@ class I2C_1: public I_I2C
 		
 		
 		//	Member Functions
-		inline feedback startup(RCC& rcc);
+		feedback startup();
 		
 		
 		//	Friends
@@ -78,18 +76,6 @@ constexpr inline I2C_1::I2C_1()
 inline I2C_1::~I2C_1()
 {
 	
-}
-
-
-
-
-
-
-
-inline feedback I2C_1::startup(RCC& rcc)
-{
-	rcc.module_clockInit(RCC::e_module::I2C_1, true);
-	return(OK);
 }
 
 

@@ -1,4 +1,4 @@
-#include "../Inc/timer_13.hpp"
+#include "../Inc/stm32h753bit6.hpp"
 
 
 
@@ -16,14 +16,6 @@
 /*                      						Private	  			 						 						 */
 /*****************************************************************************/
 
-
-
-
-
-/*****************************************************************************/
-/*                      						Public	  			 						 						 */
-/*****************************************************************************/
-
 feedback Timer_13::startup()
 {
 	return(OK);
@@ -31,13 +23,14 @@ feedback Timer_13::startup()
 
 
 
-
-
-
+/*****************************************************************************/
+/*                      						Public	  			 						 						 */
+/*****************************************************************************/
 
 feedback Timer_13::init(uint32 frequency, bool enableInterrupt)
 {
-	uint32 clock = m_rcc.get_clock_apb1_timer();
+	RCC& rcc = STM32H753BIT6::get().get_rcc();
+	const uint32 clock = rcc.get_clock_apb1_timer();
 	
 	uint32 prescaler = 1;
 	uint32 clock_divided = clock;
@@ -50,13 +43,13 @@ feedback Timer_13::init(uint32 frequency, bool enableInterrupt)
 		}
 		clock_divided = clock / prescaler;
 	}
-
-
-	m_rcc.module_clockInit(RCC::e_module::TIMER_13, true);
-
+	
+	
+	rcc.module_clockInit(RCC::e_module::TIMER_13, true);
+	
 	*MCU::TIMER_13::PSC = prescaler - 1;
 	*MCU::TIMER_13::ARR = (clock_divided / frequency) - 1;
-
+	
 	if(enableInterrupt == true)
 	{
 		bit::set(*MCU::TIMER_13::DIER, 0);
@@ -65,8 +58,8 @@ feedback Timer_13::init(uint32 frequency, bool enableInterrupt)
 	{
 		bit::clear(*MCU::TIMER_13::DIER, 0);
 	}
-
-
+	
+	
 	bit::set(*MCU::TIMER_13::CR1, 2);                                                                                             //  Only OVF/UVF triggers Interrupt
 	
 	bit::set(*MCU::TIMER_13::CR1, 0);                                                                                             //  Enable Timer

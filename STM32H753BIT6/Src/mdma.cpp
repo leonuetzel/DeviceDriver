@@ -1,4 +1,4 @@
-#include "../Inc/mdma.hpp"
+#include "../Inc/stm32h753bit6.hpp"
 
 
 
@@ -16,16 +16,9 @@
 /*                      						Private	  			 						 						 */
 /*****************************************************************************/
 
-
-
-
-
-/*****************************************************************************/
-/*                      						Public	  			 						 						 */
-/*****************************************************************************/
-
-feedback MDMA::startup(RCC& rcc)
+feedback MDMA::startup()
 {
+	RCC& rcc = STM32H753BIT6::get().get_rcc();
 	rcc.module_clockInit(RCC::e_module::MDMA, true);
 	return(OK);
 }
@@ -33,8 +26,9 @@ feedback MDMA::startup(RCC& rcc)
 
 
 
-
-
+/*****************************************************************************/
+/*                      						Public	  			 						 						 */
+/*****************************************************************************/
 
 CODE_RAM feedback MDMA::copy(uint8 channel, uint8* source, uint8* destination, uint16 sizeInBytes)
 {

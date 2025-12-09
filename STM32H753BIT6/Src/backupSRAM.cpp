@@ -1,4 +1,4 @@
-#include "../Inc/backupSRAM.hpp"
+#include "../Inc/stm32h753bit6.hpp"
 
 
 
@@ -16,14 +16,6 @@
 /*                      						Private	  			 						 						 */
 /*****************************************************************************/
 
-
-
-
-
-/*****************************************************************************/
-/*                      						Public	  			 						 						 */
-/*****************************************************************************/
-
 feedback BackupSRAM::startup()
 {
 	writeProtection(false);
@@ -35,7 +27,8 @@ feedback BackupSRAM::startup()
 	}
 	bit::clear(*MCU::RCC::BDCR, 16);
 	
-	m_rcc.module_clockInit(RCC::e_module::BKP_RAM, true);
+	RCC& rcc = STM32H753BIT6::get().get_rcc();
+	rcc.module_clockInit(RCC::e_module::BKP_RAM, true);
 	
 	bit::set(*MCU::PWR::CR2, 0);																																																	//	Enable Backup Domain Power Regulator
 	while(bit::isCleared(*MCU::PWR::CR2, 16))																																											//	Wait for Backup Domain Power Regulator to be ready
@@ -48,9 +41,9 @@ feedback BackupSRAM::startup()
 
 
 
-
-
-
+/*****************************************************************************/
+/*                      						Public	  			 						 						 */
+/*****************************************************************************/
 
 void BackupSRAM::writeProtection(bool enable)
 {

@@ -1,12 +1,6 @@
 #pragma once
 
-#include "registers.hpp"
 #include "cmos.hpp"
-#include "rcc.hpp"
-#include "gpio.hpp"
-
-#include "filesystem/i_drive.hpp"
-#include "i_semaphore.hpp"
 
 
 
@@ -25,6 +19,7 @@ class SDMMC_2: public I_Drive
 		
 	private:
 		
+		//	Static Member
 		static constexpr uint32 c_sectorSizeInBytes = 512;
 		
 		enum class e_busWidth
@@ -252,7 +247,7 @@ class SDMMC_2: public I_Drive
 		}s_SDStatus;
 		
 		
-		
+		//	Non-static Member
 		I_Semaphore& m_semaphore;
 		f_power m_power;
 		f_detect m_detect;
@@ -268,9 +263,15 @@ class SDMMC_2: public I_Drive
 		s_CSD m_CSD;
 		s_SDStatus m_SDStatus;
 		
+		
+		//	Constructor and Destructor
 		constexpr inline SDMMC_2(I_Semaphore& semaphore);
 		SDMMC_2(const SDMMC_2& sdmmc_2) = delete;
 		inline ~SDMMC_2();
+		
+		
+		//	Member Functions
+		feedback startup();
 		
 		feedback set_clockSpeed(RCC& rcc, uint32 clock);
 		feedback set_busWidth(e_busWidth busWidth);
@@ -290,6 +291,7 @@ class SDMMC_2: public I_Drive
 		feedback command_write_singleBlock(uint32 block) const;
 		
 		
+		//	Friends
 		friend class STM32H753BIT6;
 		
 		
@@ -297,8 +299,6 @@ class SDMMC_2: public I_Drive
 		
 		
 	public:
-		
-		feedback startup();
 		
 		feedback init(RCC& rcc, RCC::e_clockSource_sdmmc clockSource, f_power power, f_detect detect);
 		
