@@ -688,7 +688,10 @@ const UniquePairArray<CAN_3::e_error, bool>& CAN_3::get_errors() const
 
 void CAN_3::clearErrors()
 {
-	m_errors.erase();
+	for(auto& i: m_errors)
+	{
+		i.second() = false;
+	}
 }
 
 
