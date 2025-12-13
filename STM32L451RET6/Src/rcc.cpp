@@ -515,12 +515,6 @@ feedback RCC::init_msi(bool enable, uint8 rangeIndex)
 	}
 	
 	
-	if(enable == m_msi_enabled)
-	{
-		return(OK);
-	}
-	
-	
 	if(enable == true)
 	{
 		//	MSI Range Setting set by MSIRANGE Bits in RCC::CR
@@ -528,8 +522,7 @@ feedback RCC::init_msi(bool enable, uint8 rangeIndex)
 		
 		
 		//	Set MSI Range
-		const uint32 temp = *MCU::RCC::CR & 0xFFFFFF0F;
-		*MCU::RCC::CR = temp | (rangeIndex << 4);
+		bit::fieldWrite(*MCU::RCC::CR, 4, 4, rangeIndex);
 		
 		
 		//	Enable MSI
