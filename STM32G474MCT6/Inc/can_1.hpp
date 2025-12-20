@@ -30,6 +30,7 @@ class CAN_1: public I_CAN
 		uint32 m_baudRate;
 		Array<s_filterElement> m_standardFilterElements;
 		Array<s_filterElement> m_extendedFilterElements;
+		bool m_silentMode;
 		
 		
 		//	Constructor and Destructor
@@ -53,7 +54,7 @@ class CAN_1: public I_CAN
 		
 	public:
 		
-		feedback init(uint32 baudRate, const Array<s_filterElement>& standardfilterElements, const Array<s_filterElement>& extendedfilterElements);
+		feedback init(uint32 baudRate, const Array<s_filterElement>& standardfilterElements, const Array<s_filterElement>& extendedfilterElements, bool silentMode, uint32 rxBufferSize = 0, uint32 txBufferSize = 0) override;
 		feedback stop() override;
 		
 		feedback tx(const CAN_Frame& canFrame) override;

@@ -169,7 +169,7 @@ feedback CAN_1::writeToTxMailbox(const CAN_Frame& canFrame)
 /*                      						Public	  			 						 						 */
 /*****************************************************************************/
 
-feedback CAN_1::init(uint32 baudRate, uint32 rxBufferSize, uint32 txBufferSize)
+feedback CAN_1::init(uint32 baudRate, const Array<s_filterElement>& standardfilterElements, const Array<s_filterElement>& extendedfilterElements, bool silentMode, uint32 rxBufferSize, uint32 txBufferSize)
 {
 	//	Protect from unauthorized Access
 	CMOS& cmos = CMOS::get();
@@ -366,6 +366,18 @@ feedback CAN_1::init(uint32 baudRate, uint32 rxBufferSize, uint32 txBufferSize)
 	*MCU::CAN_1::BTR = temp | (bestTS2 << 20) | (bestTS1 << 16) | bestBRP;
 	
 	
+	//	Silent Mode
+	if(silentMode == true)
+	{
+		bit::set(*MCU::CAN_1::BTR, 31);
+	}
+	else
+	{
+		bit::clear(*MCU::CAN_1::BTR, 31);
+	}
+	m_silentMode = silentMode;
+	
+	
 	//	Enable Auto-Recovering on Tx Errors
 	bit::set(*MCU::CAN_1::MCR, 6);
 	
@@ -436,6 +448,28 @@ feedback CAN_1::init(uint32 baudRate, uint32 rxBufferSize, uint32 txBufferSize)
 	bit::set(*MCU::CAN_1::IER, 0);
 	
 	
+	//	Initialize Error Array
+	m_errors.erase();
+	m_errors[e_error::STUFFING														] = false;
+	m_errors[e_error::FORM																] = false;
+	m_errors[e_error::ACK																	] = false;
+	m_errors[e_error::BIT_RECESSIVE												] = false;
+	m_errors[e_error::BIT_DOMINANT												] = false;
+	m_errors[e_error::CRC																	] = false;
+	m_errors[e_error::SET_BY_SOFTWARE											] = false;
+	m_errors[e_error::ACCESS_TO_RESERVED_AREA							] = false;
+	m_errors[e_error::PROTOCOL_ERROR_IN_DATA_PHASE				] = false;
+	m_errors[e_error::PROTOCOL_ERROR_IN_ARBITRATION_PHASE	] = false;
+	m_errors[e_error::WATCHDOG_INTERRUPT									] = false;
+	m_errors[e_error::ERROR_LOGGING_OVERFLOW							] = false;
+	m_errors[e_error::TIMEOUT															] = false;
+	m_errors[e_error::MESSAGE_RAM_ACCESS_FAILURE					] = false;
+	m_errors[e_error::TX_EVENT_FIFO_ELEMENT_LOST					] = false;
+	m_errors[e_error::RX_FIFO_OVERFLOW										] = false;
+	m_errors[e_error::TX_RINGBUFFER_OVERFLOW							] = false;
+	m_errors[e_error::RX_RINGBUFFER_OVERFLOW							] = false;
+	
+	
 	//	Set CAN to Normal Operation
 	bit::clear(*MCU::CAN_1::MCR, 0);
 	
@@ -458,6 +492,11 @@ feedback CAN_1::init(uint32 baudRate, uint32 rxBufferSize, uint32 txBufferSize)
 	
 	//	Save Baud Rate
 	m_baudRate = baudRateCalculated;
+	
+	
+	//	Save Filter Elements
+	m_standardFilterElements = standardfilterElements;
+	m_extendedFilterElements = extendedfilterElements;
 	
 	
 	return(OK);
@@ -691,7 +730,7 @@ feedback CAN_1::recoverFromBusOffState()
 {
 	if(get_state() == CAN_1::e_state::BUS_OFF)
 	{
-		return(init(m_baudRate, m_rxBuffer->get_size(), m_txBuffer->get_size()));
+		return(init(m_baudRate, m_standardFilterElements, m_extendedFilterElements, m_silentMode, m_rxBuffer->get_size(), m_txBuffer->get_size()));
 	}
 	return(OK);
 }
@@ -719,7 +758,6 @@ void ISR_CAN1_TX()
 	{
 		return;
 	}
-	
 	
 	
 	//	Search for a free Tx Mailbox (but only one, dont clear all Request Completed Flags, else this ISR wont be called again)

@@ -24,18 +24,18 @@ class RCC
 			uint32 c_clock_pll_r_max;
 		}s_clockBoundaries;
 		
-		static constexpr uint32 c_clock_hsi_16							= 16000000;
-		static constexpr uint32 c_clock_hsi_48							= 48000000;
-		static constexpr uint32 c_clock_lsi									=    32000;
+		static constexpr uint32 c_clock_hsi_16							=  16000000;
+		static constexpr uint32 c_clock_hsi_48							=  48000000;
+		static constexpr uint32 c_clock_lsi									=     32000;
 		
-		static constexpr uint32 c_clock_ahb_max							= 80000000;
-		static constexpr uint32 c_clock_apb1_max						= 80000000;
-		static constexpr uint32 c_clock_apb2_max						= 80000000;
+		static constexpr uint32 c_clock_ahb_max							= 170000000;
+		static constexpr uint32 c_clock_apb1_max						= 170000000;
+		static constexpr uint32 c_clock_apb2_max						= 170000000;
 		
-		static constexpr uint32 c_clock_hse_min							=  4000000;
-		static constexpr uint32 c_clock_lse_max							=  1000000;
-		static constexpr uint32 c_clock_pll_input_min				=  4000000;
-		static constexpr uint32 c_clock_pll_input_max				= 16000000;
+		static constexpr uint32 c_clock_hse_min							=   4000000;
+		static constexpr uint32 c_clock_lse_max							=   1000000;
+		static constexpr uint32 c_clock_pll_input_min				=   2660000;
+		static constexpr uint32 c_clock_pll_input_max				=  16000000;
 		
 		enum class e_module
 		{

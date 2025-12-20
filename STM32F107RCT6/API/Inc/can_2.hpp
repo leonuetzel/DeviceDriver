@@ -10,7 +10,8 @@ class CAN_2: public I_CAN
 {
 	public:
 		
-		
+		static constexpr uint32 numberOfStandardFilterElements = 14;
+		static constexpr uint32 numberOfExtendedFilterElements = 14;
 		
 		
 		
@@ -24,11 +25,15 @@ class CAN_2: public I_CAN
 		
 		//	Non-static Member
 		const uint16 m_eventID_frameReadyToRead;
+		bool m_txISR_active;
 		RingbufferDynamic<CAN_Frame>* m_rxBuffer;
 		RingbufferDynamic<CAN_Frame>* m_txBuffer;
 		UniquePairArray<e_error, bool> m_errors;
 		e_state m_state;
 		uint32 m_baudRate;
+		Array<s_filterElement> m_standardFilterElements;
+		Array<s_filterElement> m_extendedFilterElements;
+		bool m_silentMode;
 		
 		
 		//	Constructor and Destructor
@@ -57,7 +62,7 @@ class CAN_2: public I_CAN
 		
 	public:
 		
-		feedback init(uint32 baudRate, uint32 rxBufferSize = 32, uint32 txBufferSize = 32);
+		feedback init(uint32 baudRate, const Array<s_filterElement>& standardfilterElements, const Array<s_filterElement>& extendedfilterElements, bool silentMode, uint32 rxBufferSize = 32, uint32 txBufferSize = 32);
 		feedback stop() override;
 		
 		feedback tx(const CAN_Frame& canFrame) override;

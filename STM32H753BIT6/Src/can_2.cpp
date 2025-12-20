@@ -24,8 +24,15 @@ CAN_2* CAN_2::m_this = nullptr;
 /*                      						Public	  			 						 						 */
 /*****************************************************************************/
 
-feedback CAN_2::init(uint32 baudRate)
+feedback CAN_2::init(uint32 baudRate, const Array<s_filterElement>& standardfilterElements, const Array<s_filterElement>& extendedfilterElements, bool silentMode, uint32 rxBufferSize, uint32 txBufferSize)
 {
+	//	Boundary Check
+	if(standardfilterElements.get_size() > numberOfStandardFilterElements || extendedfilterElements.get_size() > numberOfExtendedFilterElements)
+	{
+		return(FAIL);
+	}
+	
+	
 	//	Protect from unauthorized Access
 	CMOS& cmos = CMOS::get();
 	if(cmos.semaphore_isOwnedByRunningThread(this) == false)
@@ -212,6 +219,18 @@ feedback CAN_2::init(uint32 baudRate)
 	*MCU::FDCAN_2::FDCAN::NBTP = (SJW << 25) | (bestNBRP << 16) | (bestNTSEG1 << 8) | bestNTSEG2;
 	
 	
+	//	Silent Mode
+	if(silentMode == true)
+	{
+		bit::set(*MCU::FDCAN_2::FDCAN::CCCR, 5);
+	}
+	else
+	{
+		bit::clear(*MCU::FDCAN_2::FDCAN::CCCR, 5);
+	}
+	m_silentMode = silentMode;
+	
+	
 	//	Set up CAN Message RAM
 	//	The first Half of the Message RAM is used for CAN 1, the second Half for CAN 2
 	//	Message RAM Size is 2560 Words -> 1280 Words for each CAN Controller
@@ -338,10 +357,6 @@ feedback CAN_2::init(uint32 baudRate)
 	nvic.enable(Interrupt::FDCAN_2_INT0);
 	
 	
-	//	Start CAN Transmissions by clearing INIT Bit in CCCR Register
-	bit::clear(*MCU::FDCAN_2::FDCAN::CCCR, 0);
-	
-	
 	//	Initialize Error Array
 	m_errors.erase();
 	m_errors[e_error::STUFFING														] = false;
@@ -362,6 +377,19 @@ feedback CAN_2::init(uint32 baudRate)
 	m_errors[e_error::RX_FIFO_OVERFLOW										] = false;
 	m_errors[e_error::TX_RINGBUFFER_OVERFLOW							] = false;
 	m_errors[e_error::RX_RINGBUFFER_OVERFLOW							] = false;
+	
+	
+	//	Start CAN Transmissions by clearing INIT Bit in CCCR Register
+	bit::clear(*MCU::FDCAN_2::FDCAN::CCCR, 0);
+	
+	
+	//	Save Baud Rate
+	m_baudRate = baudRateCalculated;
+	
+	
+	//	Save Filter Elements
+	m_standardFilterElements = standardfilterElements;
+	m_extendedFilterElements = extendedfilterElements;
 	
 	
 	return(OK);
@@ -621,7 +649,7 @@ uint32 CAN_2::get_baudRate() const
 
 feedback CAN_2::recoverFromBusOffState()
 {
-	return(init(m_baudRate));
+	return(init(m_baudRate, m_standardFilterElements, m_extendedFilterElements, m_silentMode));
 }
 
 

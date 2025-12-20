@@ -169,8 +169,15 @@ feedback CAN_1::writeToTxMailbox(const CAN_Frame& canFrame)
 /*                      						Public	  			 						 						 */
 /*****************************************************************************/
 
-feedback CAN_1::init(uint32 baudRate, uint32 rxBufferSize, uint32 txBufferSize)
+feedback CAN_1::init(uint32 baudRate, const Array<s_filterElement>& standardfilterElements, const Array<s_filterElement>& extendedfilterElements, bool silentMode, uint32 rxBufferSize, uint32 txBufferSize)
 {
+	//	Boundary Check
+	if(standardfilterElements.get_size() > numberOfStandardFilterElements || extendedfilterElements.get_size() > numberOfExtendedFilterElements)
+	{
+		return(FAIL);
+	}
+	
+	
 	//	Protect from unauthorized Access
 	CMOS& cmos = CMOS::get();
 	if(cmos.semaphore_isOwnedByRunningThread(this) == false)
@@ -366,6 +373,18 @@ feedback CAN_1::init(uint32 baudRate, uint32 rxBufferSize, uint32 txBufferSize)
 	*MCU::CAN_1::BTR = temp | (bestTS2 << 20) | (bestTS1 << 16) | bestBRP;
 	
 	
+	//	Silent Mode
+	if(silentMode == true)
+	{
+		bit::set(*MCU::CAN_1::BTR, 31);
+	}
+	else
+	{
+		bit::clear(*MCU::CAN_1::BTR, 31);
+	}
+	m_silentMode = silentMode;
+	
+	
 	//	Enable Auto-Recovering on Tx Errors
 	bit::set(*MCU::CAN_1::MCR, 6);
 	
@@ -480,6 +499,11 @@ feedback CAN_1::init(uint32 baudRate, uint32 rxBufferSize, uint32 txBufferSize)
 	
 	//	Save Baud Rate
 	m_baudRate = baudRateCalculated;
+	
+	
+	//	Save Filter Elements
+	m_standardFilterElements = standardfilterElements;
+	m_extendedFilterElements = extendedfilterElements;
 	
 	
 	return(OK);
@@ -713,7 +737,7 @@ feedback CAN_1::recoverFromBusOffState()
 {
 	if(get_state() == CAN_1::e_state::BUS_OFF)
 	{
-		return(init(m_baudRate, m_rxBuffer->get_size(), m_txBuffer->get_size()));
+		return(init(m_baudRate, m_standardFilterElements, m_extendedFilterElements, m_silentMode, m_rxBuffer->get_size(), m_txBuffer->get_size()));
 	}
 	return(OK);
 }

@@ -24,7 +24,7 @@ CAN_3* CAN_3::m_this = nullptr;
 /*                      						Public	  			 						 						 */
 /*****************************************************************************/
 
-feedback CAN_3::init(uint32 baudRate, const Array<s_filterElement>& standardfilterElements, const Array<s_filterElement>& extendedfilterElements)
+feedback CAN_3::init(uint32 baudRate, const Array<s_filterElement>& standardfilterElements, const Array<s_filterElement>& extendedfilterElements, bool silentMode, uint32 rxBufferSize, uint32 txBufferSize)
 {
 	//	Boundary Check
 	if(standardfilterElements.get_size() > numberOfStandardFilterElements || extendedfilterElements.get_size() > numberOfExtendedFilterElements)
@@ -167,6 +167,18 @@ feedback CAN_3::init(uint32 baudRate, const Array<s_filterElement>& standardfilt
 	
 	//	Write Clock Configuration to FDCAN
 	*MCU::FDCAN_3::NBTP = (SJW << 25) | (bestNBRP << 16) | (bestNTSEG1 << 8) | bestNTSEG2;
+	
+	
+	//	Silent Mode
+	if(silentMode == true)
+	{
+		bit::set(*MCU::FDCAN_3::CCCR, 5);
+	}
+	else
+	{
+		bit::clear(*MCU::FDCAN_3::CCCR, 5);
+	}
+	m_silentMode = silentMode;
 	
 	
 	//	Global Filter Policy
@@ -432,6 +444,28 @@ feedback CAN_3::init(uint32 baudRate, const Array<s_filterElement>& standardfilt
 	nvic.setPriority(Interrupt::FDCAN_3_IT1, 10);
 	nvic.enable(Interrupt::FDCAN_3_IT0);
 	nvic.enable(Interrupt::FDCAN_3_IT1);
+	
+	
+	//	Initialize Error Array
+	m_errors.erase();
+	m_errors[e_error::STUFFING														] = false;
+	m_errors[e_error::FORM																] = false;
+	m_errors[e_error::ACK																	] = false;
+	m_errors[e_error::BIT_RECESSIVE												] = false;
+	m_errors[e_error::BIT_DOMINANT												] = false;
+	m_errors[e_error::CRC																	] = false;
+	m_errors[e_error::SET_BY_SOFTWARE											] = false;
+	m_errors[e_error::ACCESS_TO_RESERVED_AREA							] = false;
+	m_errors[e_error::PROTOCOL_ERROR_IN_DATA_PHASE				] = false;
+	m_errors[e_error::PROTOCOL_ERROR_IN_ARBITRATION_PHASE	] = false;
+	m_errors[e_error::WATCHDOG_INTERRUPT									] = false;
+	m_errors[e_error::ERROR_LOGGING_OVERFLOW							] = false;
+	m_errors[e_error::TIMEOUT															] = false;
+	m_errors[e_error::MESSAGE_RAM_ACCESS_FAILURE					] = false;
+	m_errors[e_error::TX_EVENT_FIFO_ELEMENT_LOST					] = false;
+	m_errors[e_error::RX_FIFO_OVERFLOW										] = false;
+	m_errors[e_error::TX_RINGBUFFER_OVERFLOW							] = false;
+	m_errors[e_error::RX_RINGBUFFER_OVERFLOW							] = false;
 	
 	
 	//	Start CAN Transmissions by clearing INIT Bit in CCCR Register
@@ -713,7 +747,7 @@ uint32 CAN_3::get_baudRate() const
 
 feedback CAN_3::recoverFromBusOffState()
 {
-	return(init(m_baudRate, m_standardFilterElements, m_extendedFilterElements));
+	return(init(m_baudRate, m_standardFilterElements, m_extendedFilterElements, m_silentMode));
 }
 
 
