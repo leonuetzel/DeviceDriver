@@ -368,7 +368,7 @@ inline STM32H753BIT6::STM32H753BIT6()
 		m_exti(),
 		m_vrefbuf(),
 		
-		m_dma2d(m_hsem[16]),
+		m_dma2d(),
 		m_mdma(),
 		m_dmamux(),
 		m_dma_1(),

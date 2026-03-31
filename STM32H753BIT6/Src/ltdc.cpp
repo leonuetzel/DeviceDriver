@@ -31,119 +31,28 @@ feedback LTDC::startup()
 /*                      						Public	  			 						 						 */
 /*****************************************************************************/
 
-feedback LTDC::init(s_displayData displayData, Array<RectGraphic> layer)
+feedback LTDC::init(s_displayData displayData)
 {
-	const uint32 c_numberOfLayer = layer.get_size();
-	if(c_numberOfLayer > c_layer_number)
-	{
-		return(FAIL);
-	}
-	
-	
-	
-	for(uint32 i = 0; i < c_numberOfLayer; i++)
-	{
-		if(layer[i].position.x >= displayData.h_active || layer[i].position.y >= displayData.v_active)
-		{
-			return(FAIL);
-		}
-		if(layer[i].get_topRightCorner().x >= displayData.h_active || layer[i].get_topRightCorner().y >= displayData.v_active)
-		{
-			return(FAIL);
-		}
-		if(layer[i].get_topRightCorner().x < layer[i].position.x || layer[i].get_topRightCorner().y < layer[i].position.y)
-		{
-			return(FAIL);
-		}
-		if(layer[i].size.x < 1 || layer[i].size.y < 1)
-		{
-			return(FAIL);
-		}
-	}
-	
-	
-	for(uint32 i = 0; i < c_numberOfLayer; i++)
-	{
-		m_layer[i] = layer[i];
-	}
-	for(uint32 i = c_numberOfLayer; i < c_layer_number; i++)
+	//	Initialize layer data with default values
+	for(uint32 i = 0; i < maximumNumberOfLayers; i++)
 	{
 		m_layer[i] = RectGraphic();
 	}
 	
 	
-	
-	
-	
+	//	Set display timings
 	*MCU::LTDC::SSCR = ((displayData.h_syncwidth - 1) << 16)																																							| (displayData.v_syncwidth - 1);
 	*MCU::LTDC::BPCR = ((displayData.h_syncwidth + displayData.h_backporch - 1) << 16)																										| (displayData.v_syncwidth + displayData.v_backporch - 1);
 	*MCU::LTDC::AWCR = ((displayData.h_syncwidth + displayData.h_backporch + displayData.h_active - 1) << 16)															| (displayData.v_syncwidth + displayData.v_backporch + displayData.v_active - 1);
 	*MCU::LTDC::TWCR = ((displayData.h_syncwidth + displayData.h_backporch + displayData.h_active + displayData.h_frontporch - 1) << 16)	| (displayData.v_syncwidth + displayData.v_backporch + displayData.v_active + displayData.v_frontporch - 1);
 	
-	*MCU::LTDC::BCCR = 0x00000000;																																																//	Set Background Color to Black
+	
+	//	Set background color to black
+	*MCU::LTDC::BCCR = 0x00000000;
 	
 	
-	
-	
-	
-	for(uint32 i = 0; i < c_numberOfLayer; i++)
-	{
-		uint32* reg_cr			= ((uint32*) MCU::LTDC::L1_CR)			+ i * 0x20;
-		uint32* reg_whpcr		= ((uint32*) MCU::LTDC::L1_WHPCR)	+ i * 0x20;
-		uint32* reg_wvpcr		= ((uint32*) MCU::LTDC::L1_WVPCR)	+ i * 0x20;
-		//uint32* reg_ckcr		= ((uint32*) MCU::LTDC::L1_CKCR)		+ i * 0x20;
-		uint32* reg_pfcr		= ((uint32*) MCU::LTDC::L1_PFCR)		+ i * 0x20;
-		uint32* reg_cacr		= ((uint32*) MCU::LTDC::L1_CACR)		+ i * 0x20;
-		//uint32* reg_dccr		= ((uint32*) MCU::LTDC::L1_DCCR)		+ i * 0x20;
-		//uint32* reg_bfcr		= ((uint32*) MCU::LTDC::L1_BFCR)		+ i * 0x20;
-		uint32* reg_cfbar		= ((uint32*) MCU::LTDC::L1_CFBAR)	+ i * 0x20;
-		uint32* reg_cfblr		= ((uint32*) MCU::LTDC::L1_CFBLR)	+ i * 0x20;
-		uint32* reg_cfblnr	= ((uint32*) MCU::LTDC::L1_CFBLNR)	+ i * 0x20;
-		//uint32* reg_clutwr	= ((uint32*) MCU::LTDC::L1_CLUTWR)	+ i * 0x20;
-		
-		
-		//	Convert Positions from Bottom-Up to Top-Down Format
-		int16 y_end		= displayData.v_active - layer[i].position.y;
-		int16 y_start	= y_end - layer[i].size.y;
-		
-		
-		
-		
-		
-		//	Set Window Horizontal Position
-		*reg_whpcr	= ((displayData.h_syncwidth + displayData.h_backporch + layer[i].get_topRightCorner().x	) << 16) | (displayData.h_syncwidth + displayData.h_backporch + layer[i].position.x	);
-		
-		
-		//	Set Window Vertical Position
-		*reg_wvpcr	= ((displayData.v_syncwidth + displayData.v_backporch + y_end) << 16) | (displayData.v_syncwidth + displayData.v_backporch + y_start);
-		
-		
-		//	Set Layer Pixel Format to ARGB8888
-		*reg_pfcr		= 0x00000000;
-		
-		
-		//	Set Alpha Value 255 = not transparent
-		*reg_cacr		= 0x000000FF;
-		
-		
-		//	Set Buffer Address
-		*reg_cfbar	= (uint32) layer[i].data;
-		
-		
-		//	Set Buffer Pitch and Line Length
-		*reg_cfblr	= ((layer[i].size.x * 4) << 16) | (layer[i].size.x * 4 + 7);
-		
-		
-		//	Set Buffer Line Number
-		*reg_cfblnr	= layer[i].size.y;
-		
-		
-		//	Enable Layer
-		bit::set(*reg_cr, 0);
-	}
-	
-	
-	for(uint32 i = c_numberOfLayer; i < c_layer_number; i++)
+	//	Disable all layers
+	for(uint32 i = 0; i < maximumNumberOfLayers; i++)
 	{
 		//	Disable Layer
 		uint32* reg_cr = ((uint32*) MCU::LTDC::L1_CR) + i * 0x20;
@@ -151,22 +60,122 @@ feedback LTDC::init(s_displayData displayData, Array<RectGraphic> layer)
 	}
 	
 	
-	//	Reload Shadow Registers
+	//	Reload shadow registers on next vsync
 	bit::set(*MCU::LTDC::SRCR, 1);
 	
 	
-	//	Enable Register Reload Interrupt
+	//	Enable:
+	//	-	register reload interrupt
+	//	-	FIFO underrun interrupt
+	//	-	FIFO transmit error interrupt
+	bit::set(*MCU::LTDC::IER, 1);
+	bit::set(*MCU::LTDC::IER, 2);
 	bit::set(*MCU::LTDC::IER, 3);
+	
+	
+	//	Prioritize LTDC accesses on the AXI bus matrix to avoid stuttering and tearing effects on the display
+	*MCU::GPV::INI6_READ_QOS	= 0x0000000F;
+	*MCU::GPV::INI6_WRITE_QOS	= 0x0000000F;
+	
+	
+	m_fifoUnderrunCounter = 0;
+	m_fifoTransmitErrorCounter = 0;
 	
 	
 	CMOS& cmos = CMOS::get();
 	NVIC& nvic = cmos.get_nvic();																																																
 	nvic.setPriority(Interrupt::LTDC, 14);
+	nvic.setPriority(Interrupt::LTDC_ERROR, 14);
 	nvic.enable(Interrupt::LTDC);
+	nvic.enable(Interrupt::LTDC_ERROR);
 	
 	
 	m_displayData = displayData;
-	m_layerNumber = c_numberOfLayer;
+	return(OK);
+}
+
+
+feedback LTDC::set_layerData(uint32 layerNumber, RectGraphic& layer)
+{
+	//	Boundary check
+	if(layerNumber >= maximumNumberOfLayers)
+	{
+		return(FAIL);
+	}
+	
+	
+	if(layer.position.x >= m_displayData.h_active || layer.position.y >= m_displayData.v_active)
+	{
+		return(FAIL);
+	}
+	if(layer.get_topRightCorner().x >= m_displayData.h_active || layer.get_topRightCorner().y >= m_displayData.v_active)
+	{
+		return(FAIL);
+	}
+	if(layer.get_topRightCorner().x < layer.position.x || layer.get_topRightCorner().y < layer.position.y)
+	{
+		return(FAIL);
+	}
+	if(layer.size.x < 1 || layer.size.y < 1)
+	{
+		return(FAIL);
+	}
+	
+	
+	//	Calculate register addresses for layer
+	uint32* reg_cr			= ((uint32*) MCU::LTDC::L1_CR)			+ layerNumber * 0x20;
+	uint32* reg_whpcr		= ((uint32*) MCU::LTDC::L1_WHPCR)		+ layerNumber * 0x20;
+	uint32* reg_wvpcr		= ((uint32*) MCU::LTDC::L1_WVPCR)		+ layerNumber * 0x20;
+	uint32* reg_pfcr		= ((uint32*) MCU::LTDC::L1_PFCR)		+ layerNumber * 0x20;
+	uint32* reg_cacr		= ((uint32*) MCU::LTDC::L1_CACR)		+ layerNumber * 0x20;
+	uint32* reg_cfbar		= ((uint32*) MCU::LTDC::L1_CFBAR)		+ layerNumber * 0x20;
+	uint32* reg_cfblr		= ((uint32*) MCU::LTDC::L1_CFBLR)		+ layerNumber * 0x20;
+	uint32* reg_cfblnr	= ((uint32*) MCU::LTDC::L1_CFBLNR)	+ layerNumber * 0x20;
+	
+	
+	//	Convert positions from bottom-up to top-down format (inverted y-axis)
+	int16 y_end		= m_displayData.v_active - layer.position.y;
+	int16 y_start	= y_end - layer.size.y;
+	
+	
+	//	Set window horizontal position
+	*reg_whpcr	= ((m_displayData.h_syncwidth + m_displayData.h_backporch + layer.get_topRightCorner().x) << 16) | (m_displayData.h_syncwidth + m_displayData.h_backporch + layer.position.x);
+	
+	
+	//	Set window vertical position
+	*reg_wvpcr	= ((m_displayData.v_syncwidth + m_displayData.v_backporch + y_end - 1) << 16) | (m_displayData.v_syncwidth + m_displayData.v_backporch + y_start);
+	
+	
+	//	Set layer pixel format to ARGB8888
+	*reg_pfcr		= 0x00000000;
+	
+	
+	//	Set alpha value to 255 = not transparent
+	*reg_cacr		= 0x000000FF;
+	
+	
+	//	Set pixel buffer address
+	*reg_cfbar	= (uint32) layer.data;
+	
+	
+	//	Set pixel buffer pitch and line length
+	*reg_cfblr	= ((layer.size.x * 4) << 16) | (layer.size.x * 4 + 7);
+	
+	
+	//	Set buffer line number
+	*reg_cfblnr	= layer.size.y;
+	
+	
+	//	Enable layer
+	bit::set(*reg_cr, 0);
+	
+	
+	//	Reload shadow registers on next vsync
+	bit::set(*MCU::LTDC::SRCR, 1);
+	
+	
+	//	Save layer data
+	m_layer[layerNumber] = layer;
 	return(OK);
 }
 
@@ -176,7 +185,7 @@ feedback LTDC::init(s_displayData displayData, Array<RectGraphic> layer)
 
 
 
-uint16 LTDC::get_eventID_frameFinished()
+uint16 LTDC::get_eventID_vSync()
 {
 	return(m_eventID);
 }
@@ -201,19 +210,26 @@ feedback LTDC::stop()
 }
 
 
-CODE_RAM feedback LTDC::set_layerBuffer(uint32 layer, Color* buffer)
+CODE_RAM feedback LTDC::set_layerBuffer(uint32 layer, Color* buffer, bool applyOnNextVsync)
 {
-	if(layer < c_layer_number)
+	if(layer < maximumNumberOfLayers)
 	{
 		m_layer[layer].data = buffer;
 		
-		uint32* reg_cr			= ((uint32*) MCU::LTDC::L1_CR)		+ layer * 0x20;
+		//	Set pixel buffer address
 		uint32* reg_cfbar		= ((uint32*) MCU::LTDC::L1_CFBAR)	+ layer * 0x20;
-		
-		bit::clear(*reg_cr, 0);
 		*reg_cfbar = (uint32) m_layer[layer].data;
-		bit::set(*reg_cr, 0);
 		
+		
+		//	Reload shadow registers on next vsync if "applyOnNextVsync" is true, otherwise reload immediately
+		if(applyOnNextVsync == true)
+		{
+			bit::set(*MCU::LTDC::SRCR, 1);
+		}
+		else
+		{
+			bit::set(*MCU::LTDC::SRCR, 0);
+		}
 		return(OK);
 	}
 	return(FAIL);
@@ -222,7 +238,7 @@ CODE_RAM feedback LTDC::set_layerBuffer(uint32 layer, Color* buffer)
 
 CODE_RAM feedback LTDC::clear(uint32 layer)
 {
-	if(layer > c_layer_number)
+	if(layer > maximumNumberOfLayers)
 	{
 		return(FAIL);
 	}
@@ -237,21 +253,17 @@ CODE_RAM feedback LTDC::clear(uint32 layer)
 }
 
 
-CODE_RAM feedback LTDC::set_colorBackground(uint8 red, uint8 green, uint8 blue)
+CODE_RAM feedback LTDC::set_colorBackground(Color color)
 {
-	*MCU::LTDC::BCCR = (red << 16) | (green << 8) | blue;
-	
-	m_colorBackground.red = red;
-	m_colorBackground.green = green;
-	m_colorBackground.blue = blue;
-	
+	*MCU::LTDC::BCCR = (color.red << 16) | (color.green << 8) | color.blue;
+	m_colorBackground = color;
 	return(OK);
 }
 
 
 CODE_RAM feedback LTDC::set_layerAlpha(uint8 layer, uint8 alpha)
 {
-	if(layer >= m_layerNumber)
+	if(layer >= maximumNumberOfLayers)
 	{
 		return(FAIL);
 	}
@@ -303,15 +315,33 @@ CODE_RAM RectGraphic& LTDC::get_layerData(uint32 layer)
 }
 
 
-CODE_RAM uint32 LTDC::get_numberOfLayers()
+CODE_RAM uint32 LTDC::get_maximumNumberOfLayers()
 {
-	return(m_layerNumber);
+	return(maximumNumberOfLayers);
 }
 
 
 CODE_RAM uint32 LTDC::get_fps()
 {
 	return(m_fps);
+}
+
+
+CODE_RAM uint64& LTDC::get_frameCounter()
+{
+	return(m_frameCounter);
+}
+
+
+CODE_RAM uint32 LTDC::get_fifoUnderrunCounter()
+{
+	return(m_fifoUnderrunCounter);
+}
+
+
+CODE_RAM uint32 LTDC::get_fifoTransmitErrorCounter()
+{
+	return(m_fifoTransmitErrorCounter);
 }
 
 
@@ -334,30 +364,55 @@ CODE_RAM void ISR_LTDC()
 	static uint8 second;
 	
 	
-	LTDC& ltdc = STM32H753BIT6::get().get_ltdc();
-	CMOS& cmos = CMOS::get();
-	
-	uint8 second_new = cmos.get_time().second;
-	if(second != second_new)
+	if(bit::isSet(*MCU::LTDC::ISR, 3) == true)
 	{
-		ltdc.m_fps = counter;
-		second = second_new;
-		counter = 0;
+		LTDC& ltdc = STM32H753BIT6::get().get_ltdc();
+		CMOS& cmos = CMOS::get();
+		
+		uint8 second_new = cmos.get_time().second;
+		if(second != second_new)
+		{
+			ltdc.m_fps = counter;
+			second = second_new;
+			counter = 0;
+		}
+		else
+		{
+			counter++;
+			ltdc.m_frameCounter++;
+		}
+		
+		
+		//	Clear Register Reload Flag
+		*MCU::LTDC::ICR = 1 << 3;
+		
+		
+		//	Reload Shadow Registers
+		bit::set(*MCU::LTDC::SRCR, 1);
+		
+		
+		//	Wakeup Thread
+		cmos.event_emit(ltdc.m_eventID);
 	}
-	else
+	
+	
+	if(bit::isSet(*MCU::LTDC::ISR, 0) == true)
 	{
-		counter++;
+		*MCU::LTDC::ICR = 1 << 0;
 	}
-	
-	
-	//	Clear Register Reload Flag
-	bit::set(*MCU::LTDC::ICR, 3);
-	
-	
-	//	Reload Shadow Registers
-	bit::set(*MCU::LTDC::SRCR, 1);
-	
-	
-	//	Wakeup Thread
-	cmos.event_emit(ltdc.m_eventID);
+}
+
+
+CODE_RAM void ISR_LTDC_ERROR()
+{
+	if(bit::isSet(*MCU::LTDC::ISR, 1))
+	{
+		*MCU::LTDC::ICR = 1 << 1;
+		STM32H753BIT6::get().get_ltdc().m_fifoUnderrunCounter++;
+	}
+	if(bit::isSet(*MCU::LTDC::ISR, 2))
+	{
+		*MCU::LTDC::ICR = 1 << 2;
+		STM32H753BIT6::get().get_ltdc().m_fifoTransmitErrorCounter++;
+	}
 }
