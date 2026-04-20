@@ -52,8 +52,7 @@ class AFIO
 	public:
 		
 		void set_debugConfiguration(e_debugConfiguration debugConfiguration);
-		
-		inline void set_extiExternalInterruptPin(GPIO::e_pin pin);
+		void set_extiExternalInterruptPin(MCU::PIN pin);
 };
 
 
@@ -107,14 +106,3 @@ inline feedback AFIO::startup()
 /*                      						Public	  			 						 						 */
 /*****************************************************************************/
 
-inline void AFIO::set_extiExternalInterruptPin(GPIO::e_pin pin)
-{
-	const uint32 portNumber = GPIO::get_portNumber(pin);
-	const uint32 pinNumber = GPIO::get_pinNumber(pin);
-	
-	
-	volatile uint32* address = MCU::AFIO::EXTICR1 + pinNumber / 4;
-	uint32 bitfield_startBit = 4 * (pinNumber % 4);
-	uint32 temp = *address & (0xFFFFFFFF - (0x0F << bitfield_startBit));
-	*address = temp | (portNumber << bitfield_startBit);
-}

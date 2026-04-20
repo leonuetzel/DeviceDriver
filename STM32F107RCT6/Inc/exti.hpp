@@ -49,7 +49,7 @@ class EXTI
 		
 		//	Member Functions
 		inline feedback startup();
-		void afio_set_extiLine(GPIO::e_pin pin);
+		void afio_set_extiLine(MCU::PIN pin);
 		
 		
 		//	Friends
@@ -61,11 +61,11 @@ class EXTI
 		
 	public:
 		
-		inline feedback init_interrupt_GPIO(GPIO::e_pin pin, e_edge edge);
+		feedback init_interrupt_GPIO(MCU::PIN pin, e_edge edge);
 		inline feedback init_interrupt_internal(e_line line, bool interrupt);
 		inline void softwareTrigger(uint32 line);
 		
-		inline feedback clear_pendingBit(GPIO::e_pin pin);
+		feedback clear_pendingBit(MCU::PIN pin);
 		inline feedback clear_pendingBit(e_line line);
 };
 
@@ -119,41 +119,6 @@ inline feedback EXTI::startup()
 /*                      						Public	  			 						 						 */
 /*****************************************************************************/
 
-inline feedback EXTI::init_interrupt_GPIO(GPIO::e_pin pin, e_edge edge)
-{
-	//	AFIO Pin Selection
-	afio_set_extiLine(pin);
-	
-	
-	//	Edge Selection
-	const uint32 pinNumber = GPIO::get_pinNumber(pin);
-	if(bit::isSet((uint32) edge, 0) == true)
-	{
-		bit::set(*MCU::EXTI::RTSR, pinNumber);
-	}
-	else
-	{
-		bit::clear(*MCU::EXTI::RTSR, pinNumber);
-	}
-	
-	if(bit::isSet((uint32) edge, 1) == true)
-	{
-		bit::set(*MCU::EXTI::FTSR, pinNumber);
-	}
-	else
-	{
-		bit::set(*MCU::EXTI::FTSR, pinNumber);
-	}
-	
-	
-	//	Event Masking
-	bit::set(*MCU::EXTI::IMR, pinNumber);
-	
-	
-	return(OK);
-}
-
-
 inline feedback EXTI::init_interrupt_internal(e_line line, bool interrupt)
 {
 	if((uint32) line > 31)
@@ -195,16 +160,6 @@ inline void EXTI::softwareTrigger(uint32 line)
 
 
 
-
-
-inline feedback EXTI::clear_pendingBit(GPIO::e_pin pin)
-{
-	const uint32 pinNumber = GPIO::get_pinNumber(pin);
-	
-	bit::set(*MCU::EXTI::PR, pinNumber);
-	
-	return(OK);
-}
 
 
 inline feedback EXTI::clear_pendingBit(e_line line)
