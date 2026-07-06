@@ -205,3 +205,52 @@ bool EXTI::isPending(e_line line)
 	//	Check pending Bit
 	return(bit::isSet(*PR, bit));
 }
+
+
+
+
+
+
+
+
+
+void ISR_EXTI_0()
+{
+	
+}
+
+
+void ISR_EXTI_1()
+{
+	
+}
+
+
+void ISR_EXTI_2()
+{
+	
+}
+
+
+void ISR_EXTI_3()
+{
+	
+}
+
+
+void ISR_EXTI_4()
+{
+	
+}
+
+
+void ISR_EXTI_9_TO_5()
+{
+	
+}
+
+
+void ISR_EXTI_15_TO_10()
+{
+	
+}

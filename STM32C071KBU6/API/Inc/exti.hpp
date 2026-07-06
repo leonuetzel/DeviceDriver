@@ -49,7 +49,7 @@ class EXTI
 		
 		//	Member Functions
 		inline feedback startup();
-		void afio_set_extiLine(GPIO::e_pin pin);
+		void afio_set_extiLine(MCU::PIN pin);
 		
 		
 		//	Friends
@@ -61,16 +61,23 @@ class EXTI
 		
 	public:
 		
-		inline feedback init_interrupt_GPIO(GPIO::e_pin pin, e_edge edge);
+		feedback init_interrupt_GPIO(MCU::PIN pin, e_edge edge);
 		inline feedback init_interrupt_internal(e_line line, bool interrupt);
+		void softwareTrigger(MCU::PIN pin);
 		inline void softwareTrigger(uint32 line);
-		inline void softwareTrigger(GPIO::e_pin pin);
 		
-		inline feedback clear_pendingBitRisingEdge(uint32 pin);
+		bool isPendingRisingEdge(MCU::PIN pin);
+		inline bool isPendingRisingEdge(e_line line);
+		bool isPendingFallingEdge(MCU::PIN pin);
+		inline bool isPendingFallingEdge(e_line line);
+		inline bool isPending(MCU::PIN pin);
+		inline bool isPending(e_line line);
+		
+		feedback clear_pendingBitRisingEdge(MCU::PIN pin);
 		inline feedback clear_pendingBitRisingEdge(e_line line);
-		inline feedback clear_pendingBitFallingEdge(uint32 pin);
+		feedback clear_pendingBitFallingEdge(MCU::PIN pin);
 		inline feedback clear_pendingBitFallingEdge(e_line line);
-		inline feedback clear_pendingBit(uint32 pin);
+		inline feedback clear_pendingBit(MCU::PIN pin);
 		inline feedback clear_pendingBit(e_line line);
 };
 
@@ -124,48 +131,6 @@ inline feedback EXTI::startup()
 /*                      						Public	  			 						 						 */
 /*****************************************************************************/
 
-inline feedback EXTI::init_interrupt_GPIO(GPIO::e_pin pin, e_edge edge)
-{
-	const uint32 port = GPIO::get_portNumber(pin);
-	const uint32 pinNumber = GPIO::get_pinNumber(pin);
-	
-	
-	//	Pin Selection
-	volatile uint32* address = MCU::EXTI::EXTI_CR1 + pinNumber / 4;
-	uint32 mask = (uint32) port;
-	uint32 bitfield_startBit = 8 * (pinNumber % 4);
-	uint32 temp = *address & (0xFFFFFFFF - (0x0F << bitfield_startBit));
-	*address = temp | (mask << bitfield_startBit);
-	
-	
-	//	Edge Selection
-	if(bit::isSet((uint32) edge, 0) == true)
-	{
-		bit::set(*MCU::EXTI::RTSR1, pinNumber);
-	}
-	else
-	{
-		bit::clear(*MCU::EXTI::RTSR1, pinNumber);
-	}
-	
-	if(bit::isSet((uint32) edge, 1) == true)
-	{
-		bit::set(*MCU::EXTI::FTSR1, pinNumber);
-	}
-	else
-	{
-		bit::clear(*MCU::EXTI::FTSR1, pinNumber);
-	}
-	
-	
-	//	Event Masking
-	bit::set(*MCU::EXTI::IMR1, pinNumber);
-	
-	
-	return(OK);
-}
-
-
 inline feedback EXTI::init_interrupt_internal(e_line line, bool interrupt)
 {
 	if((uint32) line > 31)
@@ -204,34 +169,51 @@ inline void EXTI::softwareTrigger(uint32 line)
 }
 
 
-inline void EXTI::softwareTrigger(GPIO::e_pin pin)
+
+
+
+
+
+inline bool EXTI::isPendingRisingEdge(e_line line)
 {
-	const uint32 pinNumber = ((uint32) pin) & 0x0000000F;
-	softwareTrigger(pinNumber);
-}
-
-
-
-
-
-
-
-inline feedback EXTI::clear_pendingBitRisingEdge(uint32 pin)
-{
-	if(pin > 15)
+	if((uint32) line > 31)
 	{
-		return(FAIL);
+		return(false);
 	}
 	
-	*MCU::EXTI::RPR1 = 1 << pin;
-	
-	return(OK);
+	return(bit::isSet(*MCU::EXTI::RPR1, (uint32) line));
 }
+
+
+inline bool EXTI::isPendingFallingEdge(e_line line)
+{
+	if((uint32) line > 31)
+	{
+		return(false);
+	}
+	
+	return(bit::isSet(*MCU::EXTI::FPR1, (uint32) line));
+}
+
+
+inline bool EXTI::isPending(e_line line)
+{
+	if(isPendingRisingEdge(line) == true || isPendingFallingEdge(line) == true)
+	{
+		return(true);
+	}
+	return(false);
+}
+
+
+
+
+
 
 
 inline feedback EXTI::clear_pendingBitRisingEdge(e_line line)
 {
-	if((uint32) line > 32)
+	if((uint32) line > 31)
 	{
 		return(FAIL);
 	}
@@ -242,22 +224,9 @@ inline feedback EXTI::clear_pendingBitRisingEdge(e_line line)
 }
 
 
-inline feedback EXTI::clear_pendingBitFallingEdge(uint32 pin)
-{
-	if(pin > 15)
-	{
-		return(FAIL);
-	}
-	
-	*MCU::EXTI::FPR1 = 1 << pin;
-	
-	return(OK);
-}
-
-
 inline feedback EXTI::clear_pendingBitFallingEdge(e_line line)
 {
-	if((uint32) line > 32)
+	if((uint32) line > 31)
 	{
 		return(FAIL);
 	}
@@ -268,7 +237,7 @@ inline feedback EXTI::clear_pendingBitFallingEdge(e_line line)
 }
 
 
-inline feedback EXTI::clear_pendingBit(uint32 pin)
+inline feedback EXTI::clear_pendingBit(MCU::PIN pin)
 {
 	if(clear_pendingBitRisingEdge(pin) != OK)
 	{
