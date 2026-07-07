@@ -16,13 +16,83 @@
 /*                      						Private	  			 						 						 */
 /*****************************************************************************/
 
+SECTION(bootloader) feedback Flash::lock_FPEC()
+{
+	//	Check if its unlocked
+	if(bit::isCleared(*MCU::FLASH::CR, 7) == true)
+	{
+		//	Lock FPEC (Flash Programming/Erasing Controller) by setting LOCK Bit in FLASH_CR
+		bit::set(*MCU::FLASH::CR, 7);
+	}
+	return(OK);
+}
 
+
+SECTION(bootloader) feedback Flash::unlock_FPEC()
+{
+	//	Check if its already unlocked
+	if(bit::isCleared(*MCU::FLASH::CR, 7) == true)
+	{
+		return(OK);
+	}
+	
+	
+	//	Unlock FPEC (Flash Programming/Erasing Controller) by writing two Key Values to FLASH_KEYR
+	*MCU::FLASH::KEYR = c_key1;
+	*MCU::FLASH::KEYR = c_key2;
+	
+	
+	//	Check if unlock was successful
+	if(bit::isCleared(*MCU::FLASH::CR, 7) == true)
+	{
+		return(OK);
+	}
+	return(FAIL);
+}
 
 
 
 /*****************************************************************************/
 /*                      						Public	  			 						 						 */
 /*****************************************************************************/
+
+feedback Flash::set_waitStates(uint32 clock_ahb)
+{
+	uint32 temp = *MCU::FLASH::ACR & 0xFFFFFFF8;
+	if(clock_ahb <= 24000000)
+	{
+		*MCU::FLASH::ACR = temp;
+		m_waitStates = 0;
+	}
+	if(clock_ahb > 24000000 && clock_ahb <= 48000000)
+	{
+		*MCU::FLASH::ACR = temp | 0x1;
+		m_waitStates = 1;
+	}
+	else
+	{
+		*MCU::FLASH::ACR = temp | 0x2;
+		m_waitStates = 2;
+	}
+	
+	return(OK);
+}
+
+
+feedback Flash::set_prefetchBuffer(bool active)
+{
+	if(active == true && bit::isCleared(*MCU::FLASH::ACR, 4))
+	{
+		bit::set(*MCU::FLASH::ACR, 4);
+	}
+	else
+	{
+		bit::clear(*MCU::FLASH::ACR, 4);
+	}
+	
+	return(OK);
+}
+
 
 feedback Flash::write(const Array<uint16>& data, volatile uint16* address)
 {
@@ -141,7 +211,122 @@ feedback Flash::write(const Array<uint16>& data, volatile uint16* address)
 }
 
 
-feedback Flash::erase(uint32 pageNumber)
+SECTION(bootloader) feedback Flash::writePage(uint32* data, uint32 pageNumber)
+{
+	if(pageNumber >= c_numberOfPages || data == nullptr)
+	{
+		return(FAIL);
+	}
+	constexpr uint32 numberOfWords = c_pageSizeInBytes / 4;
+	
+	
+	//	Flash Start Address
+	extern uint32 __memory_FLASH_start__;
+	const uint32 flashStart = (uint32) &__memory_FLASH_start__;
+	
+	
+	
+	//	Page Start Address
+	volatile uint16* address = (volatile uint16*) (flashStart + pageNumber * c_pageSizeInBytes);
+	
+	
+	//	Wait for Busy-Flag to be reset
+	while(bit::isSet(*MCU::FLASH::SR, 0) == true)
+	{
+		
+	}
+	
+	
+	//	Erase Address before write, else PGERR bit will be set in FLASH_SR and write wont be performed
+	if(erase(pageNumber) != OK)
+	{
+		return(FAIL);
+	}
+	
+	
+	//	Unlock Access to Flash Registers
+	if(unlock_FPEC() != OK)
+	{
+		return(FAIL);
+	}
+	
+	
+	//	Set Programming Bit
+	bit::set(*MCU::FLASH::CR, 0);
+	
+	
+	for(uint32 i = 0; i < numberOfWords; i++)
+	{
+		//	Calculate Address to write to
+		volatile uint16* addressLowerHalf = address + i * 2;
+		volatile uint16* addressUpperHalf = address + i * 2 + 1;
+		
+		
+		//	Calculate Lower and Upper Half of 32-Bit Data Word
+		const uint32 dataWord = data[i];
+		const uint16 lowerHalf = (uint16) (dataWord & 0x0000FFFF);
+		const uint16 upperHalf = (uint16) ((dataWord & 0xFFFF0000) >> 16);
+		
+		
+		//	Write Lower Half of 32-Bit Data Word
+		*addressLowerHalf = lowerHalf;
+		
+		
+		//	Wait until Writing finished
+		while(bit::isSet(*MCU::FLASH::SR, 0) == true)
+		{
+			
+		}
+		
+		
+		//	Verify that correct Value has been written
+		if(*addressLowerHalf != lowerHalf)
+		{
+			//	Clear Programming Bit
+			bit::clear(*MCU::FLASH::CR, 0);
+			
+			
+			//	Lock Access to Flash Registers
+			lock_FPEC();
+			return(FAIL);
+		}
+		
+		
+		//	Write Upper Half of 32-Bit Data Word
+		*addressUpperHalf = upperHalf;
+		
+		
+		//	Wait until Writing finished
+		while(bit::isSet(*MCU::FLASH::SR, 0) == true)
+		{
+			
+		}
+		
+		
+		//	Verify that correct Value has been written
+		if(*addressUpperHalf != upperHalf)
+		{
+			//	Clear Programming Bit
+			bit::clear(*MCU::FLASH::CR, 0);
+			
+			
+			//	Lock Access to Flash Registers
+			lock_FPEC();
+			return(FAIL);
+		}
+	}
+	
+	
+	//	Clear Programming Bit
+	bit::clear(*MCU::FLASH::CR, 0);
+	
+	
+	//	Lock Access to Flash Registers
+	return(lock_FPEC());
+}
+
+
+SECTION(bootloader) feedback Flash::erase(uint32 pageNumber)
 {
 	if(pageNumber >= c_numberOfPages)
 	{
@@ -213,7 +398,7 @@ feedback Flash::erase(uint32 pageNumber)
 }
 
 
-feedback Flash::erase()
+SECTION(bootloader) feedback Flash::erase()
 {
 	//	Wait for Busy-Flag to be reset
 	while(bit::isSet(*MCU::FLASH::SR, 0) == true)

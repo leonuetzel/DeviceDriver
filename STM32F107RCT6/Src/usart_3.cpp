@@ -123,6 +123,10 @@ feedback USART_3::init(uint32 baud, e_databits databits, e_parity parity, e_stop
 	}
 	
 	
+	//	Subscribe to USART Rx Message Receive Event so that we get waken up by the ISR when Data is received
+	cmos.event_subscribe(m_eventID_dataReceived);
+	
+	
 	//	Interrupt
 	NVIC& nvic = cmos.get_nvic();
 	nvic.setPriority(Interrupt::USART_3, 10);
