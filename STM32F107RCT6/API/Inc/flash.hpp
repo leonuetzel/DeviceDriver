@@ -1,18 +1,16 @@
 #pragma once
 
-#include "registers.hpp"
-#include "cmos.hpp"
+#include "i_flash.hpp"
 
 
 
 
 
-class Flash
+class Flash: public I_Flash
 {
 	public:
 		
-		static constexpr uint32 c_pageSizeInBytes	= 2048;
-		static constexpr uint32 c_numberOfPages		= 128;
+		
 		
 		
 		
@@ -21,6 +19,10 @@ class Flash
 	private:
 		
 		//	Static Member
+		static constexpr uint32 c_pageSizeInBytes	= 2 * 1024;
+		static constexpr uint32 c_numberOfPages		= 128;
+		static constexpr uint32 c_size						= c_pageSizeInBytes * c_numberOfPages;
+		
 		static constexpr uint16 c_key_RDPRT	= 0x00A5;
 		static constexpr uint32 c_key1			= 0x45670123;
 		static constexpr uint32 c_key2			= 0xCDEF89AB;
@@ -37,7 +39,7 @@ class Flash
 		
 		
 		//	Member Functions
-		inline feedback startup();
+		constexpr inline feedback startup();
 		feedback lock_FPEC();
 		feedback unlock_FPEC();
 		
@@ -51,12 +53,18 @@ class Flash
 		
 	public:
 		
+		virtual feedback writePage(uint32* data, uint32 pageNumber) override;
+		virtual feedback erase(uint32 pageNumber) override;
+		virtual feedback erase() override;
+		
+		virtual uint32 get_pageSize() const override;
+		virtual uint32 get_numberOfPages() const override;
+		virtual uint32 get_size() const override;
+		virtual uint32 get_smallestProgrammableBlockSize() const override;
+		
 		feedback set_waitStates(uint32 clock_ahb);
 		feedback set_prefetchBuffer(bool active);
 		feedback write(const Array<uint16>& data, volatile uint16* address);
-		feedback writePage(uint32* data, uint32 pageNumber);
-		feedback erase(uint32 pageNumber);
-		feedback erase();
 };
 
 
@@ -91,7 +99,7 @@ inline Flash::~Flash()
 
 
 
-inline feedback Flash::startup()
+constexpr inline feedback Flash::startup()
 {
 	return(OK);
 }

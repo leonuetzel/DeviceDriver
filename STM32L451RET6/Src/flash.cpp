@@ -137,130 +137,6 @@ SECTION(bootloader) feedback Flash::write2Words(uint32 dataAtAddress, uint32 dat
 /*                      						Public	  			 						 						 */
 /*****************************************************************************/
 
-feedback Flash::set_waitStates(uint32 clock_ahb, PWR::e_voltageScaling voltageScaling)
-{
-	typedef struct
-	{
-		uint32 frequency[5];
-	}s_array;
-	
-	const Pair<PWR::e_voltageScaling, s_array> waitStateMaxFrequencies[2] =
-	{
-		{PWR::e_voltageScaling::RANGE1_1V2, {16000000, 32000000, 48000000, 64000000, 80000000}},
-		{PWR::e_voltageScaling::RANGE2_1V0, { 6000000, 12000000, 18000000, 26000000, 26000000}}
-	};
-	
-	
-	//	Calculate needed Waitstates
-	uint32 waitStates = 4;
-	for(auto& i: waitStateMaxFrequencies)
-	{
-		if(i.first() == voltageScaling)
-		{
-			const s_array frequencies = i.second();
-			for(uint32 j = 0; j < 5; j++)
-			{
-				const uint32 index = 4 - j;
-				if(clock_ahb <= frequencies.frequency[index])
-				{
-					waitStates = index;
-				}
-				else
-				{
-					break;
-				}
-			}
-			break;
-		}
-	}
-	
-	
-	//	Write Value to Register
-	uint32 temp = *MCU::FLASH::ACR & 0xFFFFFFF8;
-	*MCU::FLASH::ACR = temp | waitStates;
-	
-	
-	//	Update internal Value
-	m_waitStates = waitStates;
-	
-	
-	return(OK);
-}
-
-
-
-
-
-
-
-SECTION(bootloader) feedback Flash::write(uint32 dataAtAddress, uint32 dataAtAddressPlus4Byte, volatile uint64* address)
-{
-	//	Wait for Busy-Flag to be reset
-	while(bit::isSet(*MCU::FLASH::SR, 16) == true)
-	{
-		
-	}
-	
-	
-	//	Unlock Access to Flash Registers
-	if(unlock_FPEC() != OK)
-	{
-		return(FAIL);
-	}
-	
-	
-	if(write2Words(dataAtAddress, dataAtAddressPlus4Byte, address) != OK)
-	{
-		//	Lock Access to Flash Registers
-		lock_FPEC();
-		return(FAIL);
-	}
-	
-	
-	//	Lock Access to Flash Registers
-	return(lock_FPEC());
-}
-
-
-feedback Flash::write(const Array<uint32>& data, volatile uint64* address)
-{
-	const uint32 numberOfWords = data.get_size();
-	if(numberOfWords % 2 != 0)
-	{
-		return(FAIL);
-	}
-	
-	
-	//	Wait for Busy-Flag to be reset
-	while(bit::isSet(*MCU::FLASH::SR, 16) == true)
-	{
-		
-	}
-	
-	
-	//	Unlock Access to Flash Registers
-	if(unlock_FPEC() != OK)
-	{
-		return(FAIL);
-	}
-	
-	
-	for(uint32 i = 0; i < numberOfWords / 2; i++)
-	{
-		if(write2Words(data[2 * i + 0], data[2 * i + 1], address + i) != OK)
-		{
-			//	Lock Access to Flash Registers
-			lock_FPEC();
-			return(FAIL);
-		}
-	}
-	
-	
-	//	Lock Access to Flash Registers
-	return(lock_FPEC());
-}
-
-
 SECTION(bootloader) feedback Flash::writePage(uint32* data, uint32 pageNumber)
 {
 	if(pageNumber >= c_numberOfPages || data == nullptr)
@@ -438,6 +314,164 @@ SECTION(bootloader) feedback Flash::erase()
 	
 	//	Clear Mass Erase Bit
 	bit::clear(*MCU::FLASH::CR, 2);
+	
+	
+	//	Lock Access to Flash Registers
+	return(lock_FPEC());
+}
+
+
+
+
+
+
+
+SECTION(bootloader) uint32 Flash::get_pageSize() const
+{
+	return(c_pageSizeInBytes);
+}
+
+
+SECTION(bootloader) uint32 Flash::get_numberOfPages() const
+{
+	return(c_numberOfPages);
+}
+
+
+SECTION(bootloader) uint32 Flash::get_size() const
+{
+	return(c_size);
+}
+
+
+SECTION(bootloader) uint32 Flash::get_smallestProgrammableBlockSize() const
+{
+	return(8);
+}
+
+
+
+
+
+
+
+feedback Flash::set_waitStates(uint32 clock_ahb, PWR::e_voltageScaling voltageScaling)
+{
+	typedef struct
+	{
+		uint32 frequency[5];
+	}s_array;
+	
+	const Pair<PWR::e_voltageScaling, s_array> waitStateMaxFrequencies[2] =
+	{
+		{PWR::e_voltageScaling::RANGE1_1V2, {16000000, 32000000, 48000000, 64000000, 80000000}},
+		{PWR::e_voltageScaling::RANGE2_1V0, { 6000000, 12000000, 18000000, 26000000, 26000000}}
+	};
+	
+	
+	//	Calculate needed Waitstates
+	uint32 waitStates = 4;
+	for(auto& i: waitStateMaxFrequencies)
+	{
+		if(i.first() == voltageScaling)
+		{
+			const s_array frequencies = i.second();
+			for(uint32 j = 0; j < 5; j++)
+			{
+				const uint32 index = 4 - j;
+				if(clock_ahb <= frequencies.frequency[index])
+				{
+					waitStates = index;
+				}
+				else
+				{
+					break;
+				}
+			}
+			break;
+		}
+	}
+	
+	
+	//	Write Value to Register
+	uint32 temp = *MCU::FLASH::ACR & 0xFFFFFFF8;
+	*MCU::FLASH::ACR = temp | waitStates;
+	
+	
+	//	Update internal Value
+	m_waitStates = waitStates;
+	
+	
+	return(OK);
+}
+
+
+
+
+
+
+
+SECTION(bootloader) feedback Flash::write(uint32 dataAtAddress, uint32 dataAtAddressPlus4Byte, volatile uint64* address)
+{
+	//	Wait for Busy-Flag to be reset
+	while(bit::isSet(*MCU::FLASH::SR, 16) == true)
+	{
+		
+	}
+	
+	
+	//	Unlock Access to Flash Registers
+	if(unlock_FPEC() != OK)
+	{
+		return(FAIL);
+	}
+	
+	
+	if(write2Words(dataAtAddress, dataAtAddressPlus4Byte, address) != OK)
+	{
+		//	Lock Access to Flash Registers
+		lock_FPEC();
+		return(FAIL);
+	}
+	
+	
+	//	Lock Access to Flash Registers
+	return(lock_FPEC());
+}
+
+
+feedback Flash::write(const Array<uint32>& data, volatile uint64* address)
+{
+	const uint32 numberOfWords = data.get_size();
+	if(numberOfWords % 2 != 0)
+	{
+		return(FAIL);
+	}
+	
+	
+	//	Wait for Busy-Flag to be reset
+	while(bit::isSet(*MCU::FLASH::SR, 16) == true)
+	{
+		
+	}
+	
+	
+	//	Unlock Access to Flash Registers
+	if(unlock_FPEC() != OK)
+	{
+		return(FAIL);
+	}
+	
+	
+	for(uint32 i = 0; i < numberOfWords / 2; i++)
+	{
+		if(write2Words(data[2 * i + 0], data[2 * i + 1], address + i) != OK)
+		{
+			//	Lock Access to Flash Registers
+			lock_FPEC();
+			return(FAIL);
+		}
+	}
 	
 	
 	//	Lock Access to Flash Registers

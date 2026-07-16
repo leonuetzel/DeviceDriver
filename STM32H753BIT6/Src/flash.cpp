@@ -28,6 +28,61 @@ feedback Flash::startup()
 /*                      						Public	  			 						 						 */
 /*****************************************************************************/
 
+SECTION(bootloader) feedback Flash::writePage(uint32* data, uint32 pageNumber)
+{
+	//	Not implemented yet
+	return(FAIL);
+}
+
+
+SECTION(bootloader) feedback Flash::erase(uint32 pageNumber)
+{
+	//	Not implemented yet
+	return(FAIL);
+}
+
+
+SECTION(bootloader) feedback Flash::erase()
+{
+	//	Not implemented yet
+	return(FAIL);
+}
+
+
+
+
+
+
+
+SECTION(bootloader) uint32 Flash::get_pageSize() const
+{
+	return(c_pageSizeInBytes);
+}
+
+
+SECTION(bootloader) uint32 Flash::get_numberOfPages() const
+{
+	return(c_numberOfPages);
+}
+
+
+SECTION(bootloader) uint32 Flash::get_size() const
+{
+	return(c_size);
+}
+
+
+SECTION(bootloader) uint32 Flash::get_smallestProgrammableBlockSize() const
+{
+	return(32);
+}
+
+
+
+
+
+
+
 feedback Flash::set_waitStates(uint32 clock_ahb, PWR::e_voltageLevel voltageLevel)
 {
 	uint32 mask_ws = 0;
