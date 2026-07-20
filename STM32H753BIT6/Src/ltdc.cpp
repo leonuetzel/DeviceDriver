@@ -60,6 +60,27 @@ feedback LTDC::init(s_displayData displayData)
 	}
 	
 	
+	//	Synchronization Lines Polarity
+	uint32 LTDC_GCR = 0x00000000;
+	if(displayData.hSyncActiveHigh == true)
+	{
+		bit::set(LTDC_GCR, 31);
+	}
+	if(displayData.vSyncActiveHigh == true)
+	{
+		bit::set(LTDC_GCR, 30);
+	}
+	if(displayData.notDataEnableActiveHigh == true)
+	{
+		bit::set(LTDC_GCR, 29);
+	}
+	if(displayData.pixelClockActiveHigh == true)
+	{
+		bit::set(LTDC_GCR, 28);
+	}
+	*MCU::LTDC::GCR = LTDC_GCR;
+	
+	
 	//	Reload shadow registers on next vsync
 	bit::set(*MCU::LTDC::SRCR, 1);
 	
