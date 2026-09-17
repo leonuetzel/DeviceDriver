@@ -52,9 +52,9 @@ class CRC: public I_CRC
 		feedback init(uint16 initialValue, uint16 polynomial, bool reverseOutputData = false, bool reverseInputData = false) override;
 		feedback init(uint32 initialValue, uint32 polynomial, bool reverseOutputData = false, bool reverseInputData = false) override;
 		
-		CRC& operator<<(uint8 data) override;
-		CRC& operator<<(uint16 data) override;
-		CRC& operator<<(uint32 data) override;
+		I_CRC& operator<<(uint8 data) override;
+		I_CRC& operator<<(uint16 data) override;
+		I_CRC& operator<<(uint32 data) override;
 		
 		uint32 operator()() const override;
 };

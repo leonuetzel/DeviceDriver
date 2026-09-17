@@ -159,7 +159,7 @@ feedback CRC::init(uint32 initialValue, uint32 polynomial, bool reverseOutputDat
 
 
 
-CRC& CRC::operator<<(uint8 data)
+I_CRC& CRC::operator<<(uint8 data)
 {
 	//	Check if Semaphore is locked
 	CMOS& cmos = CMOS::get();
@@ -176,7 +176,7 @@ CRC& CRC::operator<<(uint8 data)
 }
 
 
-CRC& CRC::operator<<(uint16 data)
+I_CRC& CRC::operator<<(uint16 data)
 {
 	//	Check if Semaphore is locked
 	CMOS& cmos = CMOS::get();
@@ -193,7 +193,7 @@ CRC& CRC::operator<<(uint16 data)
 }
 
 
-CRC& CRC::operator<<(uint32 data)
+I_CRC& CRC::operator<<(uint32 data)
 {
 	//	Check if Semaphore is locked
 	CMOS& cmos = CMOS::get();
