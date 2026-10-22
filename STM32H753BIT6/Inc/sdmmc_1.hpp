@@ -22,6 +22,20 @@ class SDMMC_1: public I_Drive
 		//	Static Member
 		static constexpr uint32 c_sectorSizeInBytes = 512;
 		
+		//	DATALENGTH has 25 Bits (RM0433, SDMMC_DLENR): at most 65535 Blocks of 512 Bytes with one Command
+		static constexpr uint32 c_maximumBlocksPerCommand = 65535;
+		
+		//	Active Wait before the Thread sleeps (see waitForFlags): about 50 µs at 480 MHz, longer than a Command or a Block at 25 MHz
+		static constexpr uint32 c_activeWaitLoops = 2000;
+		
+		//	Flags of SDMMC_STAR (RM0433) that end a Command, a Data Transfer and the Busy Phase after an R1b Response
+		static constexpr uint32 c_flags_commandEnd = 0x000000C5;																	//	CCRCFAIL, CTIMEOUT, CMDREND, CMDSENT
+		static constexpr uint32 c_flags_dataEnd = 0x0800093A;																		//	DCRCFAIL, DTIMEOUT, TXUNDERR, RXOVERR, DATAEND, DABORT, IDMATE
+		static constexpr uint32 c_flags_busyEnd = 0x00200008;																		//	BUSYD0END, DTIMEOUT
+		
+		//	Emitted by the Interrupt Routine, wakes the Thread that waits in waitForFlags()
+		static uint16 m_eventID;
+		
 		enum class e_busWidth
 		{
 			BUSWIDTH_1								= 0x0,
@@ -108,9 +122,10 @@ class SDMMC_1: public I_Drive
 		
 		typedef struct
 		{
-			e_commandPath_command command;
-			uint32 argument;
-			bool dataTransfer;
+			e_commandPath_command command {};
+			uint32 argument {};
+			bool dataTransfer {};
+			bool stopTransmission {};		//	CMD12: the CPSM aborts the Data Path (CMDSTOP)
 		}s_commandPath;
 		
 		
@@ -166,6 +181,7 @@ class SDMMC_1: public I_Drive
 		typedef struct
 		{
 			feedback success;
+			bool timeout;					//	The Card has not answered (CTIMEOUT)
 			uint32 response_127_96;
 			uint32 response_95_64;
 			uint32 response_63_32;
@@ -248,7 +264,7 @@ class SDMMC_1: public I_Drive
 		
 		
 		//	Non-static Member
-		I_Semaphore& m_semaphore;
+		I_Mutex& m_mutex;
 		f_power m_power;
 		f_detect m_detect;
 		uint32 m_changeCounter;
@@ -259,13 +275,14 @@ class SDMMC_1: public I_Drive
 		uint32 m_clock;
 		e_busWidth m_busWidth;
 		uint16 m_RCA;
+		bool m_highCapacity;			//	SDHC/SDXC (CCS = 1): Block Addresses, SDSC: Byte Addresses
 		s_CID m_CID;
 		s_CSD m_CSD;
 		s_SDStatus m_SDStatus;
 		
 		
 		//	Constructor and Destructor
-		constexpr inline SDMMC_1(I_Semaphore& semaphore);
+		constexpr inline SDMMC_1(I_Mutex& mutex);
 		SDMMC_1(const SDMMC_1& sdmmc_1) = delete;
 		inline ~SDMMC_1();
 		
@@ -274,25 +291,30 @@ class SDMMC_1: public I_Drive
 		feedback startup();
 		
 		feedback set_clockSpeed(RCC& rcc, uint32 clock);
+		feedback initCard(RCC& rcc);
 		feedback set_busWidth(e_busWidth busWidth);
 		s_response send_command(s_commandPath command) const;
 		void setup_dataPath(s_dataPath dataPath) const;
 		
 		feedback command_reset();
-		feedback command_operatingConditionValidation();
-		feedback command_set_operatingCondition();
+		feedback command_operatingConditionValidation(bool& version2);
+		feedback command_set_operatingCondition(bool version2);
 		feedback command_request_CID();
 		feedback command_publish_newRCA();
 		feedback command_request_CSD();
 		feedback command_cardSelect();
 		feedback command_set_busWidth();
+		feedback command_set_blockLength();
 		feedback command_send_SDStatus();
-		feedback command_read_singleBlock(uint32 block) const;
-		feedback command_write_singleBlock(uint32 block) const;
+		feedback waitForFlags(uint32 flags, uint32 timeout_ms) const;
+		feedback command_read_blocks(uint32 block, uint32 numberOfBlocks) const;
+		feedback command_write_blocks(uint32 block, uint32 numberOfBlocks) const;
+		feedback command_stopTransmission() const;
 		
 		
 		//	Friends
 		friend class STM32H753BIT6;
+		friend void ISR_SDMMC_1();
 		
 		
 		
@@ -325,8 +347,8 @@ class SDMMC_1: public I_Drive
 /*                      						Private	  			 						 						 */
 /*****************************************************************************/
 
-constexpr inline SDMMC_1::SDMMC_1(I_Semaphore& semaphore)
-	:	m_semaphore(semaphore),
+constexpr inline SDMMC_1::SDMMC_1(I_Mutex& mutex)
+	:	m_mutex(mutex),
 		m_power(nullptr),
 		m_detect(nullptr),
 		m_changeCounter(0),
@@ -336,6 +358,7 @@ constexpr inline SDMMC_1::SDMMC_1(I_Semaphore& semaphore)
 		m_clock(0),
 		m_busWidth(e_busWidth::BUSWIDTH_1),
 		m_RCA(0),
+		m_highCapacity(false),
 		m_CID(),
 		m_CSD(),
 		m_SDStatus()

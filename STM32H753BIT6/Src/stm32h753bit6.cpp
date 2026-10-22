@@ -258,6 +258,43 @@ INTERRUPT_VECTOR const STM32H753BIT6::s_interruptTable STM32H753BIT6::c_interrup
 /*                      						Private	  			 						 						 */
 /*****************************************************************************/
 
+bool STM32H753BIT6::startBegin(volatile uint8& state)
+{
+	//	Check and Change of the State as one exclusive Access (LDREXB/STREXB, ARMv7-M), without disabling Interrupts: an Exception or a Thread
+	//	Switch between the two Instructions clears the exclusive Monitor, STREXB fails and the Check is repeated. So exactly one Caller gets
+	//	true and starts the Peripheral
+	uint8 old = c_notStarted;
+	uint32 failed = 0;
+	do
+	{
+		asm volatile("ldrexb %[out_a], [%[in_a]]" : [out_a] "=r" (old) : [in_a] "r" (&state) : "memory");
+		if(old != c_notStarted)
+		{
+			asm volatile("clrex" : : : "memory");
+			break;
+		}
+		asm volatile("strexb %[out_a], %[in_a], [%[in_b]]" : [out_a] "=&r" (failed) : [in_a] "r" ((uint32) c_starting), [in_b] "r" (&state) : "memory");
+	}
+	while(failed != 0);
+	if(old == c_notStarted)
+	{
+		return(true);
+	}
+
+
+	//	Another Thread starts it right now: wait until it is started. An Interrupt (IPSR != 0) cannot wait for a Thread - but there the
+	//	Peripheral is already in Use, because its Interrupt is only enabled by its Driver
+	uint32 ipsr;
+	asm volatile("mrs %[out_a], ipsr" : [out_a] "=r" (ipsr) : : "memory");
+	CMOS& cmos = CMOS::get();
+	while(state != c_started && (ipsr & 0x1FF) == 0)
+	{
+		cmos.sleep_ms(1);
+	}
+	return(false);
+}
+
+
 void STM32H753BIT6::copy_flashToRAM(const uint32* const src, uint32* const dest, uint32 sizeInBytes)
 {
 	for(uint32 i = 0; i < sizeInBytes / 4; i++)
@@ -280,6 +317,19 @@ void STM32H753BIT6::zeroOutRAM(uint32* const startAddress, uint32 sizeInBytes)
 /*****************************************************************************/
 /*                      						Public	  			 						 						 */
 /*****************************************************************************/
+
+uint8 STM32H753BIT6::get_versionMajor()
+{
+	//	Compiled into the Library: the Version of the Library, not of the Headers the Application uses
+	return(DEVICEDRIVER_VERSION_MAJOR);
+}
+
+
+uint8 STM32H753BIT6::get_versionMinor()
+{
+	return(DEVICEDRIVER_VERSION_MINOR);
+}
+
 
 feedback STM32H753BIT6::startup()
 {
@@ -311,159 +361,10 @@ feedback STM32H753BIT6::startup()
 	{
 		return(FAIL);
 	}
-	for(uint32 i = 0; i < HSEM::c_number; i++)
-	{
-		if(m_hsem[i].startup(i) != OK)
-		{
-			return(FAIL);
-		}
-	}
-	if(m_rtc.startup() != OK)
-	{
-		return(FAIL);
-	}
 	
 	
-	if(m_exti.startup() != OK)
-	{
-		return(FAIL);
-	}
-	if(m_vrefbuf.startup() != OK)
-	{
-		return(FAIL);
-	}
-	
-	
-	if(m_dma2d.startup() != OK)
-	{
-		return(FAIL);
-	}
-	if(m_mdma.startup() != OK)
-	{
-		return(FAIL);
-	}
-	if(m_dmamux.startup() != OK)
-	{
-		return(FAIL);
-	}
-	for(uint32 i = 0; i < DMA_1::c_channel; i++)
-	{
-		if(m_dma_1[i].startup(i) != OK)
-		{
-			return(FAIL);
-		}
-	}
-	for(uint32 i = 0; i < DMA_2::c_channel; i++)
-	{
-		if(m_dma_2[i].startup(i) != OK)
-		{
-			return(FAIL);
-		}
-	}
-	
-	
-	if(m_adc_1.startup() != OK)
-	{
-		return(FAIL);
-	}
-	if(m_adc_2.startup() != OK)
-	{
-		return(FAIL);
-	}
-	if(m_adc_3.startup() != OK)
-	{
-		return(FAIL);
-	}
-	
-	
-	if(m_timer_1.startup() != OK)
-	{
-		return(FAIL);
-	}
-	if(m_timer_2.startup() != OK)
-	{
-		return(FAIL);
-	}
-	if(m_timer_3.startup() != OK)
-	{
-		return(FAIL);
-	}
-	if(m_timer_12.startup() != OK)
-	{
-		return(FAIL);
-	}
-	if(m_timer_13.startup() != OK)
-	{
-		return(FAIL);
-	}
-	if(m_timer_15.startup() != OK)
-	{
-		return(FAIL);
-	}
-	if(m_timer_16.startup() != OK)
-	{
-		return(FAIL);
-	}
-	if(m_timer_17.startup() != OK)
-	{
-		return(FAIL);
-	}
-	
-	
-	if(m_usart_1.startup() != OK)
-	{
-		return(FAIL);
-	}
-	if(m_uart_5.startup() != OK)
-	{
-		return(FAIL);
-	}
-	if(m_uart_7.startup() != OK)
-	{
-		return(FAIL);
-	}
-	
-	
-	if(m_fmc.startup() != OK)
-	{
-		return(FAIL);
-	}
-	if(m_ltdc.startup() != OK)
-	{
-		return(FAIL);
-	}
-	
-	
-	if(m_i2c_1.startup() != OK)
-	{
-		return(FAIL);
-	}
-	if(m_i2c_2.startup() != OK)
-	{
-		return(FAIL);
-	}
-	
-	
-	if(m_sdmmc_1.startup() != OK)
-	{
-		return(FAIL);
-	}
-	if(m_sdmmc_2.startup() != OK)
-	{
-		return(FAIL);
-	}
-	
-	
-	if(m_can_1.startup() != OK)
-	{
-		return(FAIL);
-	}
-	if(m_can_2.startup() != OK)
-	{
-		return(FAIL);
-	}
-	
-	
+	//	Firmware Update: an Image on Trial counts its Start and gets the Watchdog - or the previous Image comes back (Bank Swap, Reset)
+	Update::countStart();
 	return(OK);
 }
 
@@ -475,26 +376,90 @@ feedback STM32H753BIT6::startup()
 
 
 
-void EXCEPTION_RESET()
+//	Assembler: sets a Memory Region to zero, Word by Word - start and size are the Linker Symbols of its Address and of its Size in Bytes
+//	It uses only r0 (Address), r1 (End) and r2 (0) and no Stack; the local Labels 1 and 2 can be used again
+#define ZERO_RAM_ASM(start, size)					\
+	"ldr r0, =" start "					\n\t"	\
+	"ldr r1, =" size "					\n\t"	\
+	"adds r1, r0, r1					\n\t"	\
+	"movs r2, #0							\n\t"	\
+	"1:											\n\t"	\
+	"cmp r0, r1							\n\t"	\
+	"bhs 2f									\n\t"	\
+	"str r2, [r0]							\n\t"	\
+	"adds r0, r0, #4					\n\t"	\
+	"b 1b										\n\t"	\
+	"2:											\n\t"
+
+
+//	Reset Handler, Part 1: sets the SRAM to zero and moves the Stack Pointer to the upper End of the Stack Pool of CMOS, then calls Part 2
+//	The Function is naked and written in Assembler, it uses no Stack: the initial Stack Pointer of the Vector Table points into the SRAM that is
+//	zeroed here. The Stack Pool is unused until CMOS::run() creates the first Thread, and Stack::reserve takes the Blocks from its lower End:
+//	Part 2, CMOS::run(), the global Constructors and all Interrupts run on its upper End, until main() starts on its own Stack
+NAKED void EXCEPTION_RESET()
+{
+	asm volatile
+	(
+		//	Clocks of SRAM 1, 2 and 3 on (RCC_AHB2ENR Bits 29 to 31) and of the Backup SRAM (RCC_AHB4ENR Bit 28), RM0433
+		//	Reading the Register back makes sure that the Clock is on before the first Access
+		"ldr r0, =0x580244DC						\n\t"
+		"ldr r1, [r0]									\n\t"
+		"ldr r2, =0xE0000000						\n\t"
+		"orrs r1, r1, r2								\n\t"
+		"str r1, [r0]									\n\t"
+		"ldr r1, [r0]									\n\t"
+		"ldr r0, =0x580244E0						\n\t"
+		"ldr r1, [r0]									\n\t"
+		"ldr r2, =0x10000000						\n\t"
+		"orrs r1, r1, r2								\n\t"
+		"str r1, [r0]									\n\t"
+		"ldr r1, [r0]									\n\t"
+		
+		
+		//	Zero SRAM ITCM
+		ZERO_RAM_ASM("__memory_SRAM_ITCM_start__", "__memory_SRAM_ITCM_size__")
+		
+		//	Zero SRAM DTCM
+		ZERO_RAM_ASM("__memory_SRAM_DTCM_start__", "__memory_SRAM_DTCM_size__")
+		
+		//	Zero SRAM AXI
+		ZERO_RAM_ASM("__memory_SRAM_AXI_start__", "__memory_SRAM_AXI_size__")
+		
+		//	Zero SRAM 1
+		ZERO_RAM_ASM("__memory_SRAM_1_start__", "__memory_SRAM_1_size__")
+		
+		//	Zero SRAM 2
+		ZERO_RAM_ASM("__memory_SRAM_2_start__", "__memory_SRAM_2_size__")
+		
+		//	Zero SRAM 3
+		ZERO_RAM_ASM("__memory_SRAM_3_start__", "__memory_SRAM_3_size__")
+		
+		//	Zero SRAM 4
+		ZERO_RAM_ASM("__memory_SRAM_4_start__", "__memory_SRAM_4_size__")
+		
+		
+		//	Stack Pointer to the upper End of the Stack Pool (__cmos_stack_start__ + __cmos_stack_size__)
+		"ldr r0, =__cmos_stack_start__			\n\t"
+		"ldr r1, =__cmos_stack_size__			\n\t"
+		"adds r0, r0, r1								\n\t"
+		"msr msp, r0									\n\t"
+		
+		
+		//	Part 2, it never returns - the Literals of the ldr Instructions follow directly behind
+		"bl __resetHandler__						\n\t"
+		"b .												\n\t"
+		".ltorg											\n\t"
+	);
+}
+
+
+
+
+
+//	Reset Handler, Part 2: runs on the Stack Pool of CMOS, the SRAM is zero
+extern "C" void __resetHandler__()
 {
 	//	External Symbols
-	extern uint32 __memory_SRAM_ITCM_start__;
-	extern uint32 __memory_SRAM_ITCM_size__;
-	extern uint32 __memory_SRAM_DTCM_start__;
-	extern uint32 __memory_SRAM_DTCM_size__;
-	extern uint32 __memory_SRAM_AXI_start__;
-	extern uint32 __memory_SRAM_AXI_size__;
-	extern uint32 __memory_SRAM_1_start__;
-	extern uint32 __memory_SRAM_1_size__;
-	extern uint32 __memory_SRAM_2_start__;
-	extern uint32 __memory_SRAM_2_size__;
-	extern uint32 __memory_SRAM_3_start__;
-	extern uint32 __memory_SRAM_3_size__;
-	extern uint32 __memory_SRAM_4_start__;
-	extern uint32 __memory_SRAM_4_size__;
-	
-	
-	
 	extern uint32 __cmos_data_flash_start__;
 	extern uint32 __cmos_data_flash_size__;
 	extern uint32 __cmos_data_ram_start__;
@@ -508,59 +473,16 @@ void EXCEPTION_RESET()
 	
 	
 	//	Convenience
-	uint32* const				c_memory_SRAM_ITCM_start				= (uint32*) &__memory_SRAM_ITCM_start__;
-	const uint32				c_memory_SRAM_ITCM_size					= (uint32)  &__memory_SRAM_ITCM_size__;
-	uint32* const				c_memory_SRAM_DTCM_start				= (uint32*) &__memory_SRAM_DTCM_start__;
-	const uint32				c_memory_SRAM_DTCM_size					= (uint32)  &__memory_SRAM_DTCM_size__;
-	uint32* const				c_memory_SRAM_AXI_start					= (uint32*) &__memory_SRAM_AXI_start__;
-	const uint32				c_memory_SRAM_AXI_size					= (uint32)  &__memory_SRAM_AXI_size__;
-	uint32* const				c_memory_SRAM_1_start						= (uint32*) &__memory_SRAM_1_start__;
-	const uint32				c_memory_SRAM_1_size						= (uint32)  &__memory_SRAM_1_size__;
-	uint32* const				c_memory_SRAM_2_start						= (uint32*) &__memory_SRAM_2_start__;
-	const uint32				c_memory_SRAM_2_size						= (uint32)  &__memory_SRAM_2_size__;
-	uint32* const				c_memory_SRAM_3_start						= (uint32*) &__memory_SRAM_3_start__;
-	const uint32				c_memory_SRAM_3_size						= (uint32)  &__memory_SRAM_3_size__;
-	uint32* const				c_memory_SRAM_4_start						= (uint32*) &__memory_SRAM_4_start__;
-	const uint32				c_memory_SRAM_4_size						= (uint32)  &__memory_SRAM_4_size__;
+	const uint32* const	c_data_flash_start	= (uint32*) &__cmos_data_flash_start__;
+	const uint32				c_data_flash_size		= (uint32)  &__cmos_data_flash_size__;
+	uint32* const				c_data_ram_start		= (uint32*) &__cmos_data_ram_start__;
+	
+	const uint32* const	c_code_flash_start	= (uint32*) &__cmos_code_flash_start__;
+	const uint32				c_code_flash_size		= (uint32)  &__cmos_code_flash_size__;
+	uint32* const				c_code_ram_start		= (uint32*) &__cmos_code_ram_start__;
 	
 	
 	
-	const uint32* const	c_data_flash_start							= (uint32*) &__cmos_data_flash_start__;
-	const uint32				c_data_flash_size								= (uint32)  &__cmos_data_flash_size__;
-	uint32* const				c_data_ram_start								= (uint32*) &__cmos_data_ram_start__;
-	
-	const uint32* const	c_code_flash_start							= (uint32*) &__cmos_code_flash_start__;
-	const uint32				c_code_flash_size								= (uint32)  &__cmos_code_flash_size__;
-	uint32* const				c_code_ram_start								= (uint32*) &__cmos_code_ram_start__;
-	
-	
-	
-	
-	
-	//	Enable SRAM 1 Clock in RCC
-	bit::set(*MCU::RCC::AHB2_ENR, 29);
-	
-	
-	//	Enable SRAM 2 Clock in RCC
-	bit::set(*MCU::RCC::AHB2_ENR, 30);
-	
-	
-	//	Enable SRAM 3 Clock in RCC
-	bit::set(*MCU::RCC::AHB2_ENR, 31);
-	
-	
-	//	Enable BackupSRAM Clock in RCC
-	bit::set(*MCU::RCC::AHB4_ENR, 28);
-	
-	
-	//	Zero Memories
-	STM32H753BIT6::zeroOutRAM(c_memory_SRAM_ITCM_start,	c_memory_SRAM_ITCM_size);
-	STM32H753BIT6::zeroOutRAM(c_memory_SRAM_DTCM_start,	c_memory_SRAM_DTCM_size);
-	STM32H753BIT6::zeroOutRAM(c_memory_SRAM_AXI_start, 	c_memory_SRAM_AXI_size);
-	STM32H753BIT6::zeroOutRAM(c_memory_SRAM_1_start,		c_memory_SRAM_1_size);
-	STM32H753BIT6::zeroOutRAM(c_memory_SRAM_2_start,		c_memory_SRAM_2_size);
-	STM32H753BIT6::zeroOutRAM(c_memory_SRAM_3_start,		c_memory_SRAM_3_size);
-	STM32H753BIT6::zeroOutRAM(c_memory_SRAM_4_start,		c_memory_SRAM_4_size);
 	
 	
 	//	Copy non-zero-initialized Variables to SRAM
@@ -576,7 +498,7 @@ void EXCEPTION_RESET()
 	cmos.run();
 	
 	
-	//	Reset if System ever returns
+	//	Reset if CMOS ever returns
 	cmos.reset();
 }
 
@@ -749,15 +671,8 @@ uint32 __startup__()
 	{
 		return(0);
 	}
-	uint32 clock = stm32h753bit6.get_rcc().get_clock_core();
-	
-	
-	
-	//	Revision Y Error: See Errata Sheet ES0396 Rev. 9 Section 2.2.3
-	const uint16 c_revisionID = stm32h753bit6.get_debug().get_revisionID();
-	if(c_revisionID == 0x1003)
-	{
-		clock *= 8;
-	}
-	return(clock * 8);
+	//	CMOS clocks the SysTick with the Processor Clock (CLKSOURCE = 1), so it gets the real Core Clock like on all other MCUs
+	//	Earlier it used the external Reference Clock and divided by 8 itself - that was compensated here by 8 (64 on Revision Y,
+	//	where the Reference Clock differs, ES0392 2.2.4); the Processor Clock is the same on all Revisions
+	return(stm32h753bit6.get_rcc().get_clock_core());
 }

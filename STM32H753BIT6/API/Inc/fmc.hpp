@@ -69,23 +69,27 @@ class FMC
 		
 		typedef struct
 		{
-			e_readPipeDelay readPipeDelay;
-			bool readBurst;
-			e_clockDivision clockDivision;
-			bool writeProtection;
-			e_CAS_Latency CAS_Latency;
-			e_numberOfInternalBanks numberOfInternalBanks;
-			e_dataBusWidth dataBusWidth;
-			e_rowAddressBits rowAddressBits;
-			e_columnAddressBits columnAddressBits;
+			e_readPipeDelay readPipeDelay {};
+			bool readBurst {};
+			e_clockDivision clockDivision {};
+			bool writeProtection {};
+			e_CAS_Latency CAS_Latency {};
+			e_numberOfInternalBanks numberOfInternalBanks {};
+			e_dataBusWidth dataBusWidth {};
+			e_rowAddressBits rowAddressBits {};
+			e_columnAddressBits columnAddressBits {};
 			
-			uint8 t_RCD_rowToColumnDelay;
-			uint8 t_RP_rowPrechargeDelay;
-			uint8 t_WR_recoveryDelay;
-			uint8 t_RC_rowCycleDelay;
-			uint8 t_RAS_selfRefreshTime;
-			uint8 t_XSR_exitSelfRefreshDelay;
-			uint8 t_MRD_loadModeRegisterToActive;
+			uint8 t_RCD_rowToColumnDelay {};
+			uint8 t_RP_rowPrechargeDelay {};
+			uint8 t_WR_recoveryDelay {};
+			uint8 t_RC_rowCycleDelay {};
+			uint8 t_RAS_selfRefreshTime {};
+			uint8 t_XSR_exitSelfRefreshDelay {};
+			uint8 t_MRD_loadModeRegisterToActive {};
+			//	Refresh Cycles per Refresh Period from the Datasheet, e.g. "4096 refresh cycles every 64 ms" - the Number of Rows is not enough
+			//	(2048 Rows can need 4096 Cycles). 0 takes the JEDEC Values: at least 4096 Cycles (8192 with 13 Row Address Bits) in 64 ms
+			uint16 refreshCycles {};
+			uint8 refreshPeriod_ms {};
 		}s_SDRAM_config;
 		
 		

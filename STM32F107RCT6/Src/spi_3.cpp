@@ -41,12 +41,16 @@ feedback SPI_3::init(uint32 frequency, bool cpol, bool cpha)
 	
 	//	Set SPI Clock
 	//	SPI_3 is located on APB1
+	//	The Divider is 2^(BR + 1): the smallest one is taken, that does not exceed the requested Frequency
 	const uint32 clock_apb1 = rcc.get_clock_apb1();
-	const uint32 divider = clock_apb1 / frequency;
-	const uint32 bitMask = Math::log2(divider) - 1;
-	if(bitMask > 0x7)
+	uint32 bitMask = 0;
+	while((clock_apb1 >> (bitMask + 1)) > frequency)
 	{
-		return(FAIL);
+		bitMask++;
+		if(bitMask > 0x7)
+		{
+			return(FAIL);
+		}
 	}
 	const uint32 spi_cr1 = *MCU::SPI_3::CR1 & 0xFFFFFFC7;
 	*MCU::SPI_3::CR1 = spi_cr1 | (bitMask << 3);
@@ -78,12 +82,13 @@ feedback SPI_3::init(uint32 frequency, bool cpol, bool cpha)
 	}
 	
 	
+	//	NSS Internal needed High in Master Mode
+	//	SSI has to be set before MSTR, else a Mode Fault occurs and clears MSTR and SPE again
+	bit::set(*MCU::SPI_3::CR1, 8);
+	
+	
 	//	SPI Master Mode
 	bit::set(*MCU::SPI_3::CR1, 2);
-	
-	
-	//	NSS Internal needed High in Master Mode
-	bit::set(*MCU::SPI_3::CR1, 8);
 	
 	
 	//	Enable SPI
@@ -120,7 +125,7 @@ uint8 SPI_3::operator()(uint8 data)
 Array<uint8> SPI_3::operator()(const Array<uint8>& data)
 {
 	//	Send Data bytewise
-	Array<uint8> rxData = 0;
+	Array<uint8> rxData;
 	for(auto& i: data)
 	{
 		//	Send Byte

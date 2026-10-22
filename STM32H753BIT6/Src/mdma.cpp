@@ -63,32 +63,31 @@ CODE_RAM feedback MDMA::copy(uint8 channel, uint8* source, uint8* destination, u
 	
 	
 	volatile uint32* reg_tbr = MCU::MDMA::CH0_TBR + (0x10 * channel);
-	if((uint32) destination < 0x20020000)
+	//	The TCMs (ITCM 0x00000000 ... 0x0000FFFF, DTCM 0x20000000 ... 0x2001FFFF) are reached over the AHB Bus (DBUS/SBUS = 1),
+	//	everything else (e.g. Flash, AXI SRAM, SRAM 1 ... 4) over the AXI Bus (RM0433, MDMA_CxTBR)
+	const uint32 address_source = (uint32) source;
+	const uint32 address_destination = (uint32) destination;
+	const bool source_TCM = address_source < 0x00010000 || (address_source >= 0x20000000 && address_source < 0x20020000);
+	const bool destination_TCM = address_destination < 0x00010000 || (address_destination >= 0x20000000 && address_destination < 0x20020000);
+	uint32 tbr = 0;
+	if(destination_TCM == true)
 	{
-		if((uint32) source < 0x20020000)
-		{
-			*reg_tbr = 0x00030000;
-		}
-		else
-		{
-			*reg_tbr = 0x00020000;
-		}
+		bit::set(tbr, 17);
 	}
-	else
+	if(source_TCM == true)
 	{
-		if((uint32) source < 0x20020000)
-		{
-			*reg_tbr = 0x00010000;
-		}
-		else
-		{
-			*reg_tbr = 0x00000000;
-		}
+		bit::set(tbr, 16);
 	}
+	*reg_tbr = tbr;
 	
 	
 	volatile uint32* reg_ifcr = MCU::MDMA::CH0_IFCR + (0x10 * channel);
 	*reg_ifcr = 0x0000001F;
+	
+	
+	//	Cache Maintenance and Barrier before the Start (see cacheMaintenance.hpp)
+	CacheMaintenance::beforeRead(source, sizeInBytes);
+	CacheMaintenance::beforeWrite(destination, sizeInBytes);
 	
 	
 	bit::set(*reg_cr, 4);																																																					//	Enable Block Transfer Complete Interrupt
@@ -134,32 +133,31 @@ CODE_RAM feedback MDMA::copy(uint8 channel, uint16* source, uint16* destination,
 	
 	
 	volatile uint32* reg_tbr = MCU::MDMA::CH0_TBR + (0x10 * channel);
-	if((uint32) destination < 0x20020000)
+	//	The TCMs (ITCM 0x00000000 ... 0x0000FFFF, DTCM 0x20000000 ... 0x2001FFFF) are reached over the AHB Bus (DBUS/SBUS = 1),
+	//	everything else (e.g. Flash, AXI SRAM, SRAM 1 ... 4) over the AXI Bus (RM0433, MDMA_CxTBR)
+	const uint32 address_source = (uint32) source;
+	const uint32 address_destination = (uint32) destination;
+	const bool source_TCM = address_source < 0x00010000 || (address_source >= 0x20000000 && address_source < 0x20020000);
+	const bool destination_TCM = address_destination < 0x00010000 || (address_destination >= 0x20000000 && address_destination < 0x20020000);
+	uint32 tbr = 0;
+	if(destination_TCM == true)
 	{
-		if((uint32) source < 0x20020000)
-		{
-			*reg_tbr = 0x00030000;
-		}
-		else
-		{
-			*reg_tbr = 0x00020000;
-		}
+		bit::set(tbr, 17);
 	}
-	else
+	if(source_TCM == true)
 	{
-		if((uint32) source < 0x20020000)
-		{
-			*reg_tbr = 0x00010000;
-		}
-		else
-		{
-			*reg_tbr = 0x00000000;
-		}
+		bit::set(tbr, 16);
 	}
+	*reg_tbr = tbr;
 	
 	
 	volatile uint32* reg_ifcr = MCU::MDMA::CH0_IFCR + (0x10 * channel);
 	*reg_ifcr = 0x0000001F;
+	
+	
+	//	Cache Maintenance and Barrier before the Start (see cacheMaintenance.hpp)
+	CacheMaintenance::beforeRead(source, sizeInBytes);
+	CacheMaintenance::beforeWrite(destination, sizeInBytes);
 	
 	
 	bit::set(*reg_cr, 4);																																																					//	Enable Block Transfer Complete Interrupt
@@ -205,32 +203,31 @@ CODE_RAM feedback MDMA::copy(uint8 channel, uint32* source, uint32* destination,
 	
 	
 	volatile uint32* reg_tbr = MCU::MDMA::CH0_TBR + (0x10 * channel);
-	if((uint32) destination < 0x20020000)
+	//	The TCMs (ITCM 0x00000000 ... 0x0000FFFF, DTCM 0x20000000 ... 0x2001FFFF) are reached over the AHB Bus (DBUS/SBUS = 1),
+	//	everything else (e.g. Flash, AXI SRAM, SRAM 1 ... 4) over the AXI Bus (RM0433, MDMA_CxTBR)
+	const uint32 address_source = (uint32) source;
+	const uint32 address_destination = (uint32) destination;
+	const bool source_TCM = address_source < 0x00010000 || (address_source >= 0x20000000 && address_source < 0x20020000);
+	const bool destination_TCM = address_destination < 0x00010000 || (address_destination >= 0x20000000 && address_destination < 0x20020000);
+	uint32 tbr = 0;
+	if(destination_TCM == true)
 	{
-		if((uint32) source < 0x20020000)
-		{
-			*reg_tbr = 0x00030000;
-		}
-		else
-		{
-			*reg_tbr = 0x00020000;
-		}
+		bit::set(tbr, 17);
 	}
-	else
+	if(source_TCM == true)
 	{
-		if((uint32) source < 0x20020000)
-		{
-			*reg_tbr = 0x00010000;
-		}
-		else
-		{
-			*reg_tbr = 0x00000000;
-		}
+		bit::set(tbr, 16);
 	}
+	*reg_tbr = tbr;
 	
 	
 	volatile uint32* reg_ifcr = MCU::MDMA::CH0_IFCR + (0x10 * channel);
 	*reg_ifcr = 0x0000001F;
+	
+	
+	//	Cache Maintenance and Barrier before the Start (see cacheMaintenance.hpp)
+	CacheMaintenance::beforeRead(source, sizeInBytes);
+	CacheMaintenance::beforeWrite(destination, sizeInBytes);
 	
 	
 	bit::set(*reg_cr, 4);																																																					//	Enable Block Transfer Complete Interrupt
@@ -299,6 +296,11 @@ CODE_RAM feedback MDMA::fill(uint8 channel, uint8 data, uint8* destination, uint
 	*reg_ifcr = 0x0000001F;
 	
 	
+	//	Cache Maintenance and Barrier before the Start (see cacheMaintenance.hpp)
+	CacheMaintenance::beforeRead(&fill_data[channel], sizeof(fill_data[channel]));
+	CacheMaintenance::beforeWrite(destination, sizeInBytes);
+	
+	
 	bit::set(*reg_cr, 4);																																																					//	Enable Block Transfer Complete Interrupt
 	bit::set(*reg_cr, 1);																																																					//	Enable Transfer Error Interrupt
 	
@@ -360,6 +362,11 @@ CODE_RAM feedback MDMA::fill(uint8 channel, uint16 data, uint16* destination, ui
 	*reg_ifcr = 0x0000001F;
 	
 	
+	//	Cache Maintenance and Barrier before the Start (see cacheMaintenance.hpp)
+	CacheMaintenance::beforeRead(&fill_data[channel], sizeof(fill_data[channel]));
+	CacheMaintenance::beforeWrite(destination, sizeInBytes);
+	
+	
 	bit::set(*reg_cr, 4);																																																					//	Enable Block Transfer Complete Interrupt
 	bit::set(*reg_cr, 1);																																																					//	Enable Transfer Error Interrupt
 	
@@ -419,6 +426,11 @@ CODE_RAM feedback MDMA::fill(uint8 channel, uint32 data, uint32* destination, ui
 	
 	volatile uint32* reg_ifcr = MCU::MDMA::CH0_IFCR + (0x10 * channel);
 	*reg_ifcr = 0x0000001F;
+	
+	
+	//	Cache Maintenance and Barrier before the Start (see cacheMaintenance.hpp)
+	CacheMaintenance::beforeRead(&fill_data[channel], sizeof(fill_data[channel]));
+	CacheMaintenance::beforeWrite(destination, sizeInBytes);
 	
 	
 	bit::set(*reg_cr, 4);																																																					//	Enable Block Transfer Complete Interrupt

@@ -86,8 +86,8 @@ inline UART_5::~UART_5()
 
 inline feedback UART_5::startup()
 {
-	//	Create Semaphore
-	return(CMOS::get().semaphore_create(this));
+	//	Create Mutex
+	return(CMOS::get().mutex_create(this));
 }
 
 

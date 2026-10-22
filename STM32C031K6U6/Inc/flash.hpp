@@ -2,29 +2,36 @@
 
 #include "registers.hpp"
 #include "cmos.hpp"
+#include "i_flash.hpp"
 
 
 
 
 
-class Flash
+class Flash: public I_Flash
 {
 	public:
 		
 		static constexpr uint32 c_pageSizeInBytes	= 2048;
 		static constexpr uint32 c_numberOfPages		= 16;
-		
-		
-		
-		
-		
+	
+	
+	
+	
+	
 	private:
 		
 		//	Static Member
 		static constexpr uint32 c_key1			= 0x45670123;
 		static constexpr uint32 c_key2			= 0xCDEF89AB;
-		static constexpr uint32 c_optKey1		= 0x08192A3B;
-		static constexpr uint32 c_optKey2		= 0x4C5D6E7F;
+		
+		static constexpr uint32 c_size									= c_pageSizeInBytes * c_numberOfPages;
+		static constexpr uint32 c_flashStartAddress			= 0x08000000;
+		
+		//	Flags of FLASH_SR cleared before each Operation: EOP, OPERR, PROGERR, WRPERR, PGAERR, SIZERR, PGSERR, MISSERR, FASTERR, RDERR, OPTVERR
+		static constexpr uint32 c_clearFlags						= 0x0000C3FB;
+		//	Errors of a Programming or Erase Operation: OPERR, PROGERR, WRPERR, PGAERR, SIZERR, PGSERR, MISSERR, FASTERR
+		static constexpr uint32 c_errorFlags						= 0x000003FA;
 		
 		
 		//	Non-static Member
@@ -39,24 +46,36 @@ class Flash
 		
 		//	Member Functions
 		inline feedback startup();
-		inline feedback lock_FPEC();
-		inline feedback unlock_FPEC();
+		feedback lock_FPEC();
+		feedback unlock_FPEC();
+		feedback wait();
+		void flushCache();
+		feedback write2Words(uint32 dataAtAddress, uint32 dataAtAddressPlus4Byte, volatile uint64* address);
 		
 		
 		//	Friends
 		friend class STM32C031K6U6;
-		
-		
-		
-		
-		
+	
+	
+	
+	
+	
 	public:
+		
+		virtual feedback writePage(uint32* data, uint32 pageNumber) override;
+		virtual feedback erase(uint32 pageNumber) override;
+		virtual feedback erase() override;
+		
+		virtual uint32 get_pageSize() const override;
+		virtual uint32 get_numberOfPages() const override;
+		virtual uint32 get_size() const override;
+		virtual uint32 get_smallestProgrammableBlockSize() const override;
 		
 		inline feedback set_waitStates(uint32 clock_ahb);
 		inline feedback set_prefetchBuffer(bool active);
-		feedback write(const Array<uint16>& data, volatile uint16* address);
-		feedback erase(uint32 pageNumber);
-		feedback erase();
+		
+		feedback write(uint32 dataAtAddress, uint32 dataAtAddressPlus4Byte, volatile uint64* address);
+		feedback write(const Array<uint32>& data, volatile uint64* address);
 };
 
 
@@ -97,41 +116,6 @@ inline feedback Flash::startup()
 }
 
 
-inline feedback Flash::lock_FPEC()
-{
-	//	Check if its unlocked
-	if(bit::isCleared(*MCU::FLASH::CR, 31) == true)
-	{
-		//	Lock FPEC (Flash Programming/Erasing Controller) by setting LOCK Bit in FLASH_CR
-		bit::set(*MCU::FLASH::CR, 31);
-	}
-	return(OK);
-}
-
-
-inline feedback Flash::unlock_FPEC()
-{
-	//	Check if its already unlocked
-	if(bit::isCleared(*MCU::FLASH::CR, 31) == true)
-	{
-		return(OK);
-	}
-	
-	
-	//	Unlock FPEC (Flash Programming/Erasing Controller) by writing two Key Values to FLASH_KEYR
-	*MCU::FLASH::KEYR = c_key1;
-	*MCU::FLASH::KEYR = c_key2;
-	
-	
-	//	Check if unlock was successful
-	if(bit::isCleared(*MCU::FLASH::CR, 31) == true)
-	{
-		return(OK);
-	}
-	return(FAIL);
-}
-
-
 
 /*****************************************************************************/
 /*                      					Protected	  			 						 						 */
@@ -166,8 +150,8 @@ inline feedback Flash::set_waitStates(uint32 clock_ahb)
 	*MCU::FLASH::ACR = temp | mask;
 	
 	
-	//	Wait for new Wait States to become effective
-	while((*MCU::FLASH::ACR & 0xFFFFFFF8) != mask)
+	//	Wait for new Wait States to become effective: LATENCY (Bits 2:0) reads back the new Value
+	while((*MCU::FLASH::ACR & 0x00000007) != mask)
 	{
 		
 	}
@@ -177,7 +161,7 @@ inline feedback Flash::set_waitStates(uint32 clock_ahb)
 
 inline feedback Flash::set_prefetchBuffer(bool active)
 {
-	if(active == true && bit::isCleared(*MCU::FLASH::ACR, 8))
+	if(active == true)
 	{
 		bit::set(*MCU::FLASH::ACR, 8);
 	}

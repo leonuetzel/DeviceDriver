@@ -17,11 +17,11 @@ class RTC
 			LSI,
 			HSE
 		};
-		
-		
-		
-		
-		
+	
+	
+	
+	
+	
 	private:
 		
 		//	Static Member
@@ -29,8 +29,7 @@ class RTC
 		
 		
 		//	Non-static Member
-		uint32 m_clockIn;
-		e_clockSource m_clockSource;
+		uint16 m_eventID_alarm;
 		
 		
 		//	Constructor and Destructor
@@ -42,20 +41,32 @@ class RTC
 		//	Member Functions
 		feedback startup();
 		
-		feedback initClock(e_clockSource clockSource, Time time);
-		void set_alarm();
+		static feedback check_time(const Time& time);
+		static feedback calculate_prescaler(uint32 clock, uint32& prescaler_async, uint32& prescaler_sync);
+		static bool is_enabled();
+		static bool enable_backupDomainWrite();
+		static void restore_backupDomainWrite(bool writeProtected);
+		feedback enter_initializationMode(bool& writeProtected);
+		void exit_initializationMode(bool writeProtected);
 		
 		
 		//	Friends
 		friend class STM32H753BIT6;
-		
-		
-		
-		
-		
+		friend void ISR_RTC_ALARM_EXTI();
+	
+	
+	
+	
+	
 	public:
 		
+		feedback init(e_clockSource clockSource, Time time);
+		feedback set_time(Time time);
 		Time read();
+		
+		feedback set_alarm(Time time);
+		feedback disable_alarm();
+		inline uint16 get_eventID_alarm() const;
 };
 
 
@@ -73,8 +84,7 @@ class RTC
 /*****************************************************************************/
 
 constexpr inline RTC::RTC()
-	: m_clockIn(0),
-		m_clockSource(e_clockSource::NONE)
+	:	m_eventID_alarm(CMOS::eventID_invalid)
 {
 	
 }
@@ -99,3 +109,7 @@ inline RTC::~RTC()
 /*                      						Public	  			 						 						 */
 /*****************************************************************************/
 
+inline uint16 RTC::get_eventID_alarm() const
+{
+	return(m_eventID_alarm);
+}

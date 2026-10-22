@@ -67,6 +67,8 @@ class DBG
 		
 	public:
 		
+		//	Keeps the Debugger connected in Sleep, Stop and Standby/Shutdown - the Clocks keep running there, so the Mode draws more Current
+		inline void set_debugInLowPowerModes(bool sleep, bool stop, bool standbyAndShutdown);
 };
 
 
@@ -106,6 +108,14 @@ inline feedback DBG::startup()
 	freeze_onDebug(e_module::IWDG, true);
 	
 	return(OK);
+}
+
+
+inline void DBG::set_debugInLowPowerModes(bool sleep, bool stop, bool standbyAndShutdown)
+{
+	//	DBGMCU_CR DBG_SLEEP, DBG_STOP, DBG_STANDBY (RM0394, DBGMCU) - DBG_STANDBY applies to Shutdown as well
+	const uint32 mask = (sleep == true ? 0x1 : 0x0) | (stop == true ? 0x2 : 0x0) | (standbyAndShutdown == true ? 0x4 : 0x0);
+	*MCU::DBGMCU::CR = (*MCU::DBGMCU::CR & 0xFFFFFFF8) | mask;
 }
 
 

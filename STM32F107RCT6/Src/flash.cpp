@@ -83,7 +83,8 @@ SECTION(bootloader) feedback Flash::writePage(uint32* data, uint32 pageNumber)
 	
 	
 	//	Erase Address before write, else PGERR bit will be set in FLASH_SR and write wont be performed
-	if(erase(pageNumber) != OK)
+	//	Called non-virtually: an In-Application Update erases the V-Table in the Flash, the Function has to work without it
+	if(Flash::erase(pageNumber) != OK)
 	{
 		return(FAIL);
 	}
@@ -206,7 +207,9 @@ SECTION(bootloader) feedback Flash::erase(uint32 pageNumber)
 	
 	
 	//	Start Erase
+	//	BSY rises one Clock Cycle after STRT (ES022 Rev 11, 2.2.7): reading FLASH_CR back delays the first Read of BSY
 	bit::set(*MCU::FLASH::CR, 6);
+	(void) *MCU::FLASH::CR;
 	
 	
 	//	Wait for Busy-Flag to be reset
@@ -264,7 +267,9 @@ SECTION(bootloader) feedback Flash::erase()
 	
 	
 	//	Start Erase
+	//	BSY rises one Clock Cycle after STRT (ES022 Rev 11, 2.2.7): reading FLASH_CR back delays the first Read of BSY
 	bit::set(*MCU::FLASH::CR, 6);
+	(void) *MCU::FLASH::CR;
 	
 	
 	//	Wait for Busy-Flag to be reset
@@ -348,7 +353,7 @@ feedback Flash::set_waitStates(uint32 clock_ahb)
 		*MCU::FLASH::ACR = temp;
 		m_waitStates = 0;
 	}
-	if(clock_ahb > 24000000 && clock_ahb <= 48000000)
+	else if(clock_ahb <= 48000000)
 	{
 		*MCU::FLASH::ACR = temp | 0x1;
 		m_waitStates = 1;
@@ -365,7 +370,7 @@ feedback Flash::set_waitStates(uint32 clock_ahb)
 
 feedback Flash::set_prefetchBuffer(bool active)
 {
-	if(active == true && bit::isCleared(*MCU::FLASH::ACR, 4))
+	if(active == true)
 	{
 		bit::set(*MCU::FLASH::ACR, 4);
 	}
@@ -403,8 +408,15 @@ feedback Flash::write(const Array<uint16>& data, volatile uint16* address)
 	}
 	
 	
-	//	Check if write Operation crosses Page Boundaries
-	uint32 endAddressRelativeToFlashStart = ((uint32) address) - ((uint32) flashStartAddress) + data.get_size() * 2;
+	//	Nothing to write
+	if(data.get_size() == 0)
+	{
+		return(OK);
+	}
+	
+	
+	//	Check if write Operation crosses Page Boundaries: the last written Byte decides, Data up to the End of the Page is allowed
+	uint32 endAddressRelativeToFlashStart = ((uint32) address) - ((uint32) flashStartAddress) + data.get_size() * 2 - 1;
 	uint32 endPageNumber = endAddressRelativeToFlashStart / c_pageSizeInBytes;
 	
 	
@@ -436,7 +448,8 @@ feedback Flash::write(const Array<uint16>& data, volatile uint16* address)
 	
 	
 	//	Erase Address before write, else PGERR bit will be set in FLASH_SR and write wont be performed
-	if(erase(pageNumber) != OK)
+	//	Called non-virtually: an In-Application Update erases the V-Table in the Flash, the Function has to work without it
+	if(Flash::erase(pageNumber) != OK)
 	{
 		return(FAIL);
 	}

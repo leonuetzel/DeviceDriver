@@ -34,7 +34,8 @@ feedback Timer_2::init(uint32 frequency, bool enableInterrupt)
 	
 	uint32 prescaler = 1;
 	uint32 clock_divided = clock;
-	while((clock_divided / frequency) - 1 > 0x0000FFFF)
+	//	TIM2 has a 32 Bit ARR and CCR: ARR is at most 0xFFFFFFFE, so that CCR = ARR + 1 (100 % Duty Cycle) still fits
+	while((clock_divided / frequency) - 1 > 0xFFFFFFFE)
 	{
 		prescaler++;
 		if(prescaler > 0x0000FFFF)
@@ -61,6 +62,11 @@ feedback Timer_2::init(uint32 frequency, bool enableInterrupt)
 	
 	
 	bit::set(*MCU::TIMER_2::CR1, 2);                                                                                              //  Only OVF/UVF triggers Interrupt
+	
+	
+	//	Update Event: loads the Prescaler, it is buffered and would only be used after the first Overflow otherwise
+	//	URS is set, so the Update Event does not trigger the Interrupt
+	*MCU::TIMER_2::EGR = 1;
 	
 	bit::set(*MCU::TIMER_2::CR1, 0);                                                                                              //  Enable Timer
 	return(OK);
@@ -110,9 +116,14 @@ void Timer_2::init_pwm(e_channel channel)
 }
 
 
-CODE_RAM void Timer_2::set_pwm(e_channel channel, uint32 dutycycle_ppm)
+void Timer_2::set_pwm(e_channel channel, uint32 dutycycle_ppm)
 {
-	uint32 ccr_temp = ((uint64) dutycycle_ppm * *MCU::TIMER_2::ARR) / 1000000;
+	//	The Output is active while the Counter is below CCR (PWM Mode 1), so 100 % needs CCR = ARR + 1
+	if(dutycycle_ppm > 1000000)
+	{
+		dutycycle_ppm = 1000000;
+	}
+	uint32 ccr_temp = ((uint64) dutycycle_ppm * ((uint64) *MCU::TIMER_2::ARR + 1)) / 1000000;
 	
 	switch(channel)
 	{

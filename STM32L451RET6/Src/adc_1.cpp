@@ -37,14 +37,15 @@ feedback ADC_1::enable()
 	bit::set(*MCU::ADC_1::ISR, 0);
 	
 	
-	//	Enable ADC by setting ADEN Bit
+	//	Enable ADC by setting ADEN Bit and wait for ADRDY to be set
+	//	ADEN set within 4 ADC Clock Cycles after the End of a Calibration is reset by the Calibration Logic (ES0387 Rev 11, 2.11.1), so it is set again
 	bit::set(*MCU::ADC_1::CR, 0);
-	
-	
-	//	Wait for ADRDY to be set
 	while(bit::isCleared(*MCU::ADC_1::ISR, 0))
 	{
-		
+		if(bit::isCleared(*MCU::ADC_1::CR, 0))
+		{
+			bit::set(*MCU::ADC_1::CR, 0);
+		}
 	}
 	
 	return(OK);
@@ -198,7 +199,15 @@ feedback ADC_1::init(e_clockSource clockSource, uint16 valueBuffer[c_numberOfVal
 	
 	
 	//	Protect from unauthorized Access
-	if(CMOS::get().semaphore_isOwnedByRunningThread(this) == false)
+	if(CMOS::get().mutex_isOwnedByRunningThread(this) == false)
+	{
+		return(FAIL);
+	}
+	
+	
+	//	init() runs once: while the ADC converts, its DMA Channel runs circularly. A second Call returns FAIL before it changes
+	//	anything - otherwise it would reset the ADC and then fail at the busy Channel, and the Conversion would stop
+	if(STM32L451RET6::get().get_dma_1(0).is_busy() == true)
 	{
 		return(FAIL);
 	}
@@ -228,7 +237,8 @@ feedback ADC_1::init(e_clockSource clockSource, uint16 valueBuffer[c_numberOfVal
 	{
 		case e_clockSource::SYSTEM_PLLSAI1:
 		{
-			clock = rcc.get_clock_adc();
+			//	The Prescaler acts on the asynchronous Clock only (CKMODE = 00)
+			clock = rcc.get_clock_adc() / c_prescaler[prescalerIndex];
 		}
 		break;
 			
@@ -268,7 +278,9 @@ feedback ADC_1::init(e_clockSource clockSource, uint16 valueBuffer[c_numberOfVal
 	{
 		case PWR::e_voltageScaling::RANGE1_1V2:
 		{
-			if(clock < 140000 || clock > 80000000)
+			//	The ADC allows 80 MHz, but VBAT (CH18) needs at least 12 us Sampling Time (Datasheet, tS_vbat): the longest Setting of
+			//	640.5 Cycles lasts 12 us up to 53.375 MHz
+			if(clock < 140000 || clock > 53375000)
 			{
 				return(FAIL);
 			}
@@ -282,6 +294,7 @@ feedback ADC_1::init(e_clockSource clockSource, uint16 valueBuffer[c_numberOfVal
 				return(FAIL);
 			}
 		}
+		break;
 		
 		default:
 		{
@@ -341,15 +354,16 @@ feedback ADC_1::init(e_clockSource clockSource, uint16 valueBuffer[c_numberOfVal
 	bit::set(*MCU::ADC_1::CFGR1, 25);
 	
 	
+	//	Sampling Times: the internal Channels need at least 4 µs (VREF_INT, CH0), 5 µs (Temperature Sensor, CH17) and 12 µs (VBAT, CH18),
+	//	so they get the longest Sampling Time of 640.5 ADCCLK (12 µs for VBAT up to 53 MHz ADC Clock), the other Channels 12.5 ADCCLK
 	//	Time needed for a Conversion of all Channels:
-	//	17 Channel @ 12.5 +  12.5 =  25 ADCCLK
-	//	 1 Channel @ 12.5 +  92.5 = 105 ADCCLK
-	//	 1 Channel @ 12.5 + 247.5 = 260 ADCCLK
-	//	Sum = 425 + 105 + 260 = 790 ADCCLK
+	//	16 Channel @ 12.5 +  12.5 =  25 ADCCLK
+	//	 3 Channel @ 12.5 + 640.5 = 653 ADCCLK
+	//	Sum = 400 + 1959 = 2359 ADCCLK
 	//	@20MHz ADC Clock => 1 ADCCLK = 50ns
-	//	=> 790 ADCCLK = 39.5µs => 25.32kHz
-	*MCU::ADC_1::SMPR1 = (2 << 27) | (2 << 24) | (2 << 21) | (2 << 18) | (2 << 15) | (2 << 12) | (2 << 9) | (2 << 6) | (2 << 3) | (2 << 0);
-	*MCU::ADC_1::SMPR2 = 						 (6 << 24) | (5 << 21) | (2 << 18) | (2 << 15) | (2 << 12) | (2 << 9) | (2 << 6) | (2 << 3) | (2 << 0);
+	//	=> 2359 ADCCLK = 118µs => 8.48kHz
+	*MCU::ADC_1::SMPR1 = (2 << 27) | (2 << 24) | (2 << 21) | (2 << 18) | (2 << 15) | (2 << 12) | (2 << 9) | (2 << 6) | (2 << 3) | (7 << 0);
+	*MCU::ADC_1::SMPR2 = 						 (7 << 24) | (7 << 21) | (2 << 18) | (2 << 15) | (2 << 12) | (2 << 9) | (2 << 6) | (2 << 3) | (2 << 0);
 	
 	
 	//	Continuous Conversion Mode
@@ -367,13 +381,14 @@ feedback ADC_1::init(e_clockSource clockSource, uint16 valueBuffer[c_numberOfVal
 	//	DMA
 	DMA_1& dma = stm32.get_dma_1(0);
 	CMOS& cmos = CMOS::get();
-	if(cmos.semaphore_lock(&dma) != OK)
+	if(cmos.mutex_lock(&dma) != OK)
 	{
 		return(FAIL);
 	}
 	dma.set_requestMapping(DMA_1::e_requestMapping::CH0_ADC1);
 	if(dma.transfer((void*) MCU::ADC_1::DR, m_value, I_DMA::e_dataType::UINT16, I_DMA::e_dataType::UINT16, false, true, I_DMA::e_direction::PERIPHERAL_TO_MEMORY, true, 16, I_DMA::e_priority::VERY_HIGH, false, callback) != OK)
 	{
+		cmos.mutex_unlock(&dma);
 		return(FAIL);
 	}
 	

@@ -85,8 +85,8 @@ inline USART_3::~USART_3()
 
 inline feedback USART_3::startup()
 {
-	//	Create Semaphore
-	return(CMOS::get().semaphore_create(this));
+	//	Create Mutex
+	return(CMOS::get().mutex_create(this));
 }
 
 

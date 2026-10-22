@@ -2,6 +2,7 @@
 
 #include "registers.hpp"
 #include "cmos.hpp"
+#include "deviceDriverVersion.hpp"
 
 #include "adc_1.hpp"
 #include "dbg.hpp"
@@ -11,6 +12,7 @@
 #include "dmamux.hpp"
 #include "exti.hpp"
 #include "flash.hpp"
+#include "update.hpp"
 #include "gpio.hpp"
 #include "i2c_1.hpp"
 #include "i2c_2.hpp"
@@ -18,6 +20,7 @@
 #include "i2c_4.hpp"
 #include "pwr.hpp"
 #include "rcc.hpp"
+#include "watchdog.hpp"
 #include "syscfg.hpp"
 #include "timer_2.hpp"
 #include "timer_3.hpp"
@@ -33,6 +36,7 @@
 
 
 uint32 __startup__();
+extern "C" void __resetHandler__();
 
 
 
@@ -66,27 +70,9 @@ class STM32G474MCT6
 		PWR m_pwr;
 		Flash m_flash;
 		RCC m_rcc;
-		CRC m_crc;
 		GPIO m_gpio;
-		EXTI m_exti;
 		//RTC m_rtc;
 		//Timer_2 m_timer_2;
-		DMA_1 m_dma_1[DMA_1::c_channel];
-		DMA_2 m_dma_2[DMA_2::c_channel];
-		DMAMUX m_dmamux;
-		ADC_1 m_adc_1;
-		I2C_1 m_i2c_1;
-		I2C_2 m_i2c_2;
-		I2C_3 m_i2c_3;
-		I2C_4 m_i2c_4;
-		USART_1 m_usart_1;
-		USART_2 m_usart_2;
-		USART_3 m_usart_3;
-		Timer_2 m_timer_2;
-		Timer_3 m_timer_3;
-		CAN_1 m_can_1;
-		CAN_2 m_can_2;
-		CAN_3 m_can_3;
 		//LP_UART_1 m_lpuart_1;
 		//I2C_1 m_i2c_1;
 		
@@ -98,7 +84,18 @@ class STM32G474MCT6
 		
 		
 		//	Member Functions
+		//	Initializes the Core Drivers, only __startup__ calls it - all other Drivers start with the first Call of their Getter
 		inline feedback startup();
+
+
+		//	Peripherals besides the Core are created and started at the first Call of their Getter: a Program links, clocks and creates only the
+		//	Drivers it uses. startBegin() returns true for exactly one Caller, who starts the Peripheral and then calls startEnd(); a second
+		//	Thread that comes meanwhile waits until it is started. The first Call of a Getter must come from a Thread, not from an Interrupt
+		static constexpr uint8 c_notStarted						= 0;
+		static constexpr uint8 c_starting							= 1;
+		static constexpr uint8 c_started							= 2;
+		static bool startBegin(volatile uint8& state);
+		static inline void startEnd(volatile uint8& state);
 		
 		static void copy_flashToRAM(const uint32* src, uint32* dest, uint32 sizeInBytes);
 		static void zeroOutRAM(uint32* startAddress, uint32 sizeInBytes);
@@ -107,7 +104,9 @@ class STM32G474MCT6
 		
 		//	Friends
 		friend void EXCEPTION_RESET();
+		friend void __resetHandler__();
 		friend uint32 __startup__();
+		friend class Update;
 		
 		
 		
@@ -117,32 +116,39 @@ class STM32G474MCT6
 		
 		static STM32G474MCT6& get();
 		
+		
+		//	Version of the linked Library - if it differs from DEVICEDRIVER_VERSION_MAJOR/MINOR, Headers and Library do not belong together
+		static uint8 get_versionMajor();
+		static uint8 get_versionMinor();
+		
 		constexpr inline DBG& get_dbg();
 		constexpr inline SYSCFG& get_syscfg();
 		constexpr inline Flash& get_flash();
+		inline Update& get_update();
 		constexpr inline RCC& get_rcc();
-		constexpr inline CRC& get_crc();
+		inline CRC& get_crc();
 		constexpr inline PWR& get_pwr();
 		constexpr inline GPIO& get_gpio();
-		constexpr inline EXTI& get_exti();
+		inline Watchdog& get_watchdog();
+		inline EXTI& get_exti();
 		//constexpr inline RTC& get_rtc();
 		//constexpr inline Timer_2& get_timer_2();
-		constexpr inline DMA_1& get_dma_1(uint8 channel);
-		constexpr inline DMA_2& get_dma_2(uint8 channel);
-		constexpr inline DMAMUX& get_dmamux();
-		constexpr inline ADC_1& get_adc_1();
-		constexpr inline I2C_1& get_i2c_1();
-		constexpr inline I2C_2& get_i2c_2();
-		constexpr inline I2C_3& get_i2c_3();
-		constexpr inline I2C_4& get_i2c_4();
-		constexpr inline USART_1& get_usart_1();
-		constexpr inline USART_2& get_usart_2();
-		constexpr inline USART_3& get_usart_3();
-		constexpr inline Timer_2& get_timer_2();
-		constexpr inline Timer_3& get_timer_3();
-		constexpr inline CAN_1& get_can_1();
-		constexpr inline CAN_2& get_can_2();
-		constexpr inline CAN_3& get_can_3();
+		inline DMA_1& get_dma_1(uint8 channel);
+		inline DMA_2& get_dma_2(uint8 channel);
+		inline DMAMUX& get_dmamux();
+		inline ADC_1& get_adc_1();
+		inline I2C_1& get_i2c_1();
+		inline I2C_2& get_i2c_2();
+		inline I2C_3& get_i2c_3();
+		inline I2C_4& get_i2c_4();
+		inline USART_1& get_usart_1();
+		inline USART_2& get_usart_2();
+		inline USART_3& get_usart_3();
+		inline Timer_2& get_timer_2();
+		inline Timer_3& get_timer_3();
+		inline CAN_1& get_can_1();
+		inline CAN_2& get_can_2();
+		inline CAN_3& get_can_3();
 		//constexpr inline LP_UART_1& get_lpuart_1();
 		//constexpr inline I2C_1& get_i2c_1();
 };
@@ -268,29 +274,7 @@ inline STM32G474MCT6::STM32G474MCT6()
 		m_pwr(),
 		m_flash(),
 		m_rcc(),
-		m_crc(),
-		m_gpio(),
-		m_exti(),
-		//m_rtc(),
-		//m_timer_2(m_rcc),
-		m_dma_1(),
-		m_dma_2(),
-		m_dmamux(),
-		m_adc_1(),
-		m_i2c_1(),
-		m_i2c_2(),
-		m_i2c_3(),
-		m_i2c_4(),
-		m_usart_1(),
-		m_usart_2(),
-		m_usart_3(),
-		m_timer_2(m_rcc),
-		m_timer_3(m_rcc),
-		m_can_1(),
-		m_can_2(),
-		m_can_3()
-		//m_lpuart_1(),
-		//m_i2c_1()
+		m_gpio()
 {
 	
 }
@@ -329,15 +313,7 @@ inline feedback STM32G474MCT6::startup()
 	{
 		return(FAIL);
 	}
-	if(m_crc.startup(m_rcc) != OK)
-	{
-		return(FAIL);
-	}
 	if(m_gpio.startup(m_rcc) != OK)
-	{
-		return(FAIL);
-	}
-	if(m_exti.startup() != OK)
 	{
 		return(FAIL);
 	}/*
@@ -349,76 +325,6 @@ inline feedback STM32G474MCT6::startup()
 	{
 		return(FAIL);
 	}*/
-	for(uint32 i = 0; i < DMA_1::c_channel; i++)
-	{
-		if(m_dma_1[i].startup(m_rcc, i) != OK)
-		{
-			return(FAIL);
-		}
-	}
-	for(uint32 i = 0; i < DMA_2::c_channel; i++)
-	{
-		if(m_dma_2[i].startup(m_rcc, i) != OK)
-		{
-			return(FAIL);
-		}
-	}
-	if(m_dmamux.startup() != OK)
-	{
-		return(FAIL);
-	}
-	if(m_adc_1.startup() != OK)
-	{
-		return(FAIL);
-	}
-	if(m_i2c_1.startup(m_rcc) != OK)
-	{
-		return(FAIL);
-	}
-	if(m_i2c_2.startup(m_rcc) != OK)
-	{
-		return(FAIL);
-	}
-	if(m_i2c_3.startup(m_rcc) != OK)
-	{
-		return(FAIL);
-	}
-	if(m_i2c_4.startup(m_rcc) != OK)
-	{
-		return(FAIL);
-	}
-	if(m_usart_1.startup() != OK)
-	{
-		return(FAIL);
-	}
-	if(m_usart_2.startup() != OK)
-	{
-		return(FAIL);
-	}
-	if(m_usart_3.startup() != OK)
-	{
-		return(FAIL);
-	}
-	if(m_timer_2.startup() != OK)
-	{
-		return(FAIL);
-	}
-	if(m_timer_3.startup() != OK)
-	{
-		return(FAIL);
-	}
-	if(m_can_1.startup() != OK)
-	{
-		return(FAIL);
-	}
-	if(m_can_2.startup() != OK)
-	{
-		return(FAIL);
-	}
-	if(m_can_3.startup() != OK)
-	{
-		return(FAIL);
-	}
 	/*
 	if(m_lpuart_1.startup() != OK)
 	{
@@ -447,6 +353,14 @@ inline feedback STM32G474MCT6::startup()
 /*                      						Public	  			 						 						 */
 /*****************************************************************************/
 
+inline void STM32G474MCT6::startEnd(volatile uint8& state)
+{
+	//	The Compiler Barrier keeps the Writes of the Start (Object, Pointer) before the State: a Thread that sees c_started finds them
+	asm volatile("" ::: "memory");
+	state = c_started;
+}
+
+
 
 constexpr inline DBG& STM32G474MCT6::get_dbg()
 {
@@ -472,15 +386,33 @@ constexpr inline Flash& STM32G474MCT6::get_flash()
 }
 
 
+inline Update& STM32G474MCT6::get_update()
+{
+	//	No Member: the Update Driver is only linked into Programs that use it
+	static Update update;
+	return(update);
+}
+
+
 constexpr inline RCC& STM32G474MCT6::get_rcc()
 {
 	return(m_rcc);
 }
 
 
-constexpr inline CRC& STM32G474MCT6::get_crc()
+inline CRC& STM32G474MCT6::get_crc()
 {
-	return(m_crc);
+	//	Created and started at the first Call (startBegin): a Program that never calls it links nothing of the Driver
+	static volatile uint8 state = c_notStarted;
+	static CRC* volatile crc = nullptr;
+	if(state != c_started && startBegin(state) == true)
+	{
+		static CRC instance;
+		instance.startup(m_rcc);
+		crc = &instance;
+		startEnd(state);
+	}
+	return(*crc);
 }
 
 
@@ -490,9 +422,36 @@ constexpr inline GPIO& STM32G474MCT6::get_gpio()
 }
 
 
-constexpr inline EXTI& STM32G474MCT6::get_exti()
+inline Watchdog& STM32G474MCT6::get_watchdog()
 {
-	return(m_exti);
+	//	Created and started at the first Call (startBegin): a Program that never calls it links nothing of the Driver. The Start registers
+	//	the Watchdog at CMOS (CMOS::get_watchdog()) but does not start it - a hardware Watchdog (Option Bit) runs from the Reset on
+	static volatile uint8 state = c_notStarted;
+	static Watchdog* volatile watchdog = nullptr;
+	if(state != c_started && startBegin(state) == true)
+	{
+		static Watchdog instance;
+		instance.startup(m_rcc);
+		watchdog = &instance;
+		startEnd(state);
+	}
+	return(*watchdog);
+}
+
+
+inline EXTI& STM32G474MCT6::get_exti()
+{
+	//	Created and started at the first Call (startBegin): a Program that never calls it links nothing of the Driver
+	static volatile uint8 state = c_notStarted;
+	static EXTI* volatile exti = nullptr;
+	if(state != c_started && startBegin(state) == true)
+	{
+		static EXTI instance;
+		instance.startup();
+		exti = &instance;
+		startEnd(state);
+	}
+	return(*exti);
 }
 
 /*
@@ -508,109 +467,267 @@ constexpr inline Timer_2& STM32G474MCT6::get_timer_2()
 }
 
 */
-constexpr inline DMA_1& STM32G474MCT6::get_dma_1(uint8 channel)
+inline DMA_1& STM32G474MCT6::get_dma_1(uint8 channel)
 {
-	if(channel < DMA_1::c_channel)
+	//	Created and started at the first Call, all at once - for an invalid Number the Replacement Object (the last one): it has no
+	//	Hardware, so its Functions return FAIL instead of accessing any Address
+	static volatile uint8 state = c_notStarted;
+	static DMA_1* volatile dma_1 = nullptr;
+	if(state != c_started && startBegin(state) == true)
 	{
-		return(m_dma_1[channel]);
+		static DMA_1 instance[DMA_1::c_channel + 1];
+		for(uint32 i = 0; i < DMA_1::c_channel; i++)
+		{
+			instance[i].startup(m_rcc, i);
+		}
+		dma_1 = instance;
+		startEnd(state);
 	}
-	DMA_1& fail = (DMA_1&) *((DMA_1*) nullptr);
-	return(fail);
+	return(dma_1[(channel < DMA_1::c_channel) ? channel : DMA_1::c_channel]);
 }
 
 
-constexpr inline DMA_2& STM32G474MCT6::get_dma_2(uint8 channel)
+inline DMA_2& STM32G474MCT6::get_dma_2(uint8 channel)
 {
-	if(channel < DMA_2::c_channel)
+	//	Created and started at the first Call, all at once - for an invalid Number the Replacement Object (the last one): it has no
+	//	Hardware, so its Functions return FAIL instead of accessing any Address
+	static volatile uint8 state = c_notStarted;
+	static DMA_2* volatile dma_2 = nullptr;
+	if(state != c_started && startBegin(state) == true)
 	{
-		return(m_dma_2[channel]);
+		static DMA_2 instance[DMA_2::c_channel + 1];
+		for(uint32 i = 0; i < DMA_2::c_channel; i++)
+		{
+			instance[i].startup(m_rcc, i);
+		}
+		dma_2 = instance;
+		startEnd(state);
 	}
-	DMA_2& fail = (DMA_2&) *((DMA_2*) nullptr);
-	return(fail);
+	return(dma_2[(channel < DMA_2::c_channel) ? channel : DMA_2::c_channel]);
 }
 
 
-constexpr inline DMAMUX& STM32G474MCT6::get_dmamux()
+inline DMAMUX& STM32G474MCT6::get_dmamux()
 {
-	return(m_dmamux);
+	//	Created and started at the first Call (startBegin): a Program that never calls it links nothing of the Driver
+	static volatile uint8 state = c_notStarted;
+	static DMAMUX* volatile dmamux = nullptr;
+	if(state != c_started && startBegin(state) == true)
+	{
+		static DMAMUX instance;
+		instance.startup();
+		dmamux = &instance;
+		startEnd(state);
+	}
+	return(*dmamux);
 }
 
 
-constexpr inline ADC_1& STM32G474MCT6::get_adc_1()
+inline ADC_1& STM32G474MCT6::get_adc_1()
 {
-	return(m_adc_1);
+	//	Created and started at the first Call (startBegin): a Program that never calls it links nothing of the Driver
+	static volatile uint8 state = c_notStarted;
+	static ADC_1* volatile adc_1 = nullptr;
+	if(state != c_started && startBegin(state) == true)
+	{
+		static ADC_1 instance;
+		instance.startup();
+		adc_1 = &instance;
+		startEnd(state);
+	}
+	return(*adc_1);
 }
 
 
-constexpr inline I2C_1& STM32G474MCT6::get_i2c_1()
+inline I2C_1& STM32G474MCT6::get_i2c_1()
 {
-	return(m_i2c_1);
+	//	Created and started at the first Call (startBegin): a Program that never calls it links nothing of the Driver
+	static volatile uint8 state = c_notStarted;
+	static I2C_1* volatile i2c_1 = nullptr;
+	if(state != c_started && startBegin(state) == true)
+	{
+		static I2C_1 instance;
+		instance.startup(m_rcc);
+		i2c_1 = &instance;
+		startEnd(state);
+	}
+	return(*i2c_1);
 }
 
 
-constexpr inline I2C_2& STM32G474MCT6::get_i2c_2()
+inline I2C_2& STM32G474MCT6::get_i2c_2()
 {
-	return(m_i2c_2);
+	//	Created and started at the first Call (startBegin): a Program that never calls it links nothing of the Driver
+	static volatile uint8 state = c_notStarted;
+	static I2C_2* volatile i2c_2 = nullptr;
+	if(state != c_started && startBegin(state) == true)
+	{
+		static I2C_2 instance;
+		instance.startup(m_rcc);
+		i2c_2 = &instance;
+		startEnd(state);
+	}
+	return(*i2c_2);
 }
 
 
-constexpr inline I2C_3& STM32G474MCT6::get_i2c_3()
+inline I2C_3& STM32G474MCT6::get_i2c_3()
 {
-	return(m_i2c_3);
+	//	Created and started at the first Call (startBegin): a Program that never calls it links nothing of the Driver
+	static volatile uint8 state = c_notStarted;
+	static I2C_3* volatile i2c_3 = nullptr;
+	if(state != c_started && startBegin(state) == true)
+	{
+		static I2C_3 instance;
+		instance.startup(m_rcc);
+		i2c_3 = &instance;
+		startEnd(state);
+	}
+	return(*i2c_3);
 }
 
 
-constexpr inline I2C_4& STM32G474MCT6::get_i2c_4()
+inline I2C_4& STM32G474MCT6::get_i2c_4()
 {
-	return(m_i2c_4);
+	//	Created and started at the first Call (startBegin): a Program that never calls it links nothing of the Driver
+	static volatile uint8 state = c_notStarted;
+	static I2C_4* volatile i2c_4 = nullptr;
+	if(state != c_started && startBegin(state) == true)
+	{
+		static I2C_4 instance;
+		instance.startup(m_rcc);
+		i2c_4 = &instance;
+		startEnd(state);
+	}
+	return(*i2c_4);
 }
 
 
-constexpr inline USART_1& STM32G474MCT6::get_usart_1()
+inline USART_1& STM32G474MCT6::get_usart_1()
 {
-	return(m_usart_1);
+	//	Created and started at the first Call (startBegin): a Program that never calls it links nothing of the Driver
+	static volatile uint8 state = c_notStarted;
+	static USART_1* volatile usart_1 = nullptr;
+	if(state != c_started && startBegin(state) == true)
+	{
+		static USART_1 instance;
+		instance.startup();
+		usart_1 = &instance;
+		startEnd(state);
+	}
+	return(*usart_1);
 }
 
 
-constexpr inline USART_2& STM32G474MCT6::get_usart_2()
+inline USART_2& STM32G474MCT6::get_usart_2()
 {
-	return(m_usart_2);
+	//	Created and started at the first Call (startBegin): a Program that never calls it links nothing of the Driver
+	static volatile uint8 state = c_notStarted;
+	static USART_2* volatile usart_2 = nullptr;
+	if(state != c_started && startBegin(state) == true)
+	{
+		static USART_2 instance;
+		instance.startup();
+		usart_2 = &instance;
+		startEnd(state);
+	}
+	return(*usart_2);
 }
 
 
-constexpr inline USART_3& STM32G474MCT6::get_usart_3()
+inline USART_3& STM32G474MCT6::get_usart_3()
 {
-	return(m_usart_3);
+	//	Created and started at the first Call (startBegin): a Program that never calls it links nothing of the Driver
+	static volatile uint8 state = c_notStarted;
+	static USART_3* volatile usart_3 = nullptr;
+	if(state != c_started && startBegin(state) == true)
+	{
+		static USART_3 instance;
+		instance.startup();
+		usart_3 = &instance;
+		startEnd(state);
+	}
+	return(*usart_3);
 }
 
 
-constexpr inline Timer_2& STM32G474MCT6::get_timer_2()
+inline Timer_2& STM32G474MCT6::get_timer_2()
 {
-	return(m_timer_2);
+	//	Created and started at the first Call (startBegin): a Program that never calls it links nothing of the Driver
+	static volatile uint8 state = c_notStarted;
+	static Timer_2* volatile timer_2 = nullptr;
+	if(state != c_started && startBegin(state) == true)
+	{
+		static Timer_2 instance(m_rcc);
+		instance.startup();
+		timer_2 = &instance;
+		startEnd(state);
+	}
+	return(*timer_2);
 }
 
 
-constexpr inline Timer_3& STM32G474MCT6::get_timer_3()
+inline Timer_3& STM32G474MCT6::get_timer_3()
 {
-	return(m_timer_3);
+	//	Created and started at the first Call (startBegin): a Program that never calls it links nothing of the Driver
+	static volatile uint8 state = c_notStarted;
+	static Timer_3* volatile timer_3 = nullptr;
+	if(state != c_started && startBegin(state) == true)
+	{
+		static Timer_3 instance(m_rcc);
+		instance.startup();
+		timer_3 = &instance;
+		startEnd(state);
+	}
+	return(*timer_3);
 }
 
 
-constexpr inline CAN_1& STM32G474MCT6::get_can_1()
+inline CAN_1& STM32G474MCT6::get_can_1()
 {
-	return(m_can_1);
+	//	Created and started at the first Call (startBegin): a Program that never calls it links nothing of the Driver
+	static volatile uint8 state = c_notStarted;
+	static CAN_1* volatile can_1 = nullptr;
+	if(state != c_started && startBegin(state) == true)
+	{
+		static CAN_1 instance;
+		instance.startup();
+		can_1 = &instance;
+		startEnd(state);
+	}
+	return(*can_1);
 }
 
 
-constexpr inline CAN_2& STM32G474MCT6::get_can_2()
+inline CAN_2& STM32G474MCT6::get_can_2()
 {
-	return(m_can_2);
+	//	Created and started at the first Call (startBegin): a Program that never calls it links nothing of the Driver
+	static volatile uint8 state = c_notStarted;
+	static CAN_2* volatile can_2 = nullptr;
+	if(state != c_started && startBegin(state) == true)
+	{
+		static CAN_2 instance;
+		instance.startup();
+		can_2 = &instance;
+		startEnd(state);
+	}
+	return(*can_2);
 }
 
 
-constexpr inline CAN_3& STM32G474MCT6::get_can_3()
+inline CAN_3& STM32G474MCT6::get_can_3()
 {
-	return(m_can_3);
+	//	Created and started at the first Call (startBegin): a Program that never calls it links nothing of the Driver
+	static volatile uint8 state = c_notStarted;
+	static CAN_3* volatile can_3 = nullptr;
+	if(state != c_started && startBegin(state) == true)
+	{
+		static CAN_3 instance;
+		instance.startup();
+		can_3 = &instance;
+		startEnd(state);
+	}
+	return(*can_3);
 }
 
 /*

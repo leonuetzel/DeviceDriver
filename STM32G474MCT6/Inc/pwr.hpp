@@ -145,7 +145,19 @@ inline feedback PWR::set_voltageScaling(e_voltageScaling voltageScaling)
 	{
 		bit::clear(*MCU::PWR::CR5, 8);
 	}
+	m_voltageScaling = voltageScaling;
 	
+	
+	//	Wait until the Regulator has reached the new Level (VOSF, PWR_SR2 Bit 10), before Clocks are raised
+	uint32 timeout = 1000000;
+	while(bit::isSet(*MCU::PWR::SR2, 10) == true)
+	{
+		timeout--;
+		if(timeout == 0)
+		{
+			return(FAIL);
+		}
+	}
 	return(OK);
 }
 

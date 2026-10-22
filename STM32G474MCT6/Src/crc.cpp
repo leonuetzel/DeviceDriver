@@ -26,9 +26,9 @@
 
 feedback CRC::init(uint8 initialValue, uint8 polynomial, bool reverseOutputData, bool reverseInputData)
 {
-	//	Check if Semaphore is locked
+	//	Check if Mutex is locked
 	CMOS& cmos = CMOS::get();
-	if(cmos.semaphore_isOwnedByRunningThread(this) == false)
+	if(cmos.mutex_isOwnedByRunningThread(this) == false)
 	{
 		return(FAIL);
 	}
@@ -69,9 +69,9 @@ feedback CRC::init(uint8 initialValue, uint8 polynomial, bool reverseOutputData,
 
 feedback CRC::init(uint16 initialValue, uint16 polynomial, bool reverseOutputData, bool reverseInputData)
 {
-	//	Check if Semaphore is locked
+	//	Check if Mutex is locked
 	CMOS& cmos = CMOS::get();
-	if(cmos.semaphore_isOwnedByRunningThread(this) == false)
+	if(cmos.mutex_isOwnedByRunningThread(this) == false)
 	{
 		return(FAIL);
 	}
@@ -112,9 +112,9 @@ feedback CRC::init(uint16 initialValue, uint16 polynomial, bool reverseOutputDat
 
 feedback CRC::init(uint32 initialValue, uint32 polynomial, bool reverseOutputData, bool reverseInputData)
 {
-	//	Check if Semaphore is locked
+	//	Check if Mutex is locked
 	CMOS& cmos = CMOS::get();
-	if(cmos.semaphore_isOwnedByRunningThread(this) == false)
+	if(cmos.mutex_isOwnedByRunningThread(this) == false)
 	{
 		return(FAIL);
 	}
@@ -161,9 +161,9 @@ feedback CRC::init(uint32 initialValue, uint32 polynomial, bool reverseOutputDat
 
 CRC& CRC::operator<<(uint8 data)
 {
-	//	Check if Semaphore is locked
+	//	Check if Mutex is locked
 	CMOS& cmos = CMOS::get();
-	if(cmos.semaphore_isOwnedByRunningThread(this) == false)
+	if(cmos.mutex_isOwnedByRunningThread(this) == false)
 	{
 		return(*this);
 	}
@@ -178,9 +178,9 @@ CRC& CRC::operator<<(uint8 data)
 
 CRC& CRC::operator<<(uint16 data)
 {
-	//	Check if Semaphore is locked
+	//	Check if Mutex is locked
 	CMOS& cmos = CMOS::get();
-	if(cmos.semaphore_isOwnedByRunningThread(this) == false)
+	if(cmos.mutex_isOwnedByRunningThread(this) == false)
 	{
 		return(*this);
 	}
@@ -195,9 +195,9 @@ CRC& CRC::operator<<(uint16 data)
 
 CRC& CRC::operator<<(uint32 data)
 {
-	//	Check if Semaphore is locked
+	//	Check if Mutex is locked
 	CMOS& cmos = CMOS::get();
-	if(cmos.semaphore_isOwnedByRunningThread(this) == false)
+	if(cmos.mutex_isOwnedByRunningThread(this) == false)
 	{
 		return(*this);
 	}
@@ -217,9 +217,9 @@ CRC& CRC::operator<<(uint32 data)
 
 uint32 CRC::operator()() const
 {
-	//	Check if Semaphore is locked
+	//	Check if Mutex is locked
 	CMOS& cmos = CMOS::get();
-	if(cmos.semaphore_isOwnedByRunningThread(this) == false)
+	if(cmos.mutex_isOwnedByRunningThread(this) == false)
 	{
 		return(0);
 	}

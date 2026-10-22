@@ -19,8 +19,17 @@ Triplet<uint16, I_DMA::f_callback, bool> DMA_2::m_channelInfo[c_channel] =
 	Triplet<uint16, I_DMA::f_callback, bool>(CMOS::eventID_invalid, nullptr, false),
 	Triplet<uint16, I_DMA::f_callback, bool>(CMOS::eventID_invalid, nullptr, false),
 	Triplet<uint16, I_DMA::f_callback, bool>(CMOS::eventID_invalid, nullptr, false),
+	Triplet<uint16, I_DMA::f_callback, bool>(CMOS::eventID_invalid, nullptr, false),
 	Triplet<uint16, I_DMA::f_callback, bool>(CMOS::eventID_invalid, nullptr, false)
 };
+
+
+//	Memory written by the Channel: Address and Size in Bytes, for the Cache Maintenance at the End of a Transfer
+Pair<const void*, uint32> DMA_2::m_writtenMemory[c_channel];
+
+volatile bool DMA_2::m_transferError[c_channel] = {};
+
+bool DMA_2::m_usartWorkaround = false;
 
 
 
@@ -39,9 +48,9 @@ feedback DMA_2::startup(uint8 channel)
 	m_channel = channel;
 	
 	
-	//	Create Semaphore
+	//	Create Mutex
 	CMOS& cmos = CMOS::get();
-	if(cmos.semaphore_create(this) != OK)
+	if(cmos.mutex_create(this) != OK)
 	{
 		return(FAIL);
 	}
@@ -77,13 +86,22 @@ feedback DMA_2::startup(uint8 channel)
 		
 		RCC& rcc = STM32H753BIT6::get().get_rcc();
 		rcc.module_clockInit(RCC::e_module::DMA_2, true);
+		
+		
+		//	ES0392 2.20.4 (Revisions X and V, not Y = 0x1003), see transfer()
+		const uint32 revisionID = (*MCU::DBGMCU::IDC >> 16) & 0x0000FFFF;
+		m_usartWorkaround = (revisionID != 0x1003);
 	}
 	return(OK);
 }
 
 
-CODE_RAM void DMA_2::executeCallback(uint8 channel)
+CODE_RAM void DMA_2::executeCallback(uint8 channel, bool transferError)
 {
+	//	A Transfer Error disables the Stream by Hardware, transfer() returns FAIL then
+	m_transferError[channel] = transferError;
+	
+	
 	//	Get Channel Registers
 	const uint32 offset = channel * 0x6;
 	volatile uint32* DMA_CCR = MCU::DMA_2::CH0_CR + offset;
@@ -93,6 +111,16 @@ CODE_RAM void DMA_2::executeCallback(uint8 channel)
 	if(bit::isCleared(*DMA_CCR, 8) == true)
 	{
 		bit::clear(*DMA_CCR, 0);
+	}
+	
+	
+	//	Cache Maintenance: the CPU reads the Memory written by the Channel only after this, in Circular Mode after every Round
+	//	A finished non-circular Transfer is forgotten, the CPU may write the Memory afterwards
+	auto& writtenMemory(m_writtenMemory[channel]);
+	CacheMaintenance::afterWrite(writtenMemory.first(), writtenMemory.second());
+	if(bit::isCleared(*DMA_CCR, 8) == true)
+	{
+		writtenMemory.second() = 0;
 	}
 	
 	
@@ -131,7 +159,7 @@ feedback DMA_2::reset()
 	
 	//	Protect from unauthorized Access
 	CMOS& cmos = CMOS::get();
-	if(cmos.semaphore_isOwnedByRunningThread(this) == false)
+	if(cmos.mutex_isOwnedByRunningThread(this) == false)
 	{
 		return(FAIL);
 	}
@@ -147,8 +175,31 @@ feedback DMA_2::reset()
 	volatile uint32* DMA_M1AR	= MCU::DMA_2::CH0_M1AR	+ offset;
 	
 	
-	//	Reset Registers
+	//	Disable the Channel: it finishes the current Data Item first, its other Registers can only be written afterwards (RM0433, 15.3.19)
+	//	The Wait is limited (some Milliseconds): a Stream that does not stop, e.g. locked as described in ES0392 2.20.4, must not block the Caller forever
+	const bool active = bit::isSet(*DMA_CCR, 0);
 	*DMA_CCR = 0;
+	uint32 timeout = 100000;
+	while(bit::isSet(*DMA_CCR, 0) == true)
+	{
+		timeout--;
+		if(timeout == 0)
+		{
+			return(FAIL);
+		}
+	}
+	
+	
+	//	Cache Maintenance: the CPU may read what an aborted Transfer has written so far
+	auto& writtenMemory(m_writtenMemory[m_channel]);
+	if(active == true)
+	{
+		CacheMaintenance::afterWrite(writtenMemory.first(), writtenMemory.second());
+	}
+	writtenMemory.second() = 0;
+	
+	
+	//	Reset Registers
 	*DMA_NDTR = 0;
 	*DMA_PAR = 0;
 	*DMA_M0AR = 0;
@@ -170,7 +221,32 @@ feedback DMA_2::reset()
 }
 
 
-CODE_RAM feedback DMA_2::transfer(const void* source, const void* destination, e_dataType sourceType, e_dataType destinationType, bool source_inc, bool dest_inc, e_direction direction, bool circularMode, uint16 numberOfItems, e_priority priority, bool waitForTransferEnd, f_callback callback)
+bool DMA_2::is_busy() const
+{
+	//	The Stream stays enabled until a single Transfer has ended or a Transfer Error has stopped it: the Hardware clears EN, the Interrupt
+	//	Routine follows at once (RM0433, DMA_SxCR). A circular Transfer runs until reset(). transfer() refuses the Stream as long as it is busy
+	if(m_channel >= c_channel)
+	{
+		return(false);
+	}
+	const uint32 offset = m_channel * 0x6;
+	return(bit::isSet(*(MCU::DMA_2::CH0_CR + offset), 0));
+}
+
+
+uint16 DMA_2::get_eventID() const
+{
+	//	executeCallback() emits it at the End of every non-circular Transfer, also without a waiting Thread, and after a Transfer Error:
+	//	transfer() always enables the Transfer Complete and the Transfer Error Interrupt of a non-circular Transfer
+	if(m_channel >= c_channel)
+	{
+		return(CMOS::eventID_invalid);
+	}
+	return(m_channelInfo[m_channel].first());
+}
+
+
+feedback DMA_2::transfer(const void* source, const void* destination, e_dataType sourceType, e_dataType destinationType, bool source_inc, bool dest_inc, e_direction direction, bool circularMode, uint16 numberOfItems, e_priority priority, bool waitForTransferEnd, f_callback callback)
 {
 	//	Check if Channel is valid
 	if(m_channel >= c_channel)
@@ -186,6 +262,20 @@ CODE_RAM feedback DMA_2::transfer(const void* source, const void* destination, e
 	}
 	
 	
+	//	The DMA does not reach the TCM of the Core: Buffers in the DTCM (Variables and Stacks of the Linker Script Template) or ITCM
+	//	are refused, the Transfer would else end with a Transfer Error. The Memory Side is the Source, the Destination or both
+	const uint32 sizeInBytes_source = (source_inc == true) ? ((uint32) numberOfItems << (uint32) sourceType) : (1 << (uint32) sourceType);
+	const uint32 sizeInBytes_destination = (dest_inc == true) ? ((uint32) numberOfItems << (uint32) destinationType) : (1 << (uint32) destinationType);
+	if(direction != e_direction::PERIPHERAL_TO_MEMORY && CacheMaintenance::isReachableByDMA(source, sizeInBytes_source) == false)
+	{
+		return(FAIL);
+	}
+	if(direction != e_direction::MEMORY_TO_PERIPHERAL && CacheMaintenance::isReachableByDMA(destination, sizeInBytes_destination) == false)
+	{
+		return(FAIL);
+	}
+	
+	
 	//	Circular Mode and MEMORY_TO_MEMORY isnt allowed simultaneously
 	if(circularMode == true && direction == e_direction::MEMORY_TO_MEMORY)
 	{
@@ -195,7 +285,7 @@ CODE_RAM feedback DMA_2::transfer(const void* source, const void* destination, e
 	
 	//	Protect from unauthorized Access
 	CMOS& cmos = CMOS::get();
-	if(cmos.semaphore_isOwnedByRunningThread(this) == false)
+	if(cmos.mutex_isOwnedByRunningThread(this) == false)
 	{
 		return(FAIL);
 	}
@@ -223,15 +313,16 @@ CODE_RAM feedback DMA_2::transfer(const void* source, const void* destination, e
 	channelInfo.third() = circularMode;
 	
 	
-	//	Clear Interrupt Flags
-	uint32 temp = (m_channel & 0x3) * 8;
+	//	Clear Interrupt Flags: the Flags of the Streams 0 ... 3 (4 ... 7) start at Bit 0, 6, 16 and 22 (RM0433, DMA_LISR/HISR)
+	constexpr uint8 isrRegisterOffset[4] = {0, 6, 16, 22};
+	const uint32 flagMask = 0x0000003D << isrRegisterOffset[m_channel % 4];
 	if(m_channel < 4)
 	{
-		*MCU::DMA_2::LIFCR = *MCU::DMA_2::LISR & (0x0000003D << temp);
+		*MCU::DMA_2::LIFCR = flagMask;
 	}
 	else
 	{
-		*MCU::DMA_2::HIFCR = *MCU::DMA_2::HISR & (0x0000003D << temp);
+		*MCU::DMA_2::HIFCR = flagMask;
 	}
 	
 	
@@ -268,6 +359,17 @@ CODE_RAM feedback DMA_2::transfer(const void* source, const void* destination, e
 	CCR |= ((uint32) direction) << 6;
 	
 	
+	//	Memory read and written by the Channel, for the Cache Maintenance
+	//	The Channel transfers numberOfItems Items of the Peripheral Data Size: in Direct Mode the Memory Data Size is forced to it, in MEMORY_TO_MEMORY the FIFO packs them
+	//	A Memory Pointer that is not incremented accesses one Item only
+	const bool memoryToMemory = direction == e_direction::MEMORY_TO_MEMORY;
+	const uint32 itemSize_max = 1u << ((uint32) (sourceType > destinationType ? sourceType : destinationType));
+	const void* readMemory = nullptr;
+	uint32 readMemory_sizeInBytes = 0;
+	const void* writtenMemory = nullptr;
+	uint32 writtenMemory_sizeInBytes = 0;
+	
+	
 	//	Set Memory Pointers and Increments (MEMORY_TO_MEMORY is essentially the same as PERIPERHAL_TO_MEMORY, so we change direction to save Code Space)
 	if(direction == e_direction::MEMORY_TO_MEMORY)
 	{
@@ -297,6 +399,16 @@ CODE_RAM feedback DMA_2::transfer(const void* source, const void* destination, e
 			{
 				bit::set(CCR, 10);
 			}
+			
+			
+			//	Memory for the Cache Maintenance
+			writtenMemory = destination;
+			writtenMemory_sizeInBytes = dest_inc == true ? numberOfItems * (1u << (uint32) sourceType) : itemSize_max;
+			if(memoryToMemory == true)
+			{
+				readMemory = source;
+				readMemory_sizeInBytes = source_inc == true ? numberOfItems * (1u << (uint32) sourceType) : itemSize_max;
+			}
 		}
 		break;
 		
@@ -321,6 +433,11 @@ CODE_RAM feedback DMA_2::transfer(const void* source, const void* destination, e
 			{
 				bit::set(CCR, 9);
 			}
+			
+			
+			//	Memory for the Cache Maintenance
+			readMemory = source;
+			readMemory_sizeInBytes = source_inc == true ? numberOfItems * (1u << (uint32) destinationType) : itemSize_max;
 		}
 		break;
 		
@@ -331,6 +448,38 @@ CODE_RAM feedback DMA_2::transfer(const void* source, const void* destination, e
 	}
 	
 	
+	//	Cache Maintenance and Barrier before the Channel is enabled (see cacheMaintenance.hpp)
+	//	The Interrupt Routine invalidates the written Memory when the Transfer has ended
+	auto& writtenMemoryInfo(m_writtenMemory[m_channel]);
+	writtenMemoryInfo.first() = writtenMemory;
+	writtenMemoryInfo.second() = writtenMemory_sizeInBytes;
+	CacheMaintenance::beforeRead(readMemory, readMemory_sizeInBytes);
+	CacheMaintenance::beforeWrite(writtenMemory, writtenMemory_sizeInBytes);
+	
+	
+	//	ES0392 2.20.4 (Revisions X and V): a Stream serving a USART can stay locked, if another Transfer runs at the same Time
+	//	Workaround: the alternative Peripheral Protocol with Bit 20 of DMA_SxCR (reserved in RM0433), only for USART/UART Requests
+	if(m_usartWorkaround == true)
+	{
+		const uint32 request = *(MCU::DMAMUX_1::CH0_CR + 8 + m_channel) & 0x000000FF;
+		const bool requestFromUSART = (request >= 41 && request <= 46) || (request >= 63 && request <= 66) || request == 71 || request == 72 || (request >= 79 && request <= 82);
+		if(requestFromUSART == true)
+		{
+			bit::set(CCR, 20);
+		}
+	}
+	
+	
+	//	Enable Transfer Complete Interrupt: it ends the Transfer, wakes the waiting Thread, calls the Callback and invalidates the written Memory
+	//	A circular Transfer without Callback and without waiting needs none for Memory that is not cacheable (an MPU Region without Cache), else it would come
+	//	after every Round with nothing to do. The Attributes of the MPU decide, not the State of the Data Cache: it may be switched on later
+	if(circularMode == false || waitForTransferEnd == true || callback != nullptr ||
+		 (writtenMemory_sizeInBytes > 0 && Cache::isCacheable(writtenMemory, writtenMemory_sizeInBytes) == true))
+	{
+		bit::set(CCR, 4);
+	}
+	
+	
 	//	Transfer local Values to DMA Registers
 	*DMA_CCR	= CCR;
 	*DMA_NDTR	= NDTR;
@@ -338,25 +487,26 @@ CODE_RAM feedback DMA_2::transfer(const void* source, const void* destination, e
 	*DMA_MAR	= MAR;
 	
 	
-	//	Subscribe and listen to Channel Event
+	//	Enable Channel, the Interrupt Routine notes a Transfer Error
+	//	Only a waiting Thread needs the Channel Event: it subscribes before the Channel is enabled, so it cannot miss the End
+	m_transferError[m_channel] = false;
+	if(waitForTransferEnd == false)
+	{
+		bit::set(*DMA_CCR, 0);
+		return(OK);
+	}
 	cmos.event_subscribe(channelInfo.first());
 	cmos.event_listen(channelInfo.first());
-	
-	
-	//	Enable Channel
 	bit::set(*DMA_CCR, 0);
-	
-	
-	if(waitForTransferEnd == true)
-	{
-		cmos.sleep_untilEvent(channelInfo.first());
-	}
-	
-	
-	//	Unsubscribe from the Channel Event
+	cmos.sleep_untilEvent(channelInfo.first());
 	cmos.event_unsubscribe(channelInfo.first());
 	
 	
+	//	A Transfer Error ends the Transfer as well
+	if(m_transferError[m_channel] == true)
+	{
+		return(FAIL);
+	}
 	return(OK);
 }
 
@@ -382,7 +532,7 @@ CODE_RAM void ISR_DMA_2_CH0()
 	//	Check Channel
 	if((ISR & mask) != 0)
 	{
-		DMA_2::executeCallback(channel);
+		DMA_2::executeCallback(channel, (ISR & mask & DMA_2::c_transferErrorFlags) != 0);
 	}
 }
 
@@ -401,7 +551,7 @@ CODE_RAM void ISR_DMA_2_CH1()
 	//	Check Channel
 	if((ISR & mask) != 0)
 	{
-		DMA_2::executeCallback(channel);
+		DMA_2::executeCallback(channel, (ISR & mask & DMA_2::c_transferErrorFlags) != 0);
 	}
 }
 
@@ -420,14 +570,14 @@ CODE_RAM void ISR_DMA_2_CH2()
 	//	Check Channel
 	if((ISR & mask) != 0)
 	{
-		DMA_2::executeCallback(channel);
+		DMA_2::executeCallback(channel, (ISR & mask & DMA_2::c_transferErrorFlags) != 0);
 	}
 }
 
 
 CODE_RAM void ISR_DMA_2_CH3()
 {
-	constexpr uint8 channel = 0;
+	constexpr uint8 channel = 3;
 	constexpr uint32 mask = 0x0F400000;
 	
 	
@@ -439,7 +589,7 @@ CODE_RAM void ISR_DMA_2_CH3()
 	//	Check Channel
 	if((ISR & mask) != 0)
 	{
-		DMA_2::executeCallback(channel);
+		DMA_2::executeCallback(channel, (ISR & mask & DMA_2::c_transferErrorFlags) != 0);
 	}
 }
 
@@ -458,7 +608,7 @@ CODE_RAM void ISR_DMA_2_CH4()
 	//	Check Channel
 	if((ISR & mask) != 0)
 	{
-		DMA_2::executeCallback(channel);
+		DMA_2::executeCallback(channel, (ISR & mask & DMA_2::c_transferErrorFlags) != 0);
 	}
 }
 
@@ -477,7 +627,7 @@ CODE_RAM void ISR_DMA_2_CH5()
 	//	Check Channel
 	if((ISR & mask) != 0)
 	{
-		DMA_2::executeCallback(channel);
+		DMA_2::executeCallback(channel, (ISR & mask & DMA_2::c_transferErrorFlags) != 0);
 	}
 }
 
@@ -496,7 +646,7 @@ CODE_RAM void ISR_DMA_2_CH6()
 	//	Check Channel
 	if((ISR & mask) != 0)
 	{
-		DMA_2::executeCallback(channel);
+		DMA_2::executeCallback(channel, (ISR & mask & DMA_2::c_transferErrorFlags) != 0);
 	}
 }
 
@@ -515,6 +665,6 @@ CODE_RAM void ISR_DMA_2_CH7()
 	//	Check Channel
 	if((ISR & mask) != 0)
 	{
-		DMA_2::executeCallback(channel);
+		DMA_2::executeCallback(channel, (ISR & mask & DMA_2::c_transferErrorFlags) != 0);
 	}
 }

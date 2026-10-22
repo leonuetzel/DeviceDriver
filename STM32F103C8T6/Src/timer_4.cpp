@@ -36,11 +36,13 @@ feedback Timer_4::init(uint32 frequency, bool interrupt)
 	
 	
 	//	Clock
-	uint32 clock = rcc.get_clock_system();
+	//	The Timer Clock is the APB Clock, doubled if the APB Prescaler is not 1
+	uint32 clock = rcc.get_clock_apb1_timer();
 	
 	uint32 prescaler = 1;
 	uint32 clock_divided = clock;
-	while((clock_divided / frequency) - 1 > 0x0000FFFF)
+	//	ARR is at most 0xFFFE, so that CCR = ARR + 1 (100 % Duty Cycle) still fits into a 16 Bit Register
+	while((clock_divided / frequency) - 1 > 0x0000FFFE)
 	{
 		prescaler++;
 		if(prescaler > 0x0000FFFF)
@@ -66,6 +68,11 @@ feedback Timer_4::init(uint32 frequency, bool interrupt)
 	
 	//  Only OVF/UVF triggers Interrupt
 	bit::set(*MCU::TIMER_4::CR1, 2);
+	
+	
+	//	Update Event: loads the Prescaler, it is buffered and would only be used after the first Overflow otherwise
+	//	URS is set, so the Update Event does not trigger the Interrupt
+	*MCU::TIMER_4::EGR = 1;
 	
 	
 	//  Enable Timer

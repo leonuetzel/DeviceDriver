@@ -207,23 +207,24 @@ feedback RCC::LSI_init(bool enable)
 
 feedback RCC::set_clockSource(e_clockSource_system clockSource)
 {
+	uint32 clock_new = 0;
 	switch(clockSource)
 	{
 		case e_clockSource_system::HSI:
 		{
-			m_clock_system = c_clock_hsi;
+			clock_new = c_clock_hsi;
 		}
 		break;
 		
 		case e_clockSource_system::HSE:
 		{
-			m_clock_system = c_clock_hse;
+			clock_new = m_clock_hse;
 		}
 		break;
 		
 		case e_clockSource_system::PLL:
 		{
-			m_clock_system = m_clock_pll;
+			clock_new = m_clock_pll;
 		}
 		break;
 		
@@ -233,29 +234,51 @@ feedback RCC::set_clockSource(e_clockSource_system clockSource)
 		}
 	}
 	
-	if(set_busPrescaler() != OK)
+	
+	//	A higher System Clock needs the Bus Prescalers and Flash Wait States before the Switch, a lower one afterwards,
+	//	otherwise the Busses or the Flash run out of Specification in between
+	const uint32 clock_system_old = m_clock_system;
+	m_clock_system = clock_new;
+	if(m_clock_system > clock_system_old)
 	{
-		return(FAIL);
-	}
-	if(m_flash.set_waitStates(m_clock_system) != OK)
-	{
-		return(FAIL);
+		if(set_busPrescaler() != OK || m_flash.set_waitStates(m_clock_system) != OK)
+		{
+			//	Undo Changes and return
+			m_clock_system = clock_system_old;
+			set_busPrescaler();
+			return(FAIL);
+		}
 	}
 	
 	
-	//	Switch System Clock Source
+	//	Switch System Clock Source and wait for the Switch: SWS follows SW after some Clock Cycles of both Clock Sources
 	uint32 temp = *MCU::RCC::CFGR & 0xFFFFFFFC;
 	*MCU::RCC::CFGR = temp | (uint32) clockSource;
-	
-	
-	//	Check if Switch was successful
-	if(get_clockSource_system() != clockSource)
+	uint32 timeout = 100000;
+	while(get_clockSource_system() != clockSource)
 	{
-		return(FAIL);
+		timeout--;
+		if(timeout == 0)
+		{
+			//	Undo Changes and return, the higher Flash Wait States may stay
+			temp = *MCU::RCC::CFGR & 0xFFFFFFFC;
+			*MCU::RCC::CFGR = temp | (uint32) m_clockSource_system;
+			m_clock_system = clock_system_old;
+			set_busPrescaler();
+			return(FAIL);
+		}
 	}
-	
 	m_clockSource_system = clockSource;
-
+	
+	
+	//	Lower System Clock: Bus Prescalers and Flash Wait States afterwards
+	if(m_clock_system < clock_system_old)
+	{
+		if(set_busPrescaler() != OK || m_flash.set_waitStates(m_clock_system) != OK)
+		{
+			return(FAIL);
+		}
+	}
 	return(OK);
 }
 
@@ -292,7 +315,7 @@ feedback RCC::set_clockSource(e_clockSource_pll clockSource)
 	}
 	else
 	{
-		if(c_clock_hse / m_divider_hse < 1000000 || c_clock_hse / m_divider_hse > 25000000)
+		if(m_clock_hse / m_divider_hse < 1000000 || m_clock_hse / m_divider_hse > 25000000)
 		{
 			return(FAIL);
 		}
@@ -357,7 +380,7 @@ feedback RCC::pll_init(uint32 clock_out)
 		
 		case e_clockSource_pll::HSE:
 		{
-			clock_in = c_clock_hse / m_divider_hse;
+			clock_in = m_clock_hse / m_divider_hse;
 		}
 		break;
 		
@@ -368,6 +391,14 @@ feedback RCC::pll_init(uint32 clock_out)
 	}
 	
 	if(clock_in < 1000000 || clock_in > 25000000)
+	{
+		return(FAIL);
+	}
+	
+	
+	//	Compute Multiplier, before the PLL is switched off
+	uint32 multiplier = clock_out / clock_in;
+	if(multiplier < 2 || multiplier > 16)
 	{
 		return(FAIL);
 	}
@@ -391,12 +422,6 @@ feedback RCC::pll_init(uint32 clock_out)
 	}
 	
 	
-	//	Compute Multiplier
-	uint32 multiplier = clock_out / clock_in;
-	if(multiplier < 2 || multiplier > 16)
-	{
-		return(FAIL);
-	}
 	
 	
 	//	Write Multiplier Value
@@ -440,7 +465,10 @@ feedback RCC::module_clockInit(e_module module, bool enable)
 	
 	if(enable == true)
 	{
+		//	The Clock of the Peripheral is active some Clock Cycles after its Enable Bit (2 on the L4/G4, RM0394): the dummy Read delays the
+		//	first Access to the Peripheral, as the ST HAL does it on every STM32
 		bit::set(*reg, bit);
+		(void) *reg;
 		return(OK);
 	}
 	if(enable == false)
@@ -488,6 +516,48 @@ feedback RCC::module_reset(e_module module)
 
 
 
+feedback RCC::LSE_init(bool enable)
+{
+	//	The LSE belongs to the Backup Domain: its Write Protection (PWR, DBP) has to be disabled
+	if(enable == true)
+	{
+		//	LSE is already running
+		if(bit::isSet(*MCU::RCC::BDCR, 1) == true)
+		{
+			return(OK);
+		}
+		
+		
+		//	LSE not bypassed (Crystal), it can only be changed while the LSE is off
+		bit::clear(*MCU::RCC::BDCR, 2);
+		
+		
+		//	LSE Enable
+		bit::set(*MCU::RCC::BDCR, 0);
+		
+		
+		//	Wait for LSE to become stable: a Crystal needs up to some Seconds to start (Datasheet, tSU(LSE))
+		CMOS& cmos = CMOS::get();
+		const uint64 timestampStart = cmos.get_timestamp();
+		while(bit::isCleared(*MCU::RCC::BDCR, 1) == true)
+		{
+			if(cmos.getMilliSecondsSinceTimestamp(timestampStart) > 5000)
+			{
+				//	No Crystal, or the Backup Domain is write protected
+				bit::clear(*MCU::RCC::BDCR, 0);
+				return(FAIL);
+			}
+		}
+	}
+	else
+	{
+		//	LSE Disable
+		bit::clear(*MCU::RCC::BDCR, 0);
+	}
+	return(OK);
+}
+
+
 feedback RCC::reset_backupDomain()
 {
 	bit::set(*MCU::RCC::BDCR, 16);
@@ -520,6 +590,25 @@ feedback RCC::set_clockSource(e_clockSource_rtc clockSource)
 	uint32 temp = *MCU::RCC::BDCR & 0xFFFFFCFF;
 	*MCU::RCC::BDCR = temp | ((uint32) clockSource << 8);
 	
+	return(OK);
+}
+
+
+feedback RCC::set_clock_HSE(uint32 clock)
+{
+	//	Crystal 4 ... 16 MHz, external Clock 1 ... 25 MHz (Datasheet)
+	if(clock < 1000000 || clock > 25000000)
+	{
+		return(FAIL);
+	}
+	
+	
+	//	The Clocks are calculated when the Clock Source is switched: the HSE must not deliver the System Clock now
+	if(m_clockSource_system == e_clockSource_system::HSE || (m_clockSource_system == e_clockSource_system::PLL && m_clockSource_pll == e_clockSource_pll::HSE))
+	{
+		return(FAIL);
+	}
+	m_clock_hse = clock;
 	return(OK);
 }
 

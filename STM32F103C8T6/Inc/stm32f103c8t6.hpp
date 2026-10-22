@@ -2,11 +2,14 @@
 
 #include "registers.hpp"
 #include "cmos.hpp"
+#include "deviceDriverVersion.hpp"
 
 #include "debug.hpp"
 #include "pwr.hpp"
 #include "flash.hpp"
+#include "update.hpp"
 #include "rcc.hpp"
+#include "watchdog.hpp"
 #include "gpio.hpp"
 #include "rtc.hpp"
 #include "afio.hpp"
@@ -23,6 +26,7 @@
 
 
 uint32 __startup__();
+extern "C" void __resetHandler__();
 
 
 
@@ -57,14 +61,6 @@ class STM32F103C8T6
 		Debug m_debug;
 		GPIO m_gpio;
 		AFIO m_afio;
-		EXTI m_exti;
-		RTC m_rtc;
-		Timer_1 m_timer_1;
-		Timer_3 m_timer_3;
-		Timer_4 m_timer_4;
-		DMA m_dma[DMA::c_channel];
-		ADC_1 m_adc_1;
-		USART_1 m_usart_1;
 		
 		
 		//	Constructor and Destructor
@@ -74,7 +70,18 @@ class STM32F103C8T6
 		
 		
 		//	Member Functions
+		//	Initializes the Core Drivers, only __startup__ calls it - all other Drivers start with the first Call of their Getter
 		inline feedback startup();
+
+
+		//	Peripherals besides the Core are created and started at the first Call of their Getter: a Program links, clocks and creates only the
+		//	Drivers it uses. startBegin() returns true for exactly one Caller, who starts the Peripheral and then calls startEnd(); a second
+		//	Thread that comes meanwhile waits until it is started. The first Call of a Getter must come from a Thread, not from an Interrupt
+		static constexpr uint8 c_notStarted						= 0;
+		static constexpr uint8 c_starting							= 1;
+		static constexpr uint8 c_started							= 2;
+		static bool startBegin(volatile uint8& state);
+		static inline void startEnd(volatile uint8& state);
 		
 		static void copy_flashToRAM(const uint32* src, uint32* dest, uint32 sizeInBytes);
 		static void zeroOutRAM(uint32* startAddress, uint32 sizeInBytes);
@@ -83,7 +90,9 @@ class STM32F103C8T6
 		
 		//	Friends
 		friend void EXCEPTION_RESET();
+		friend void __resetHandler__();
 		friend uint32 __startup__();
+		friend class Update;
 		
 		
 		
@@ -94,20 +103,27 @@ class STM32F103C8T6
 		inline static STM32F103C8T6& get();
 		
 		
+		//	Version of the linked Library - if it differs from DEVICEDRIVER_VERSION_MAJOR/MINOR, Headers and Library do not belong together
+		static uint8 get_versionMajor();
+		static uint8 get_versionMinor();
+		
+		
 		constexpr inline Flash& get_flash();
+		inline Update& get_update();
 		constexpr inline RCC& get_rcc();
 		constexpr inline Pwr& get_pwr();
 		constexpr inline Debug& get_debug();
 		constexpr inline GPIO& get_gpio();
+		inline Watchdog& get_watchdog();
 		constexpr inline AFIO& get_afio();
-		constexpr inline EXTI& get_exti();
-		constexpr inline RTC& get_rtc();
-		constexpr inline Timer_1& get_timer_1();
-		constexpr inline Timer_3& get_timer_3();
-		constexpr inline Timer_4& get_timer_4();
-		constexpr inline DMA& get_dma(uint8 channel);
-		constexpr inline ADC_1& get_adc_1();
-		constexpr inline USART_1& get_usart_1();
+		inline EXTI& get_exti();
+		inline RTC& get_rtc();
+		inline Timer_1& get_timer_1();
+		inline Timer_3& get_timer_3();
+		inline Timer_4& get_timer_4();
+		inline DMA& get_dma(uint8 channel);
+		inline ADC_1& get_adc_1();
+		inline USART_1& get_usart_1();
 };
 
 
@@ -170,15 +186,7 @@ inline STM32F103C8T6::STM32F103C8T6()
 		m_rcc(m_flash),
 		m_pwr(),
 		m_debug(),
-		m_gpio(),
-		m_exti(),
-		m_rtc(),
-		m_timer_1(),
-		m_timer_3(),
-		m_timer_4(),
-		m_dma(),
-		m_adc_1(),
-		m_usart_1()
+		m_gpio()
 {
 	
 }
@@ -221,42 +229,6 @@ inline feedback STM32F103C8T6::startup()
 	{
 		return(FAIL);
 	}
-	if(m_exti.startup() != OK)
-	{
-		return(FAIL);
-	}
-	if(m_rtc.startup(m_rcc) != OK)
-	{
-		return(FAIL);
-	}
-	if(m_timer_1.startup() != OK)
-	{
-		return(FAIL);
-	}
-	if(m_timer_3.startup() != OK)
-	{
-		return(FAIL);
-	}
-	if(m_timer_4.startup() != OK)
-	{
-		return(FAIL);
-	}
-	for(uint32 i = 0; i < DMA::c_channel; i++)
-	{
-		if(m_dma[i].startup(m_rcc, i) != OK)
-		{
-			return(FAIL);
-		}
-	}
-	if(m_adc_1.startup() != OK)
-	{
-		return(FAIL);
-	}
-	if(m_usart_1.startup() != OK)
-	{
-		return(FAIL);
-	}
-	
 	
 	
 	return(OK);
@@ -276,6 +248,14 @@ inline feedback STM32F103C8T6::startup()
 /*                      						Public	  			 						 						 */
 /*****************************************************************************/
 
+inline void STM32F103C8T6::startEnd(volatile uint8& state)
+{
+	//	The Compiler Barrier keeps the Writes of the Start (Object, Pointer) before the State: a Thread that sees c_started finds them
+	asm volatile("" ::: "memory");
+	state = c_started;
+}
+
+
 inline STM32F103C8T6& STM32F103C8T6::get()
 {
 	static STM32F103C8T6 stm32f103c8t6;
@@ -291,6 +271,14 @@ inline STM32F103C8T6& STM32F103C8T6::get()
 constexpr inline Flash& STM32F103C8T6::get_flash()
 {
 	return(m_flash);
+}
+
+
+inline Update& STM32F103C8T6::get_update()
+{
+	//	No Member: the Update Driver is only linked into Programs that use it
+	static Update update;
+	return(update);
 }
 
 
@@ -318,60 +306,156 @@ constexpr inline GPIO& STM32F103C8T6::get_gpio()
 }
 
 
+inline Watchdog& STM32F103C8T6::get_watchdog()
+{
+	//	Created and started at the first Call (startBegin): a Program that never calls it links nothing of the Driver. The Start registers
+	//	the Watchdog at CMOS (CMOS::get_watchdog()) but does not start it - a hardware Watchdog (Option Bit) runs from the Reset on
+	static volatile uint8 state = c_notStarted;
+	static Watchdog* volatile watchdog = nullptr;
+	if(state != c_started && startBegin(state) == true)
+	{
+		static Watchdog instance;
+		instance.startup(m_rcc);
+		watchdog = &instance;
+		startEnd(state);
+	}
+	return(*watchdog);
+}
+
+
 constexpr inline AFIO& STM32F103C8T6::get_afio()
 {
 	return(m_afio);
 }
 
 
-constexpr inline EXTI& STM32F103C8T6::get_exti()
+inline EXTI& STM32F103C8T6::get_exti()
 {
-	return(m_exti);
-}
-
-
-constexpr inline RTC& STM32F103C8T6::get_rtc()
-{
-	return(m_rtc);
-}
-
-
-constexpr inline Timer_1& STM32F103C8T6::get_timer_1()
-{
-	return(m_timer_1);
-}
-
-
-constexpr inline Timer_3& STM32F103C8T6::get_timer_3()
-{
-	return(m_timer_3);
-}
-
-
-constexpr inline Timer_4& STM32F103C8T6::get_timer_4()
-{
-	return(m_timer_4);
-}
-
-
-constexpr inline DMA& STM32F103C8T6::get_dma(uint8 channel)
-{
-	if(channel < DMA::c_channel)
+	//	Created and started at the first Call (startBegin): a Program that never calls it links nothing of the Driver
+	static volatile uint8 state = c_notStarted;
+	static EXTI* volatile exti = nullptr;
+	if(state != c_started && startBegin(state) == true)
 	{
-		return(m_dma[channel]);
+		static EXTI instance;
+		instance.startup();
+		exti = &instance;
+		startEnd(state);
 	}
-	DMA& fail = (DMA&) *((DMA*) nullptr);
-	return(fail);
+	return(*exti);
 }
 
 
-constexpr inline ADC_1& STM32F103C8T6::get_adc_1()
+inline RTC& STM32F103C8T6::get_rtc()
 {
-	return(m_adc_1);
+	//	Created and started at the first Call (startBegin): a Program that never calls it links nothing of the Driver
+	static volatile uint8 state = c_notStarted;
+	static RTC* volatile rtc = nullptr;
+	if(state != c_started && startBegin(state) == true)
+	{
+		static RTC instance;
+		instance.startup(m_rcc);
+		rtc = &instance;
+		startEnd(state);
+	}
+	return(*rtc);
 }
 
 
-constexpr inline USART_1& STM32F103C8T6::get_usart_1()
+inline Timer_1& STM32F103C8T6::get_timer_1()
 {
-	return(m_usart_1);
+	//	Created and started at the first Call (startBegin): a Program that never calls it links nothing of the Driver
+	static volatile uint8 state = c_notStarted;
+	static Timer_1* volatile timer_1 = nullptr;
+	if(state != c_started && startBegin(state) == true)
+	{
+		static Timer_1 instance;
+		instance.startup();
+		timer_1 = &instance;
+		startEnd(state);
+	}
+	return(*timer_1);
+}
+
+
+inline Timer_3& STM32F103C8T6::get_timer_3()
+{
+	//	Created and started at the first Call (startBegin): a Program that never calls it links nothing of the Driver
+	static volatile uint8 state = c_notStarted;
+	static Timer_3* volatile timer_3 = nullptr;
+	if(state != c_started && startBegin(state) == true)
+	{
+		static Timer_3 instance;
+		instance.startup();
+		timer_3 = &instance;
+		startEnd(state);
+	}
+	return(*timer_3);
+}
+
+
+inline Timer_4& STM32F103C8T6::get_timer_4()
+{
+	//	Created and started at the first Call (startBegin): a Program that never calls it links nothing of the Driver
+	static volatile uint8 state = c_notStarted;
+	static Timer_4* volatile timer_4 = nullptr;
+	if(state != c_started && startBegin(state) == true)
+	{
+		static Timer_4 instance;
+		instance.startup();
+		timer_4 = &instance;
+		startEnd(state);
+	}
+	return(*timer_4);
+}
+
+
+inline DMA& STM32F103C8T6::get_dma(uint8 channel)
+{
+	//	Created and started at the first Call, all at once - for an invalid Number the Replacement Object (the last one): it has no
+	//	Hardware, so its Functions return FAIL instead of accessing any Address
+	static volatile uint8 state = c_notStarted;
+	static DMA* volatile dma = nullptr;
+	if(state != c_started && startBegin(state) == true)
+	{
+		static DMA instance[DMA::c_channel + 1];
+		for(uint32 i = 0; i < DMA::c_channel; i++)
+		{
+			instance[i].startup(m_rcc, i);
+		}
+		dma = instance;
+		startEnd(state);
+	}
+	return(dma[(channel < DMA::c_channel) ? channel : DMA::c_channel]);
+}
+
+
+inline ADC_1& STM32F103C8T6::get_adc_1()
+{
+	//	Created and started at the first Call (startBegin): a Program that never calls it links nothing of the Driver
+	static volatile uint8 state = c_notStarted;
+	static ADC_1* volatile adc_1 = nullptr;
+	if(state != c_started && startBegin(state) == true)
+	{
+		static ADC_1 instance;
+		instance.startup();
+		adc_1 = &instance;
+		startEnd(state);
+	}
+	return(*adc_1);
+}
+
+
+inline USART_1& STM32F103C8T6::get_usart_1()
+{
+	//	Created and started at the first Call (startBegin): a Program that never calls it links nothing of the Driver
+	static volatile uint8 state = c_notStarted;
+	static USART_1* volatile usart_1 = nullptr;
+	if(state != c_started && startBegin(state) == true)
+	{
+		static USART_1 instance;
+		instance.startup();
+		usart_1 = &instance;
+		startEnd(state);
+	}
+	return(*usart_1);
 }

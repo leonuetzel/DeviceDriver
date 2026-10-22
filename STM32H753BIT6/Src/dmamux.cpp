@@ -31,7 +31,8 @@ feedback DMAMUX::map(e_input input, e_output output)
 {
 	volatile uint32* baseAddress = nullptr;
 	
-	uint32 dmamux = (((uint32) output) && 0xF0) >> 4;
+	//	Bits 7:4 of the Output select the DMAMUX (0 = DMAMUX1 for DMA1 and DMA2, 1 = DMAMUX2 for the BDMA), Bits 3:0 its Channel
+	uint32 dmamux = (((uint32) output) & 0xF0) >> 4;
 	switch(dmamux)
 	{
 		case 0:

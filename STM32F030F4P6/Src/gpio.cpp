@@ -24,7 +24,7 @@
 /*                      						Public	  			 						 						 */
 /*****************************************************************************/
 
-CODE_RAM feedback GPIO::init_pin(e_pin pin, e_mode mode, e_speed speed, e_pupd pupd)
+feedback GPIO::init_pin(MCU::PIN pin, e_mode mode, e_speed speed, e_pupd pupd)
 {
 	const uint8 pinNumber = get_pinNumber(pin);
 	
@@ -80,8 +80,9 @@ CODE_RAM feedback GPIO::init_pin(e_pin pin, e_mode mode, e_speed speed, e_pupd p
 		}
 	}
 	
-	uint32 temp = *reg_mode & (0xFFFFFFFF - (0x03 << (2 * pinNumber)));
-	*reg_mode = temp | (mask << (2 * pinNumber));
+	//	The Mode is written last, see below
+	const uint32 mask_mode = mask;
+	uint32 temp = 0;
 	
 	
 	
@@ -109,7 +110,9 @@ CODE_RAM feedback GPIO::init_pin(e_pin pin, e_mode mode, e_speed speed, e_pupd p
 		}
 		break;
 		
+		//	The F030 has no very high Speed: HIGH and VERY_HIGH are both the high Speed (OSPEEDR 11)
 		case e_speed::HIGH:
+		case e_speed::VERY_HIGH:
 		{
 			mask = 0x3;
 		}
@@ -155,6 +158,11 @@ CODE_RAM feedback GPIO::init_pin(e_pin pin, e_mode mode, e_speed speed, e_pupd p
 	temp = *reg_pupd & (0xFFFFFFFF - (0x03 << (2 * pinNumber)));
 	*reg_pupd = temp | (mask << (2 * pinNumber));
 	
+	
+	
+	//	Mode last: an Output or Alternate Function only drives the Pin once Output Type, Speed and Pull-Up/-Down are set
+	temp = *reg_mode & (0xFFFFFFFF - (0x03 << (2 * pinNumber)));
+	*reg_mode = temp | (mask_mode << (2 * pinNumber));
 	
 	
 	return(OK);

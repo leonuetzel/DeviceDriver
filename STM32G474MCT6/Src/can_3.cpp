@@ -24,7 +24,74 @@ CAN_3* CAN_3::m_this = nullptr;
 /*                      						Public	  			 						 						 */
 /*****************************************************************************/
 
-feedback CAN_3::init(uint32 baudRate, const Array<s_filterElement>& standardfilterElements, const Array<s_filterElement>& extendedfilterElements, bool silentMode, uint32 rxBufferSize, uint32 txBufferSize)
+feedback CAN_3::calculate_bitTiming(uint32 clock, uint32 bitRate, uint32 samplePoint_permille, uint32 deviation_max_permille, uint32 prescaler_max, uint32 segment1_max, uint32 segment2_max, uint32& prescaler, uint32& segment1, uint32& segment2, uint32& bitRateCalculated)
+{
+	//	Bit Time = 1 + Segment 1 + Segment 2 Time Quanta (Synchronization, Propagation and Phase 1, Phase 2), the Sample Point lies behind Segment 1
+	//	The best Configuration has the smallest Deviation of the Bit Rate, then of the Sample Point; with the same Result the smaller Prescaler wins
+	//	(more Time Quanta per Bit)
+	if(bitRate == 0 || clock == 0)
+	{
+		return(FAIL);
+	}
+	uint32 deviation_bitRate_best = 0xFFFFFFFF;
+	uint32 deviation_samplePoint_best = 0xFFFFFFFF;
+	for(uint32 brp = 1; brp <= prescaler_max; brp++)
+	{
+		const uint32 numberOfQuanta = clock / (brp * bitRate);
+		for(uint32 n = numberOfQuanta; n <= numberOfQuanta + 1; n++)
+		{
+			if(n < 4 || n > 1 + segment1_max + segment2_max)
+			{
+				continue;
+			}
+			
+			
+			//	Segment 1 for the Sample Point, then Segment 2 is the Rest - both within the Register Limits
+			uint32 s1 = (n * samplePoint_permille + 500) / 1000;
+			s1 = (s1 > 1) ? s1 - 1 : 1;
+			if(s1 > segment1_max)
+			{
+				s1 = segment1_max;
+			}
+			if(n - 1 - s1 > segment2_max)
+			{
+				s1 = n - 1 - segment2_max;
+			}
+			if(s1 < 1 || s1 > segment1_max || n - 1 - s1 < 1)
+			{
+				continue;
+			}
+			const uint32 s2 = n - 1 - s1;
+			
+			
+			const uint32 rate = clock / (brp * n);
+			const uint32 difference_bitRate = (rate > bitRate) ? rate - bitRate : bitRate - rate;
+			const uint32 deviation_bitRate = (uint32) ((1000 * (uint64) difference_bitRate) / bitRate);
+			const uint32 samplePoint = (1000 * (1 + s1)) / n;
+			const uint32 deviation_samplePoint = (samplePoint > samplePoint_permille) ? samplePoint - samplePoint_permille : samplePoint_permille - samplePoint;
+			if(deviation_bitRate < deviation_bitRate_best || (deviation_bitRate == deviation_bitRate_best && deviation_samplePoint < deviation_samplePoint_best))
+			{
+				deviation_bitRate_best = deviation_bitRate;
+				deviation_samplePoint_best = deviation_samplePoint;
+				prescaler = brp;
+				segment1 = s1;
+				segment2 = s2;
+				bitRateCalculated = rate;
+			}
+		}
+	}
+	
+	
+	//	CAN tolerates at most 1.58 % Clock Deviation in the Arbitration Phase (ISO 11898-1), the Data Phase of CAN FD less
+	if(deviation_bitRate_best > deviation_max_permille)
+	{
+		return(FAIL);
+	}
+	return(OK);
+}
+
+
+feedback CAN_3::init_controller(uint32 nominalBitRate, uint32 dataBitRate, const Array<s_filterElement>& standardfilterElements, const Array<s_filterElement>& extendedfilterElements, bool silentMode, uint32 samplePoint_nominal_permille, uint32 samplePoint_data_permille)
 {
 	//	Boundary Check
 	if(standardfilterElements.get_size() > numberOfStandardFilterElements || extendedfilterElements.get_size() > numberOfExtendedFilterElements)
@@ -33,9 +100,21 @@ feedback CAN_3::init(uint32 baudRate, const Array<s_filterElement>& standardfilt
 	}
 	
 	
+	//	CAN FD: the Data Bit Rate is at least the nominal one; Sample Points between 50 % and 95 %
+	const bool fd = (dataBitRate != 0);
+	if(samplePoint_nominal_permille < 500 || samplePoint_nominal_permille > 950)
+	{
+		return(FAIL);
+	}
+	if(fd == true && (dataBitRate < nominalBitRate || samplePoint_data_permille < 500 || samplePoint_data_permille > 950))
+	{
+		return(FAIL);
+	}
+	
+	
 	//	Protect from unauthorized Access
 	CMOS& cmos = CMOS::get();
-	if(cmos.semaphore_isOwnedByRunningThread(this) == false)
+	if(cmos.mutex_isOwnedByRunningThread(this) == false)
 	{
 		return(FAIL);
 	}
@@ -67,106 +146,62 @@ feedback CAN_3::init(uint32 baudRate, const Array<s_filterElement>& standardfilt
 	const uint32 clock_pll_q = rcc.get_clock_pll_q();
 	
 	
-	//	Nominal Bit Rate: For Arbitration Phase to be compatible with CAN2.0
-	//	Data Bit Rate: For CAN FD only used for the Data Phase to achieve higher Data Rates - we dont do that here
+	//	Kernel Clock of the FDCAN (PLL Q, CKDIV = 1)
 	const uint32 clock_kernel = clock_pll_q;
-	uint32 smallestDeviationBaudRateInPromille = 0xFFFFFFFF;
-	uint32 smallestDeviationSamplePointInPromille = 0xFFFFFFFF;
-	bool perfectConfigurationFound = false;
-	uint32 bestNBRP = 0;
-	uint32 bestNTSEG1 = 0;
-	uint32 bestNTSEG2 = 0;
-	uint32 baudRateCalculated = 0;
-	for(uint32 NBRP = 0; NBRP < 512; NBRP++)
-	{
-		if(perfectConfigurationFound == true)
-		{
-			//	Perfect Configuration found - no need to search further
-			break;
-		}
-		for(uint32 NTSEG1 = 0; NTSEG1 < 256; NTSEG1 += 8)
-		{
-			if(perfectConfigurationFound == true)
-			{
-				//	Perfect Configuration found - no need to search further
-				break;
-			}
-			for(uint32 NTSEG2 = 0; NTSEG2 < 128; NTSEG2 += 2)
-			{
-				//	Calculate Time Quantum
-				const uint32 clock_timeQuantum = clock_kernel / (NBRP + 1);
-				
-				
-				//	Calculate Baud Rate
-				baudRateCalculated = clock_timeQuantum / ((NTSEG1 + NTSEG2 + 3));
-				
-				const uint32 deviationBaudRateInPromille = (1000 * Math::absolute<int64>(((int64) baudRateCalculated) - baudRate)) / baudRate;
-				if(deviationBaudRateInPromille <= smallestDeviationBaudRateInPromille)
-				{
-					//	Calculate Sample Point
-					const uint32 samplePointPromille = (1000 * (NTSEG1 + 2)) / (NTSEG1 + NTSEG2 + 3);
-					const uint32 deviationSamplePointInPromille = (1000 * Math::absolute<int32>(((int32) samplePointPromille) - 875)) / 875;
-					if(deviationSamplePointInPromille < 100)
-					{
-						if(deviationBaudRateInPromille == smallestDeviationBaudRateInPromille)
-						{
-							if(deviationSamplePointInPromille < smallestDeviationSamplePointInPromille)
-							{
-								//	Better Configuration found - save it
-								smallestDeviationBaudRateInPromille = deviationBaudRateInPromille;
-								smallestDeviationSamplePointInPromille = deviationSamplePointInPromille;
-								
-								bestNBRP = NBRP;
-								bestNTSEG1 = NTSEG1;
-								bestNTSEG2 = NTSEG2;
-							}
-						}
-						else
-						{
-							//	Better Configuration found - save it
-							smallestDeviationBaudRateInPromille = deviationBaudRateInPromille;
-							smallestDeviationSamplePointInPromille = deviationSamplePointInPromille;
-							
-							bestNBRP = NBRP;
-							bestNTSEG1 = NTSEG1;
-							bestNTSEG2 = NTSEG2;
-							
-							if(smallestDeviationBaudRateInPromille == 0 && smallestDeviationSamplePointInPromille == 0)
-							{
-								//	Perfect Configuration found - no need to search further
-								break;
-							}
-						}
-						
-					}
-				}
-			}
-		}
-	}
 	
 	
-	//	Calculate the best Configuration
-	const uint32 clock_timeQuantum = clock_kernel / (bestNBRP + 1);
-	baudRateCalculated = clock_timeQuantum / ((bestNTSEG1 + bestNTSEG2 + 3));
-	
-	//	No valid Configuration found
-	if(smallestDeviationBaudRateInPromille == 0xFFFFFFFF)
+	//	Nominal Bit Rate (Arbitration Phase, and the whole classic CAN Frame): NBRP 9 Bit, NTSEG1 8 Bit, NTSEG2 7 Bit (Register Values + 1)
+	uint32 prescaler = 0;
+	uint32 segment1 = 0;
+	uint32 segment2 = 0;
+	uint32 nominalBitRateCalculated = 0;
+	if(calculate_bitTiming(clock_kernel, nominalBitRate, samplePoint_nominal_permille, 15, 512, 256, 128, prescaler, segment1, segment2, nominalBitRateCalculated) != OK)
 	{
 		return(FAIL);
 	}
 	
+	//	The Resynchronization Jump Width is the Phase Segment 2 - the most a Node can correct
+	const uint32 sjw = (segment2 > 128) ? 128 : segment2;
+	*MCU::FDCAN_3::NBTP = ((sjw - 1) << 25) | ((prescaler - 1) << 16) | ((segment1 - 1) << 8) | (segment2 - 1);
 	
-	//	Set SJW to NTSEG2 / 2 because we dont know how to calculate it correctly
-	//	SJW must be < NTSEG2 and < 128
-	uint32 SJW = (bestNTSEG2) / 2;
-	if(SJW > 127)
+	
+	//	Data Bit Rate (Data Phase of CAN FD Frames with BRS): DBRP 5 Bit, DTSEG1 5 Bit, DTSEG2 4 Bit, DSJW 4 Bit
+	uint32 dataBitRateCalculated = 0;
+	if(fd == true)
 	{
-		SJW = 127;
+		uint32 data_prescaler = 0;
+		uint32 data_segment1 = 0;
+		uint32 data_segment2 = 0;
+		if(calculate_bitTiming(clock_kernel, dataBitRate, samplePoint_data_permille, 5, 32, 32, 16, data_prescaler, data_segment1, data_segment2, dataBitRateCalculated) != OK)
+		{
+			return(FAIL);
+		}
+		const uint32 data_sjw = (data_segment2 > 16) ? 16 : data_segment2;
+		
+		
+		//	Transmitter Delay Compensation above 1 MBit/s: the Delay of the Transceiver would else reach the Sample Point of the Data Phase
+		//	It is only possible with DBRP 0 or 1; the Offset is the Position of the Sample Point in Kernel Clock Cycles (TDCO 7 Bit)
+		const bool tdc = (dataBitRateCalculated > 1000000 && data_prescaler <= 2);
+		uint32 tdcOffset = data_prescaler * data_segment1;
+		if(tdcOffset > 127)
+		{
+			tdcOffset = 127;
+		}
+		*MCU::FDCAN_3::TDCR = (tdcOffset << 8);
+		*MCU::FDCAN_3::DBTP = ((tdc == true) ? (1 << 23) : 0) | ((data_prescaler - 1) << 16) | ((data_segment1 - 1) << 8) | ((data_segment2 - 1) << 4) | (data_sjw - 1);
+		
+		
+		//	CAN FD Operation (FDOE) with Bit Rate Switching (BRSE), ISO CAN FD (NISO = 0)
+		bit::set(*MCU::FDCAN_3::CCCR, 8);
+		bit::set(*MCU::FDCAN_3::CCCR, 9);
+		bit::clear(*MCU::FDCAN_3::CCCR, 15);
 	}
-	
-	
-	//	Write Clock Configuration to FDCAN
-	*MCU::FDCAN_3::NBTP = (SJW << 25) | (bestNBRP << 16) | (bestNTSEG1 << 8) | bestNTSEG2;
+	else
+	{
+		//	Classic CAN: no CAN FD Frames
+		bit::clear(*MCU::FDCAN_3::CCCR, 8);
+		bit::clear(*MCU::FDCAN_3::CCCR, 9);
+	}
 	
 	
 	//	Silent Mode
@@ -182,14 +217,16 @@ feedback CAN_3::init(uint32 baudRate, const Array<s_filterElement>& standardfilt
 	
 	
 	//	Global Filter Policy
-	//	Dont accept any Frames, that are not matching any Filter Element
+	//	Frames without a matching Filter Element: rejected (ANFS/ANFE = 3) - with an empty List all Frames of its Kind go into FIFO 0 (0)
 	//	Apply normal Filters to Standard Remote Frames
 	//	Apply normal Filters to Extended Remote Frames
 	//	Operate Rx FIFO 0 in blocking Mode (meaning that in Case of an Overflow no old Messages are overwritten)
 	//	Operate Rx FIFO 1 in blocking Mode (meaning that in Case of an Overflow no old Messages are overwritten)
 	//	Set Number of Standard Filter Elements
 	//	Set Number of Extended Filter Elements
-	*MCU::FDCAN_3::RXGFC = (0x03 << 4) | (0x03 << 2);
+	const uint32 nonMatching_standard = (standardfilterElements.get_size() == 0) ? 0x0 : 0x3;
+	const uint32 nonMatching_extended = (extendedfilterElements.get_size() == 0) ? 0x0 : 0x3;
+	*MCU::FDCAN_3::RXGFC = (nonMatching_standard << 4) | (nonMatching_extended << 2);
 	*MCU::FDCAN_3::RXGFC |= (standardfilterElements.get_size() << 16);
 	*MCU::FDCAN_3::RXGFC |= (extendedfilterElements.get_size() << 24);
 	
@@ -409,6 +446,7 @@ feedback CAN_3::init(uint32 baudRate, const Array<s_filterElement>& standardfilt
 		
 		//	Write Filter Element to Message RAM
 		*(MCU::FDCAN_3::MSG_RAM + 28 + (i * 2)) = filterElementInRAM[0];
+		*(MCU::FDCAN_3::MSG_RAM + 28 + (i * 2) + 1) = filterElementInRAM[1];
 	}
 	
 	
@@ -473,7 +511,8 @@ feedback CAN_3::init(uint32 baudRate, const Array<s_filterElement>& standardfilt
 	
 	
 	//	Save Baud Rate
-	m_baudRate = baudRateCalculated;
+	m_baudRate = nominalBitRateCalculated;
+	m_dataBitRate = dataBitRateCalculated;
 	
 	
 	//	Save Filter Elements
@@ -482,6 +521,24 @@ feedback CAN_3::init(uint32 baudRate, const Array<s_filterElement>& standardfilt
 	
 	
 	return(OK);
+}
+
+
+feedback CAN_3::init(uint32 baudRate, const Array<s_filterElement>& standardfilterElements, const Array<s_filterElement>& extendedfilterElements, bool silentMode, uint32, uint32)
+{
+	//	Classic CAN with the Sample Point at 87.5 % - the Rx FIFOs and Tx Buffers lie in the Message RAM, there are no Software Buffers
+	return(init_controller(baudRate, 0, standardfilterElements, extendedfilterElements, silentMode, 875, 0));
+}
+
+
+feedback CAN_3::init(uint32 nominalBitRate, uint32 dataBitRate, const Array<s_filterElement>& standardFilterElements, const Array<s_filterElement>& extendedFilterElements, bool silentMode, uint32, uint32, uint16 samplePoint_nominal_permille, uint16 samplePoint_data_permille)
+{
+	//	CAN FD: classic CAN Frames and CAN FD Frames with up to 64 Byte, the Data Phase with the Data Bit Rate (BRS)
+	if(dataBitRate == 0)
+	{
+		return(FAIL);
+	}
+	return(init_controller(nominalBitRate, dataBitRate, standardFilterElements, extendedFilterElements, silentMode, samplePoint_nominal_permille, samplePoint_data_permille));
 }
 
 
@@ -499,60 +556,197 @@ feedback CAN_3::stop()
 
 feedback CAN_3::tx(const CAN_Frame& canFrame)
 {
-	//	Check if Tx Buffer is full
-	if(bit::isSet(*MCU::FDCAN_3::TX_FQS, 21) == true)
+	//	Maximum Data Size of a classic CAN Frame is 8 Byte
+	if(canFrame.dataSize > 8)
 	{
-		//	Tx Buffer is full
-		m_errors[e_error::TX_RINGBUFFER_OVERFLOW] = true;
+		return(FAIL);
+	}
+	return(tx(CAN_FD_Frame(canFrame)));
+}
+
+
+feedback CAN_3::tx(const CAN_FD_Frame& canFDFrame)
+{
+	//	CAN FD Frames need the CAN FD Mode and have no Remote Frames; classic CAN Frames carry at most 8 Byte
+	if(canFDFrame.fdFormat == true)
+	{
+		if(m_dataBitRate == 0 || canFDFrame.remoteTransmissionRequest == true || canFDFrame.dataSize > CAN_FD_Frame::c_dataSize_max)
+		{
+			return(FAIL);
+		}
+	}
+	else if(canFDFrame.dataSize > 8)
+	{
 		return(FAIL);
 	}
 	
 	
-	//	Calculate the Start Address of the Tx FIFO Buffer Element
-	const uint32 putIndex = ((*MCU::FDCAN_3::TX_FQS & 0x00030000) >> 16);
-	volatile uint32* T = MCU::FDCAN_3::MSG_RAM + 0x9E + 0x12 * putIndex;
-	
-	
-	//	T0
-	if(canFrame.extendedID == true)
+	//	Data Length Code: a CAN FD Frame is filled up with 0 to the next valid Length (12, 16, 20, 24, 32, 48 or 64 Byte)
+	const uint32 dlc = (canFDFrame.fdFormat == true) ? CAN_FD_Frame::get_dlc(canFDFrame.dataSize) : canFDFrame.dataSize;
+	uint32 numberOfBytes = (canFDFrame.fdFormat == true) ? CAN_FD_Frame::get_dataSize(dlc) : canFDFrame.dataSize;
+	if(canFDFrame.remoteTransmissionRequest == true)
 	{
-		T[0] = (0x01 << 30) | (canFrame.ID & 0x1FFFFFFF);
+		numberOfBytes = 0;
+	}
+	
+	
+	//	Several Threads may transmit: the Put Index is read, the Element written and the Request set without Interruption
+	NVIC& nvic = CMOS::get().get_nvic();
+	nvic.disable_allExceptions();
+	
+	
+	//	Check if the Tx Buffers are full
+	if(bit::isSet(*MCU::FDCAN_3::TX_FQS, 21) == true)
+	{
+		m_errors[e_error::TX_RINGBUFFER_OVERFLOW] = true;
+		nvic.enable_allExceptions();
+		return(FAIL);
+	}
+	
+	
+	//	Tx Buffers start at Word 0x9E of the Message RAM of this Instance, every Element has 18 Words (RM0440, FDCAN Message RAM)
+	const uint32 putIndex = ((*MCU::FDCAN_3::TX_FQS & 0x00030000) >> 16);
+	volatile uint32* const T = MCU::FDCAN_3::MSG_RAM + 0x9E + 0x12 * putIndex;
+	
+	
+	//	T0: XTD Bit 30, RTR Bit 29, ID (standard: Bit 28-18)
+	uint32 t0 = 0;
+	if(canFDFrame.extendedID == true)
+	{
+		t0 = (0x01 << 30) | (canFDFrame.ID & 0x1FFFFFFF);
 	}
 	else
 	{
-		T[0] = (canFrame.ID & 0x000007FF) << 18;
+		t0 = (canFDFrame.ID & 0x000007FF) << 18;
 	}
-	
-	if(canFrame.remoteTransmissionRequest == true)
+	if(canFDFrame.remoteTransmissionRequest == true)
 	{
-		bit::set(T[0], 29);
+		bit::set(t0, 29);
 	}
+	T[0] = t0;
 	
 	
-	//	T1
-	T[1] = (canFrame.dataSize) << 16;
-	
-	
-	//	T2 & T3
-	T[2] = 0;
-	T[3] = 0;
-	for(uint32 i = 0; i < canFrame.dataSize; i++)
+	//	T1: FDF Bit 21, BRS Bit 20, DLC Bit 19-16
+	uint32 t1 = dlc << 16;
+	if(canFDFrame.fdFormat == true)
 	{
-		if(i < 4)
+		bit::set(t1, 21);
+		if(canFDFrame.bitRateSwitch == true)
 		{
-			T[2] |= (canFrame.data[i] << (8 * i));
+			bit::set(t1, 20);
 		}
-		else
+	}
+	T[1] = t1;
+	
+	
+	//	Data: 4 Byte per Word, the first Byte in the lowest Bits - the Message RAM only allows Word Access
+	for(uint32 word = 0; word < (numberOfBytes + 3) / 4; word++)
+	{
+		uint32 value = 0;
+		for(uint32 i = 0; i < 4; i++)
 		{
-			T[3] |= (canFrame.data[i] << (8 * (i - 4)));
+			const uint32 index = 4 * word + i;
+			if(index < canFDFrame.dataSize)
+			{
+				value |= ((uint32) canFDFrame.data[index]) << (8 * i);
+			}
 		}
+		T[2 + word] = value;
 	}
 	
 	
 	//	Request Transmission
 	bit::set(*MCU::FDCAN_3::TX_BAR, putIndex);
+	nvic.enable_allExceptions();
+	return(OK);
+}
+
+
+feedback CAN_3::rx(CAN_FD_Frame& canFDFrame, uint32 fifoID)
+{
+	if(fifoID > 1)
+	{
+		return(FAIL);
+	}
 	
 	
+	//	Subscribe to Frame Ready Event
+	CMOS& cmos = CMOS::get();
+	if(cmos.event_subscribe(m_eventID_frameReadyToRead) != OK)
+	{
+		return(FAIL);
+	}
+	
+	
+	//	Wait for a Frame in the Rx FIFO - listen to the Event before the Fill Level is checked: a Frame arriving in between is then noticed
+	while(1)
+	{
+		cmos.event_listen(m_eventID_frameReadyToRead);
+		if(get_numberOfUnread(fifoID) != 0)
+		{
+			break;
+		}
+		cmos.sleep_untilEvent(m_eventID_frameReadyToRead);
+	}
+	
+	
+	//	Rx FIFO 0 starts at Word 0x2C, Rx FIFO 1 at Word 0x62 of the Message RAM of this Instance, every Element has 18 Words
+	volatile uint32* const RX_FnS = (fifoID == 1) ? MCU::FDCAN_3::RX_F1S : MCU::FDCAN_3::RX_F0S;
+	const uint32 getIndex = (*RX_FnS & 0x00000300) >> 8;
+	volatile uint32* const R = MCU::FDCAN_3::MSG_RAM + 0x2C + 0x36 * fifoID + 0x12 * getIndex;
+	
+	
+	//	R0: ESI Bit 31, XTD Bit 30, RTR Bit 29, ID (standard: Bit 28-18)
+	const uint32 r0 = R[0];
+	const uint32 r1 = R[1];
+	canFDFrame.errorStateIndicator = bit::isSet(r0, 31);
+	canFDFrame.extendedID = bit::isSet(r0, 30);
+	canFDFrame.remoteTransmissionRequest = bit::isSet(r0, 29);
+	if(canFDFrame.extendedID == true)
+	{
+		canFDFrame.ID = r0 & 0x1FFFFFFF;
+	}
+	else
+	{
+		canFDFrame.ID = (r0 >> 18) & 0x000007FF;
+	}
+	
+	
+	//	R1: FDF Bit 21, BRS Bit 20, DLC Bit 19-16, Time Stamp Bit 15-0
+	canFDFrame.fdFormat = bit::isSet(r1, 21);
+	canFDFrame.bitRateSwitch = bit::isSet(r1, 20);
+	canFDFrame.timeStamp = r1 & 0x0000FFFF;
+	const uint8 dlc = (r1 >> 16) & 0x0000000F;
+	if(canFDFrame.fdFormat == true)
+	{
+		canFDFrame.dataSize = CAN_FD_Frame::get_dataSize(dlc);
+	}
+	else
+	{
+		//	A classic CAN Frame may have a DLC of 9 ... 15, that means 8 Byte
+		canFDFrame.dataSize = (dlc > 8) ? 8 : dlc;
+	}
+	
+	
+	//	Data: 4 Byte per Word, a Remote Frame has none
+	const uint32 numberOfBytes = (canFDFrame.remoteTransmissionRequest == true) ? 0 : canFDFrame.dataSize;
+	for(uint32 i = 0; i < CAN_FD_Frame::c_dataSize_max; i++)
+	{
+		canFDFrame.data[i] = 0;
+	}
+	for(uint32 word = 0; word < (numberOfBytes + 3) / 4; word++)
+	{
+		const uint32 value = R[2 + word];
+		for(uint32 i = 0; i < 4 && 4 * word + i < numberOfBytes; i++)
+		{
+			canFDFrame.data[4 * word + i] = (value >> (8 * i)) & 0xFF;
+		}
+	}
+	
+	
+	//	Set the Acknowledge Index to indicate the last read Message to the CAN Controller
+	volatile uint32* const RX_FnA = (fifoID == 1) ? MCU::FDCAN_3::RX_F1A : MCU::FDCAN_3::RX_F0A;
+	*RX_FnA = getIndex;
 	return(OK);
 }
 
@@ -595,8 +789,17 @@ feedback CAN_3::rx(CAN_Frame& canFrame, uint32 fifoID)
 		
 		
 		//	Check for FDCAN Frame (not supported by this Implementation)
+		//	The Element is released anyway, otherwise it would block the FIFO for every following Call
 		if(bit::isSet(R[1], 21) == true || bit::isSet(R[1], 20) == true)
 		{
+			if(fifoID == 1)
+			{
+				*MCU::FDCAN_3::RX_F1A = getIndex;
+			}
+			else
+			{
+				*MCU::FDCAN_3::RX_F0A = getIndex;
+			}
 			return(FAIL);
 		}
 		
@@ -612,6 +815,11 @@ feedback CAN_3::rx(CAN_Frame& canFrame, uint32 fifoID)
 			canFrame.ID = (R[0] >> 18) & 0x000007FF;
 		}
 		canFrame.dataSize = (R[1] >> 16) & 0x0000000F;
+		if(canFrame.dataSize > 8)
+		{
+			//	A classic CAN Frame with DLC 9 to 15 carries 8 Data Bytes
+			canFrame.dataSize = 8;
+		}
 		canFrame.timeStamp = R[1] & 0x0000FFFF;
 		
 		for(uint32 i = 0; i < canFrame.dataSize; i++)
@@ -740,6 +948,13 @@ uint32 CAN_3::get_baudRate() const
 }
 
 
+uint32 CAN_3::get_dataBitRate() const
+{
+	//	0 in the classic CAN Mode
+	return(m_dataBitRate);
+}
+
+
 
 
 
@@ -747,7 +962,15 @@ uint32 CAN_3::get_baudRate() const
 
 feedback CAN_3::recoverFromBusOffState()
 {
-	return(init(m_baudRate, m_standardFilterElements, m_extendedFilterElements, m_silentMode));
+	//	In Bus-Off the FDCAN sets INIT (CCCR Bit 0) by itself. Clearing it starts the Recovery: after 129 Times 11 recessive Bits the FDCAN
+	//	takes Part in the Bus again (RM0440, FDCAN Bus-Off Recovery). Configuration, Filters and Buffers stay unchanged,
+	//	so any Thread can call this Function, not only the one owning the Driver
+	if(bit::isCleared(*MCU::FDCAN_3::PSR, 7) == true)
+	{
+		return(OK);
+	}
+	bit::clear(*MCU::FDCAN_3::CCCR, 0);
+	return(OK);
 }
 
 
@@ -758,7 +981,7 @@ feedback CAN_3::recoverFromBusOffState()
 
 
 
-void ISR_FDCAN_3_IT0()
+CODE_RAM void ISR_FDCAN_3_IT0()
 {
 	if(CAN_3::m_this != nullptr)
 	{
@@ -774,6 +997,10 @@ void ISR_FDCAN_3_IT0()
 		{
 			//	Emit Event so that the CAN_3::rx() Function can read the Frame
 			CMOS::get().event_emit(can.m_eventID_frameReadyToRead);
+			
+			
+			//	Clear the Interrupt Flag
+			*MCU::FDCAN_3::IR = 1 << 6;
 		}
 		
 		
@@ -840,7 +1067,7 @@ void ISR_FDCAN_3_IT0()
 }
 
 
-void ISR_FDCAN_3_IT1()
+CODE_RAM void ISR_FDCAN_3_IT1()
 {
 	if(CAN_3::m_this != nullptr)
 	{

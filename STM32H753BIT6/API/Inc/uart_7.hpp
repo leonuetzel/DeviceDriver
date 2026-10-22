@@ -85,8 +85,8 @@ inline UART_7::~UART_7()
 
 inline feedback UART_7::startup()
 {
-	//	Create Semaphore
-	return(CMOS::get().semaphore_create(this));
+	//	Create Mutex
+	return(CMOS::get().mutex_create(this));
 }
 
 

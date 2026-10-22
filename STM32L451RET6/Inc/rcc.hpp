@@ -10,6 +10,24 @@ class RCC
 {
 	public:
 		
+		//	Cause of the last Reset (RM0394, RCC_CSR; get_resetCause())
+		enum class e_resetCause : uint8
+		{
+			POWER_ON_OR_BROWN_OUT,		//	BORRSTF: Power-on and Brownout can not be told apart
+			PIN,												//	NRST Pin only, e.g. a Reset Button or a Debugger
+			SOFTWARE,										//	SYSRESETREQ, e.g. CMOS::reset()
+			WATCHDOG,										//	Independent Watchdog
+			WINDOW_WATCHDOG,
+			LOW_POWER,										//	Illegal Entry into Stop, Standby or Shutdown (Option Bits nRST_STOP ...)
+			FIREWALL,
+			OPTION_BYTE_LOADING,
+			WAKEUP_FROM_STANDBY,
+			WAKEUP_FROM_SHUTDOWN,
+			UNKNOWN
+		};
+		
+		
+		
 		typedef struct
 		{
 			uint32 c_clock_msi_max;
@@ -293,6 +311,9 @@ class RCC
 		uint32 m_clock_apb1_timer;
 		uint32 m_clock_apb2_timer;
 		
+		//	Reset Flags of the last Reset (RCC_CSR), taken in startup() before they are cleared - see get_resetFlags()
+		uint32 m_resetFlags;
+		
 		
 		//	Constructor and Destructor
 		constexpr inline RCC();
@@ -342,6 +363,12 @@ class RCC
 		feedback init_pll_sai1(uint32 clock_out, uint32 prescaler_p, uint32 prescaler_q, uint32 prescaler_r);
 		
 		inline void clear_resetFlags();
+		
+		//	Reset Flags of the last Reset as RCC_CSR at Startup (the Reference Manual names the Bits)
+		constexpr inline uint32 get_resetFlags() const;
+		
+		//	The most meaningful Cause of the last Reset, from the Reset Flags and the Wakeup State of the PWR
+		e_resetCause get_resetCause() const;
 		
 		feedback module_clockInit(e_module module, bool enable);
 		feedback module_reset(e_module module);
@@ -446,7 +473,8 @@ constexpr inline RCC::RCC()
 		m_clock_apb1(m_clock_ahb / m_prescaler_apb1),
 		m_clock_apb2(m_clock_ahb / m_prescaler_apb2),
 		m_clock_apb1_timer(m_clock_apb1),
-		m_clock_apb2_timer(m_clock_apb2)
+		m_clock_apb2_timer(m_clock_apb2),
+		m_resetFlags(0)
 {
 	
 }
@@ -465,6 +493,11 @@ inline RCC::~RCC()
 
 inline feedback RCC::startup()
 {
+	//	Reset Flags: a Snapshot for get_resetFlags(), then cleared (RMVF, Bit 23), so that the next Reset shows only its own Flags
+	m_resetFlags = *MCU::RCC::CSR;
+	bit::set(*MCU::RCC::CSR, 23);
+	
+	
 	return(OK);
 }
 
@@ -612,7 +645,8 @@ inline feedback RCC::set_clockSource(e_clockSource_lpuart_1 clockSource)
 
 inline void RCC::clear_resetFlags()
 {
-	bit::set(*MCU::RCC::CSR, 24);
+	//	RMVF is Bit 23, Bit 24 is a Reset Flag
+	bit::set(*MCU::RCC::CSR, 23);
 }
 
 
@@ -954,4 +988,10 @@ constexpr inline uint32 RCC::get_clock_lpuart_1() const
 		break;
 	}
 	return(0);
+}
+
+
+constexpr inline uint32 RCC::get_resetFlags() const
+{
+	return(m_resetFlags);
 }

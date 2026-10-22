@@ -62,7 +62,7 @@ feedback GPIO::startup()
 /*                      						Public	  			 						 						 */
 /*****************************************************************************/
 
-CODE_RAM feedback GPIO::init_pin(MCU::PIN pin, e_mode mode, e_speed speed, e_pupd pupd)
+feedback GPIO::init_pin(MCU::PIN pin, e_mode mode, e_speed speed, e_pupd pupd)
 {
 	const uint32 port = get_portNumber(pin);
 	const uint32 pinNumber = get_pinNumber(pin);
@@ -107,8 +107,9 @@ CODE_RAM feedback GPIO::init_pin(MCU::PIN pin, e_mode mode, e_speed speed, e_pup
 			return(FAIL);
 	}
 	
-	uint32 temp = *reg_mode & (0xFFFFFFFF - (0x03 << (2 * pinNumber)));
-	*reg_mode = temp | (mask << (2 * pinNumber));
+	//	The Mode is written last, see below
+	const uint32 mask_mode = mask;
+	uint32 temp = 0;
 	
 	
 	
@@ -170,6 +171,11 @@ CODE_RAM feedback GPIO::init_pin(MCU::PIN pin, e_mode mode, e_speed speed, e_pup
 	temp = *reg_pupd & (0xFFFFFFFF - (0x03 << (2 * pinNumber)));
 	*reg_pupd = temp | (mask << (2 * pinNumber));
 	
+	
+	
+	//	Mode last: an Output or Alternate Function only drives the Pin once Output Type, Speed and Pull-Up/-Down are set
+	temp = *reg_mode & (0xFFFFFFFF - (0x03 << (2 * pinNumber)));
+	*reg_mode = temp | (mask_mode << (2 * pinNumber));
 	
 	
 	return(OK);

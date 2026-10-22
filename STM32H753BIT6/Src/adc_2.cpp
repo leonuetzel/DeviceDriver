@@ -18,10 +18,8 @@
 
 CODE_RAM void ADC_2::callback()
 {
-	/*
-	Cache& cache = CMOS::get().get_cache();																																											//	Cache Maintenance
-	cache.DCache_invalidate((uint32*) ADC_2::m_value, sizeof(ADC_2::m_value));
-	*/
+	//	The DMA Driver has invalidated the 16 Values of the regular Channels before this Callback (Data Cache)
+	//	The injected Channels are written by the CPU into the next Cache Line
 	ADC_2& adc_2 = STM32H753BIT6::get().get_adc_2();
 	adc_2.m_value[16] = *MCU::ADC_2::JDR1;
 	adc_2.m_value[17] = *MCU::ADC_2::JDR2;
@@ -35,10 +33,18 @@ CODE_RAM void ADC_2::callback()
 /*                      						Public	  			 						 						 */
 /*****************************************************************************/
 
-feedback ADC_2::init(uint32 clock, uint16 valueBuffer[c_valueBufferSize], e_clockSource clockSource)
+feedback ADC_2::init(uint32 clock, uint16 valueBuffer[c_valueBufferSize], e_clockSource clockSource, VREFBUF::e_mode referenceMode, VREFBUF::e_voltage referenceVoltage)
 {
 	//	Protect from unauthorized Access
-	if(CMOS::get().semaphore_isOwnedByRunningThread(this) == false)
+	if(CMOS::get().mutex_isOwnedByRunningThread(this) == false)
+	{
+		return(FAIL);
+	}
+	
+	
+	//	init() runs once: while the ADC converts, its DMA Channel runs circularly. A second Call returns FAIL before it changes
+	//	anything - otherwise it would reset the ADC and then fail at the busy Channel, and the Conversion would stop
+	if(STM32H753BIT6::get().get_dma_1(1).is_busy() == true)
 	{
 		return(FAIL);
 	}
@@ -58,16 +64,31 @@ feedback ADC_2::init(uint32 clock, uint16 valueBuffer[c_valueBufferSize], e_cloc
 	
 	
 	//	Value Buffer
-	if(valueBuffer == nullptr)
+	//	The DMA writes its first 32 Bytes, with the Data Cache on they must own their Cache Line (see cacheMaintenance.hpp)
+	if(valueBuffer == nullptr || CacheMaintenance::ownsCacheLines(valueBuffer, 16 * sizeof(uint16)) == false)
 	{
 		return(FAIL);
 	}
 	m_value = valueBuffer;
 	
 	
-	//	Voltage Reference
+	//	Voltage Reference: external at VREF+ or the internal Buffer (VREFBUF) - VREF+ is shared by all ADCs and the DAC,
+	//	so it must not change while another ADC is running (ADEN)
+	if(referenceMode != VREFBUF::e_mode::EXTERNAL && referenceMode != VREFBUF::e_mode::INTERNAL)
+	{
+		return(FAIL);
+	}
 	VREFBUF& vrefbuf = stm32h753bit6.get_vrefbuf();
-	if(vrefbuf.set_mode(VREFBUF::e_mode::EXTERNAL) != OK)
+	const bool referenceChanges = (vrefbuf.get_mode() != referenceMode || (referenceMode == VREFBUF::e_mode::INTERNAL && vrefbuf.get_voltage() != referenceVoltage));
+	if(referenceChanges == true && (bit::isSet(*MCU::ADC_1::CR, 0) == true || bit::isSet(*MCU::ADC_3::CR, 0) == true))
+	{
+		return(FAIL);
+	}
+	if(referenceMode == VREFBUF::e_mode::INTERNAL && vrefbuf.set_voltage(referenceVoltage) != OK)
+	{
+		return(FAIL);
+	}
+	if(vrefbuf.set_mode(referenceMode) != OK)
 	{
 		return(FAIL);
 	}
@@ -81,35 +102,23 @@ feedback ADC_2::init(uint32 clock, uint16 valueBuffer[c_valueBufferSize], e_cloc
 	bit::set(*MCU::ADC_2::CR, 28);
 	
 	
-	//	Wait 10us for Internal Voltage Regulator to Start up
+	//	Wait 10us for Internal Voltage Regulator to Start up - the shortest Sleep is 1 ms, init() runs only once
 	CMOS& cmos = CMOS::get();
-	cmos.sleep_100us(1);
+	cmos.sleep_ms(1);
 	
 	
 	//	Make sure, ADC is disabled before changing Configuration
 	bit::clear(*MCU::ADC_2::CR, 0);
 	
 	
-	//	Calibrate in Single Ended Mode
-	bit::clear(*MCU::ADC_2::CR, 30);
-	
-	
-	//	Calibrate with Linearity Calibration
-	bit::set(*MCU::ADC_2::CR, 16);
-	
-	
-	//	Start Calibration
-	bit::set(*MCU::ADC_2::CR, 31);
-	
-	
-	//	Wait for Calibration to finish
-	while(bit::isSet(*MCU::ADC_2::CR, 31))
+	//	ADC Clock: clock is the Maximum of the ADC Clock (fadc_ker_ck) as in the Datasheet (RM0433 Rev 9, ADC clocks)
+	//	Revision V divides the Input Clock by 2 for the analog ADC and allows up to 50 MHz, Revision Y uses it directly and allows 36 MHz
+	const bool revisionY = ((*MCU::DBGMCU::IDC >> 16) & 0x0000FFFF) == 0x1003;
+	const uint32 divider_analog = (revisionY == true) ? 1 : 2;
+	if(revisionY == true && clock > 36000000)
 	{
-		
+		return(FAIL);
 	}
-	
-	
-	//	ADC Clock
 	uint32 clock_in = 0;
 	uint32 mask_PRESC = 0x0;
 	uint32 mask_CKMODE = (uint32) clockSource;
@@ -117,10 +126,7 @@ feedback ADC_2::init(uint32 clock, uint16 valueBuffer[c_valueBufferSize], e_cloc
 	if(clockSource == e_clockSource::KERNEL)
 	{
 		uint32 clock_kernel = 0;
-		
-		RCC::e_clockSource_adc kernel_clock = rcc.get_clockSource_adc();
-		
-		switch(kernel_clock)
+		switch(rcc.get_clockSource_adc())
 		{
 			case RCC::e_clockSource_adc::PLL_2_P:
 				clock_kernel = rcc.get_clock_pll_2_p();
@@ -135,16 +141,13 @@ feedback ADC_2::init(uint32 clock, uint16 valueBuffer[c_valueBufferSize], e_cloc
 				break;
 				
 			default:
-				return(FAIL);	
+				return(FAIL);
 		}
 		
-		if(clock_kernel < clock)
-		{
-			return(FAIL);
-		}
 		
+		//	The smallest Prescaler that keeps the ADC Clock at or below clock - a slower Kernel Clock is used undivided
 		uint32 i = 0;
-		while(clock_kernel / c_prescaler[i] > clock)
+		while(clock_kernel / c_prescaler[i] / divider_analog > clock)
 		{
 			i++;
 			if(i >= 12)
@@ -152,80 +155,80 @@ feedback ADC_2::init(uint32 clock, uint16 valueBuffer[c_valueBufferSize], e_cloc
 				return(FAIL);
 			}
 		}
-		
 		clock_in = clock_kernel / c_prescaler[i];
 		mask_PRESC = i;
 	}
-	
-	if(clockSource == e_clockSource::AHB_DIV_1)
-	{
-		uint32 clock_core = rcc.get_clock_core();
-		uint32 clock_ahb = rcc.get_clock_ahb();
-		if(clock_core / clock_ahb != 1)
-		{
-			return(FAIL);
-		}
-		if(clock_ahb < clock)
-		{
-			return(FAIL);
-		}
-		
-		clock_in = clock_ahb;
-		mask_PRESC = 0x0;
-	}
-	
-	if(clockSource == e_clockSource::AHB_DIV_2)
-	{
-		uint32 clock_ahb = rcc.get_clock_ahb();
-		if(clock_ahb / 2 < clock)
-		{
-			return(FAIL);
-		}
-		
-		clock_in = clock_ahb / 2;
-		mask_PRESC = 0x0;
-	}
-	
-	if(clockSource == e_clockSource::AHB_DIV_4)
-	{
-		uint32 clock_ahb = rcc.get_clock_ahb();
-		if(clock_ahb / 4 < clock)
-		{
-			return(FAIL);
-		}
-		
-		clock_in = clock_ahb / 4;
-		mask_PRESC = 0x0;
-	}
-	
-	uint32 temp = *MCU::ADC_1_2_COMMON::CCR & 0xFFC0FFFF;
-	*MCU::ADC_1_2_COMMON::CCR = temp | (mask_PRESC << 18) | (mask_CKMODE << 16);
-	m_clock = clock_in;
-	
-	
-	//	Enter Boost Mode depending on Frequency
-	uint32 mask_boost = 0x0;
-	if(m_clock <= 6250000)
-	{
-		mask_boost = 0x0;
-	}
 	else
 	{
-		if(m_clock <= 12500000)
+		//	Synchronous Clock (CKMODE), divided by 1, 2 or 4 without the Prescaler, so it must not exceed the requested Maximum itself
+		//	Revision V takes adc_sclk (sys_ck with the AHB Prescaler 1, otherwise sys_ck / 2), Revision Y the AHB Clock
+		//	AHB_DIV_1 needs the AHB Prescaler 1, the Clock has a Duty Cycle of 50 % only then
+		const uint32 clock_ahb = rcc.get_clock_ahb();
+		const bool ahbPrescaler1 = (rcc.get_clock_core() == clock_ahb);
+		uint32 clock_sync = clock_ahb;
+		if(revisionY == false)
 		{
-			mask_boost = 0x1;
+			clock_sync = (ahbPrescaler1 == true) ? rcc.get_clock_system() : rcc.get_clock_system() / 2;
 		}
-		else
+		uint32 divider = 0;
+		switch(clockSource)
 		{
-			if(m_clock <= 25000000)
-			{
-				mask_boost = 0x2;
-			}
-			else
-			{
-				mask_boost = 0x3;
-			}
+			case e_clockSource::AHB_DIV_1:
+				if(ahbPrescaler1 == false)
+				{
+					return(FAIL);
+				}
+				divider = 1;
+				break;
+				
+			case e_clockSource::AHB_DIV_2:
+				divider = 2;
+				break;
+				
+			case e_clockSource::AHB_DIV_4:
+				divider = 4;
+				break;
+				
+			default:
+				return(FAIL);
 		}
+		clock_in = clock_sync / divider;
+		if(clock_in / divider_analog > clock)
+		{
+			return(FAIL);
+		}
+		mask_PRESC = 0x0;
+	}
+	
+	
+	//	ADC_1 and ADC_2 share the Clock Configuration (ADC12_CCR): while ADC_1 is running, its Clock must not change
+	if(bit::isSet(*MCU::ADC_1::CR, 0) == true && (*MCU::ADC_1_2_COMMON::CCR & 0x003F0000) != ((mask_PRESC << 18) | (mask_CKMODE << 16)))
+	{
+		return(FAIL);
+	}
+	uint32 temp = *MCU::ADC_1_2_COMMON::CCR & 0xFFC0FFFF;
+	*MCU::ADC_1_2_COMMON::CCR = temp | (mask_PRESC << 18) | (mask_CKMODE << 16);
+	m_clock = clock_in / divider_analog;
+	
+	
+	//	Boost Mode for the ADC Clock (RM0433 Rev 9, ADC_CR BOOST): Revision V has two Bits for 6.25, 12.5, 25 and 50 MHz,
+	//	Revision Y one Bit, required above 20 MHz
+	uint32 mask_boost = 0x0;
+	if(revisionY == true)
+	{
+		mask_boost = (m_clock > 20000000) ? 0x1 : 0x0;
+	}
+	else if(m_clock > 25000000)
+	{
+		mask_boost = 0x3;
+	}
+	else if(m_clock > 12500000)
+	{
+		mask_boost = 0x2;
+	}
+	else if(m_clock > 6250000)
+	{
+		mask_boost = 0x1;
 	}
 	temp = *MCU::ADC_2::CR & 0xFFFFFCFF;
 	*MCU::ADC_2::CR = temp | (mask_boost << 8);
@@ -243,10 +246,14 @@ feedback ADC_2::init(uint32 clock, uint16 valueBuffer[c_valueBufferSize], e_cloc
 	bit::set(*MCU::ADC_2::CR, 31);
 	
 	
-	//	Wait for Calibration to finish
+	//	Wait for Calibration to finish, it runs with the ADC Clock configured above
+	const uint64 timestampCalibration = cmos.get_timestamp();
 	while(bit::isSet(*MCU::ADC_2::CR, 31))
 	{
-		
+		if(cmos.getMilliSecondsSinceTimestamp(timestampCalibration) > 100)
+		{
+			return(FAIL);
+		}
 	}
 	
 	
@@ -299,12 +306,13 @@ feedback ADC_2::init(uint32 clock, uint16 valueBuffer[c_valueBufferSize], e_cloc
 	
 	//	DNA
 	I_DMA& dma = stm32h753bit6.get_dma_1(1);
-	if(cmos.semaphore_lock(&dma) != OK)
+	if(cmos.mutex_lock(&dma) != OK)
 	{
 		return(FAIL);
 	}
 	if(dma.transfer((void*) MCU::ADC_2::DR, m_value, I_DMA::e_dataType::UINT16, I_DMA::e_dataType::UINT16, false, true, I_DMA::e_direction::PERIPHERAL_TO_MEMORY, true, 16, I_DMA::e_priority::VERY_HIGH, false, callback) != OK)
 	{
+		cmos.mutex_unlock(&dma);
 		return(FAIL);
 	}
 	
@@ -318,9 +326,16 @@ feedback ADC_2::init(uint32 clock, uint16 valueBuffer[c_valueBufferSize], e_cloc
 	
 	
 	//	Wait for ADC to be ready
+	const uint64 timestampReady = cmos.get_timestamp();
 	while(bit::isCleared(*MCU::ADC_2::ISR, 0))
 	{
-		
+		if(cmos.getMilliSecondsSinceTimestamp(timestampReady) > 100)
+		{
+			//	The ADC does not start: stop the DMA Channel and release it
+			dma.reset();
+			cmos.mutex_unlock(&dma);
+			return(FAIL);
+		}
 	}
 	
 	

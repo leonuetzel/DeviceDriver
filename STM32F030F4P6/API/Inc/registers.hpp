@@ -15,13 +15,15 @@ namespace Interrupt
 	constexpr uint16 RCC 																			= 20;
 	constexpr uint16 EXTI_0_TO_1															= 21;
 	constexpr uint16 EXTI_2_TO_3															= 22;
-	constexpr uint16 EXTI_4_to_15															= 23;
+	constexpr uint16 EXTI_4_TO_15															= 23;
+	[[deprecated("use Interrupt::EXTI_4_TO_15")]] constexpr uint16 EXTI_4_to_15 = EXTI_4_TO_15;
 	
 	constexpr uint16 DMA_CH0																	= 25;
 	constexpr uint16 DMA_CH1_CH2															= 26;
 	constexpr uint16 DMA_CH3_CH4															= 27;
 	constexpr uint16 ADC																			= 28;
-	constexpr uint16 TIMER_1_BRK_UPD_TRG_COMM									= 29;
+	constexpr uint16 TIMER_1_BREAK_UPDATE_TRIGGER_COMMUTATION									= 29;
+	[[deprecated("use Interrupt::TIMER_1_BREAK_UPDATE_TRIGGER_COMMUTATION")]] constexpr uint16 TIMER_1_BRK_UPD_TRG_COMM = TIMER_1_BREAK_UPDATE_TRIGGER_COMMUTATION;
 	constexpr uint16 TIMER_1_CAPTURE_COMPARE									= 30;
 	
 	constexpr uint16 TIMER_3																	= 32;

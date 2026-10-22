@@ -87,7 +87,6 @@ namespace Interrupt
 	
 	constexpr uint16 TSC													= 93;
 	
-	constexpr uint16 AES													= 95;
 	constexpr uint16 RNG													= 96;
 	constexpr uint16 FPU													= 97;
 	constexpr uint16 CRS													= 98;

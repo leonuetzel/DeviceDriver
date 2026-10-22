@@ -146,8 +146,15 @@ inline feedback Flash::unlock_FPEC()
 
 inline feedback Flash::set_waitStates(uint32 clock_ahb)
 {
-	uint32 temp = *MCU::FLASH::ACR & 0x00000007;
-	if(clock_ahb > 24000000)
+	//	0 Wait States up to 24 MHz, 1 up to 48 MHz, 2 up to 72 MHz (RM0008, FLASH_ACR)
+	//	LATENCY (Bits 2:0) is replaced, the other Bits (e.g. the Prefetch Buffer) are kept
+	uint32 temp = *MCU::FLASH::ACR & 0xFFFFFFF8;
+	if(clock_ahb > 48000000)
+	{
+		*MCU::FLASH::ACR = temp | 0x2;
+		m_waitStates = 2;
+	}
+	else if(clock_ahb > 24000000)
 	{
 		*MCU::FLASH::ACR = temp | 0x1;
 		m_waitStates = 1;
@@ -157,14 +164,13 @@ inline feedback Flash::set_waitStates(uint32 clock_ahb)
 		*MCU::FLASH::ACR = temp;
 		m_waitStates = 0;
 	}
-	
 	return(OK);
 }
 
 
 inline feedback Flash::set_prefetchBuffer(bool active)
 {
-	if(active == true && bit::isCleared(*MCU::FLASH::ACR, 4))
+	if(active == true)
 	{
 		bit::set(*MCU::FLASH::ACR, 4);
 	}

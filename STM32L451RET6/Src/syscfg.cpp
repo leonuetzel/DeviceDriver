@@ -35,7 +35,7 @@ void SYSCFG::selectPinForEXTI(MCU::PIN pin)
 	
 	const uint32 maskClearing = 0xFFFFFFFF - (0x07 << bitOffset);
 	
-	uint32* const EXTI_CR = (uint32* const) MCU::SYSCFG::EXTI_CR1 + registerOffset;
+	volatile uint32* const EXTI_CR = MCU::SYSCFG::EXTI_CR1 + registerOffset;
 	
 	const uint32 temp = *EXTI_CR & maskClearing;
 	*EXTI_CR = temp | (portNumber << bitOffset);

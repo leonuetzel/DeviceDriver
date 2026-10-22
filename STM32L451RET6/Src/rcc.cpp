@@ -517,8 +517,42 @@ feedback RCC::init_msi(bool enable, uint8 rangeIndex)
 	
 	if(enable == true)
 	{
+		//	If the MSI is the System Clock, its Range is the System Clock: as in set_clockSource, the Prescalers and Flash Wait States
+		//	are adjusted before a higher Clock and after a lower Clock
+		const bool msiIsSystemClock = m_clockSource_system == e_clockSource_system::MSI;
+		const uint32 clock_system_old = m_clock_system;
+		const uint8 range_old = m_msi_range;
+		const bool enabled_old = m_msi_enabled;
+		m_msi_range = rangeIndex;
+		m_msi_enabled = true;
+		calculate_clockTree();
+		Flash& flash = stm32.get_flash();
+		if(msiIsSystemClock == true && m_clock_system > clock_system_old)
+		{
+			if(autoAdjust_AHB_APB1_APB2_prescaler() != OK || flash.set_waitStates(m_clock_ahb, pwr.get_voltageScaling()) != OK)
+			{
+				//	Undo Changes and return
+				m_msi_range = range_old;
+				m_msi_enabled = enabled_old;
+				calculate_clockTree();
+				autoAdjust_AHB_APB1_APB2_prescaler();
+				return(FAIL);
+			}
+		}
+		
+		
 		//	MSI Range Setting set by MSIRANGE Bits in RCC::CR
 		bit::set(*MCU::RCC::CR, 3);
+		
+		
+		//	MSIRANGE must not be changed while the MSI is on but not ready (MSIRDY)
+		if(bit::isSet(*MCU::RCC::CR, 0) == true)
+		{
+			while(bit::isCleared(*MCU::RCC::CR, 1))
+			{
+			
+			}
+		}
 		
 		
 		//	Set MSI Range
@@ -533,6 +567,16 @@ feedback RCC::init_msi(bool enable, uint8 rangeIndex)
 		while(bit::isCleared(*MCU::RCC::CR, 1))
 		{
 			
+		}
+		
+		
+		//	Lower System Clock: Prescalers and Flash Wait States afterwards
+		if(msiIsSystemClock == true && m_clock_system < clock_system_old)
+		{
+			if(autoAdjust_AHB_APB1_APB2_prescaler() != OK || flash.set_waitStates(m_clock_ahb, pwr.get_voltageScaling()) != OK)
+			{
+				return(FAIL);
+			}
 		}
 	}
 	else
@@ -581,19 +625,24 @@ feedback RCC::init_lse(bool enable)
 		}
 		
 		
-		//	LSE Clock Security System Enable
-		bit::set(*MCU::RCC::CR, 5);
+		//	The Clock Security System of the LSE (LSECSSON, BDCR Bit 5) is not switched on here: it may only be set after the RTC Clock
+		//	Source has been selected, and it cannot be switched off again
 	}
 	else
 	{
 		//	Try to disable LSE
-		bit::clear(*MCU::RCC::CR, 0);
+		bit::clear(*MCU::RCC::BDCR, 0);
 		
 		
-		//	Check if LSE is disabled
-		if(bit::isSet(*MCU::RCC::CR, 1))
+		//	Check if LSE is disabled: LSERDY goes to 0 within a few LSE Clock Cycles
+		uint32 timeout = 100000;
+		while(bit::isSet(*MCU::RCC::BDCR, 1))
 		{
-			return(FAIL);
+			timeout--;
+			if(timeout == 0)
+			{
+				return(FAIL);
+			}
 		}
 	}
 	
@@ -786,6 +835,20 @@ feedback RCC::set_clockSource(e_clockSource_pllCommon clockSource)
 	calculate_clockTree();
 	
 	
+	//	Input Prescaler M (1 ... 8): the smallest one, that brings the PLL Input to at most 16 MHz
+	//	Sources up to 16 MHz keep M = 1, e.g. a HSE with 24 or 25 MHz is divided
+	const uint8 prescaler_old = m_prescaler_pll_commonInput;
+	for(uint8 prescaler = 1; prescaler <= 8; prescaler++)
+	{
+		m_prescaler_pll_commonInput = prescaler;
+		calculate_clockTree();
+		if(m_clock_pll_commonInput <= c_clock_pll_input_max)
+		{
+			break;
+		}
+	}
+	
+	
 	//	Check Constraints (if needed in Dependance of the Voltage Scaling)
 	if(m_clock_pll_commonInput > c_clock_pll_input_max || m_clock_pll_commonInput < c_clock_pll_input_min)
 	{
@@ -793,6 +856,7 @@ feedback RCC::set_clockSource(e_clockSource_pllCommon clockSource)
 		m_pll_enabled = pll_enabled_old;
 		m_pll_sai1_enabled = pll_sai1_enabled_old;
 		m_clockSource_pllCommon = m_clockSource_pllCommon_old;
+		m_prescaler_pll_commonInput = prescaler_old;
 		calculate_clockTree();
 		
 		return(FAIL);
@@ -811,6 +875,7 @@ feedback RCC::set_clockSource(e_clockSource_pllCommon clockSource)
 			m_pll_enabled = pll_enabled_old;
 			m_pll_sai1_enabled = pll_sai1_enabled_old;
 			m_clockSource_pllCommon = m_clockSource_pllCommon_old;
+			m_prescaler_pll_commonInput = prescaler_old;
 			calculate_clockTree();
 			
 			return(FAIL);
@@ -822,6 +887,7 @@ feedback RCC::set_clockSource(e_clockSource_pllCommon clockSource)
 			m_pll_enabled = pll_enabled_old;
 			m_pll_sai1_enabled = pll_sai1_enabled_old;
 			m_clockSource_pllCommon = m_clockSource_pllCommon_old;
+			m_prescaler_pll_commonInput = prescaler_old;
 			calculate_clockTree();
 			
 			return(FAIL);
@@ -837,9 +903,17 @@ feedback RCC::set_clockSource(e_clockSource_pllCommon clockSource)
 	bit::clear(*MCU::RCC::CR, 26);
 	
 	
+	//	PLLCFGR can only be written when both PLLs are off (PLLRDY and PLLSAI1RDY = 0)
+	while(bit::isSet(*MCU::RCC::CR, 25) || bit::isSet(*MCU::RCC::CR, 27))
+	{
+	
+	}
+	
+	
 	//	Set new Values
-	const uint32 temp = *MCU::RCC::PLL_CFGR & 0xFFFFFFFC;
-	*MCU::RCC::PLL_CFGR = temp | (uint32) clockSource;
+	//	PLL Source and Input Prescaler M (PLLM = M - 1)
+	const uint32 temp = *MCU::RCC::PLL_CFGR & 0xFFFFFF8C;
+	*MCU::RCC::PLL_CFGR = temp | (((uint32) m_prescaler_pll_commonInput - 1) << 4) | (uint32) clockSource;
 	
 	
 	//	Enable PLL if it has been enabled before
@@ -909,7 +983,8 @@ feedback RCC::init_pll(uint32 clock_out, uint32 prescaler_p, uint32 prescaler_q,
 	{
 		return(FAIL);
 	}
-	if(prescaler_p < 2 || prescaler_p > 31 || prescaler_q % 2 != 0 || prescaler_r % 2 != 0)
+	//	PLLQ and PLLR can only divide by 2, 4, 6 or 8
+	if(prescaler_p < 2 || prescaler_p > 31 || prescaler_q < 2 || prescaler_q > 8 || prescaler_q % 2 != 0 || prescaler_r < 2 || prescaler_r > 8 || prescaler_r % 2 != 0)
 	{
 		return(FAIL);
 	}
@@ -1084,7 +1159,8 @@ feedback RCC::init_pll_sai1(uint32 clock_out, uint32 prescaler_p, uint32 prescal
 	{
 		return(FAIL);
 	}
-	if(prescaler_p < 2 || prescaler_p > 31 || prescaler_q % 2 != 0 || prescaler_r % 2 != 0)
+	//	PLLQ and PLLR can only divide by 2, 4, 6 or 8
+	if(prescaler_p < 2 || prescaler_p > 31 || prescaler_q < 2 || prescaler_q > 8 || prescaler_q % 2 != 0 || prescaler_r < 2 || prescaler_r > 8 || prescaler_r % 2 != 0)
 	{
 		return(FAIL);
 	}
@@ -1221,7 +1297,9 @@ feedback RCC::module_clockInit(e_module module, bool enable)
 	
 	if(enable == true)
 	{
+		//	The Clock of the Peripheral is active 2 Clock Cycles after its Enable Bit (RM0394, RCC): the dummy Read delays the first Access
 		bit::set(*reg, bit);
+		(void) *reg;
 		return(OK);
 	}
 	if(enable == false)
@@ -1349,4 +1427,56 @@ feedback RCC::set_clock_hse(uint32 clock)
 	calculate_clockTree();
 	
 	return(OK);
+}
+
+
+
+RCC::e_resetCause RCC::get_resetCause() const
+{
+	//	Several Flags can be set at once: every internal Reset also drives the NRST Pin (PINRSTF), and a Watchdog Reset during Standby sets
+	//	BORRSTF too - the most specific one counts (RM0394, RCC_CSR)
+	const uint32 flags = m_resetFlags;
+	if(bit::isSet(flags, 24) == true)
+	{
+		return(e_resetCause::FIREWALL);
+	}
+	if(bit::isSet(flags, 25) == true)
+	{
+		return(e_resetCause::OPTION_BYTE_LOADING);
+	}
+	if(bit::isSet(flags, 31) == true)
+	{
+		return(e_resetCause::LOW_POWER);
+	}
+	if(bit::isSet(flags, 30) == true)
+	{
+		return(e_resetCause::WINDOW_WATCHDOG);
+	}
+	if(bit::isSet(flags, 29) == true)
+	{
+		return(e_resetCause::WATCHDOG);
+	}
+	if(bit::isSet(flags, 28) == true)
+	{
+		return(e_resetCause::SOFTWARE);
+	}
+	if(bit::isSet(flags, 27) == true)
+	{
+		//	The Exit from Standby and from Shutdown is a Power Reset like a Brownout: the PWR tells them apart (SBF, Shutdown Marker)
+		const PWR& pwr = STM32L451RET6::get().get_pwr();
+		if(pwr.wasInStandby() == true)
+		{
+			return(e_resetCause::WAKEUP_FROM_STANDBY);
+		}
+		if(pwr.wasInShutdown() == true)
+		{
+			return(e_resetCause::WAKEUP_FROM_SHUTDOWN);
+		}
+		return(e_resetCause::POWER_ON_OR_BROWN_OUT);
+	}
+	if(bit::isSet(flags, 26) == true)
+	{
+		return(e_resetCause::PIN);
+	}
+	return(e_resetCause::UNKNOWN);
 }

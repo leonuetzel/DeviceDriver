@@ -473,7 +473,7 @@ namespace MCU
 		
 		C5_TIMER15BKIN									= 0x252,
 		C5_SAI1D3												= 0x253,
-		C5_TIMER4CH4N										= 0x256,
+		C5_TIMER1CH4N										= 0x256,
 		C5_USART1RX											= 0x257,
 		C5_HRTIMER1EEV10								= 0x25D,
 		C5_EVENTOUT											= 0x25F,
@@ -648,6 +648,17 @@ namespace MCU
 		
 		G10_MCO													= 0x6A0,
 		G10_EVENTOUT										= 0x6AF
+	};
+
+	enum class PORT : uint8
+	{
+		A = 0,
+		B = 1,
+		C = 2,
+		D = 3,
+		E = 4,
+		F = 5,
+		G = 6
 	};
 };
 

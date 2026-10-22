@@ -62,6 +62,8 @@ class VREFBUF
 		
 		feedback set_mode(e_mode mode);
 		feedback set_voltage(e_voltage voltage);
+		constexpr inline e_mode get_mode() const;
+		constexpr inline e_voltage get_voltage() const;
 };
 
 
@@ -105,3 +107,13 @@ inline VREFBUF::~VREFBUF()
 /*                      						Public	  			 						 						 */
 /*****************************************************************************/
 
+constexpr inline VREFBUF::e_mode VREFBUF::get_mode() const
+{
+	return(m_mode);
+}
+
+
+constexpr inline VREFBUF::e_voltage VREFBUF::get_voltage() const
+{
+	return(m_voltage);
+}

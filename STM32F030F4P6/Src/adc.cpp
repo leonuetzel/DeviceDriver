@@ -113,7 +113,15 @@ feedback ADC::calibrate()
 feedback ADC::init(e_clockSource clockSource, uint16 valueBuffer[c_numberOfValues])
 {
 	//	Protect from unauthorized Access
-	if(CMOS::get().semaphore_isOwnedByRunningThread(this) == false)
+	if(CMOS::get().mutex_isOwnedByRunningThread(this) == false)
+	{
+		return(FAIL);
+	}
+	
+	
+	//	init() runs once: while the ADC converts, its DMA Channel runs circularly. A second Call returns FAIL before it changes
+	//	anything - otherwise it would reset the ADC and then fail at the busy Channel, and the Conversion would stop
+	if(STM32F030F4P6::get().get_dma(0).is_busy() == true)
 	{
 		return(FAIL);
 	}
@@ -206,8 +214,9 @@ feedback ADC::init(e_clockSource clockSource, uint16 valueBuffer[c_numberOfValue
 	bit::clear(*MCU::ADC::CFGR1, 2);
 	
 	
-	//	Sampling Time: (7.5 + 12.5) ADCCLK = 20 ADCCLK => @12MHz => 600kHz / Channel 
-	*MCU::ADC::SMPR = 0x00000001;
+	//	Sampling Time: (71.5 + 12.5) ADCCLK = 84 ADCCLK => @14MHz => 167kHz / Channel
+	//	The Temperature Sensor and VREF_INT need at least 4µs (Datasheet, tS_temp and tS_vrefint), 71.5 ADCCLK are 5.1µs at 14MHz
+	*MCU::ADC::SMPR = 0x00000006;
 	
 	
 	//	Continious Conversion Mode
@@ -223,8 +232,18 @@ feedback ADC::init(e_clockSource clockSource, uint16 valueBuffer[c_numberOfValue
 	
 	
 	//	DMA
-	I_DMA& dma = stm32f030f4p6.get_dma(0);
-	dma.transfer((void*) MCU::ADC::DR, m_value, I_DMA::e_dataType::UINT16, I_DMA::e_dataType::UINT16, false, true, I_DMA::e_direction::PERIPHERAL_TO_MEMORY, true, c_numberOfValues, I_DMA::e_priority::VERY_HIGH, false); 
+	DMA& dma = stm32f030f4p6.get_dma(0);
+	//	transfer() needs the Mutex of the Channel: it is locked and kept as long as the ADC runs
+	CMOS& cmos = CMOS::get();
+	if(cmos.mutex_lock(&dma) != OK)
+	{
+		return(FAIL);
+	}
+	if(dma.transfer((void*) MCU::ADC::DR, m_value, I_DMA::e_dataType::UINT16, I_DMA::e_dataType::UINT16, false, true, I_DMA::e_direction::PERIPHERAL_TO_MEMORY, true, c_numberOfValues, I_DMA::e_priority::VERY_HIGH, false) != OK)
+	{
+		cmos.mutex_unlock(&dma);
+		return(FAIL);
+	}
 	
 	
 	//	Start Conversion

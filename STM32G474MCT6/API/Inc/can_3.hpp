@@ -6,7 +6,7 @@
 
 
 
-class CAN_3: public I_CAN
+class CAN_3: public I_CAN_FD
 {
 	public:
 		
@@ -28,6 +28,7 @@ class CAN_3: public I_CAN
 		UniquePairArray<e_error, bool> m_errors;
 		e_state m_state;
 		uint32 m_baudRate;
+		uint32 m_dataBitRate;									//	0: classic CAN Mode
 		Array<s_filterElement> m_standardFilterElements;
 		Array<s_filterElement> m_extendedFilterElements;
 		bool m_silentMode;
@@ -42,6 +43,9 @@ class CAN_3: public I_CAN
 		//	Member Functions
 		inline feedback startup();
 		
+		static feedback calculate_bitTiming(uint32 clock, uint32 bitRate, uint32 samplePoint_permille, uint32 deviation_max_permille, uint32 prescaler_max, uint32 segment1_max, uint32 segment2_max, uint32& prescaler, uint32& segment1, uint32& segment2, uint32& bitRateCalculated);
+		feedback init_controller(uint32 nominalBitRate, uint32 dataBitRate, const Array<s_filterElement>& standardfilterElements, const Array<s_filterElement>& extendedfilterElements, bool silentMode, uint32 samplePoint_nominal_permille, uint32 samplePoint_data_permille);
+		
 		
 		//	Friends
 		friend class STM32G474MCT6;
@@ -55,10 +59,13 @@ class CAN_3: public I_CAN
 	public:
 		
 		feedback init(uint32 baudRate, const Array<s_filterElement>& standardfilterElements, const Array<s_filterElement>& extendedfilterElements, bool silentMode, uint32 rxBufferSize = 0, uint32 txBufferSize = 0) override;
+		feedback init(uint32 nominalBitRate, uint32 dataBitRate, const Array<s_filterElement>& standardFilterElements, const Array<s_filterElement>& extendedFilterElements, bool silentMode, uint32 rxBufferSize = 0, uint32 txBufferSize = 0, uint16 samplePoint_nominal_permille = 800, uint16 samplePoint_data_permille = 750) override;
 		feedback stop() override;
 		
 		feedback tx(const CAN_Frame& canFrame) override;
+		feedback tx(const CAN_FD_Frame& canFDFrame) override;
 		feedback rx(CAN_Frame& canFrame, uint32 fifoID = 0) override;
+		feedback rx(CAN_FD_Frame& canFDFrame, uint32 fifoID = 0) override;
 		
 		uint32 get_numberOfUnread(uint32 fifoID = 0) const override;
 		bool is_dataAvailable() const override;
@@ -69,6 +76,7 @@ class CAN_3: public I_CAN
 		void clearErrors() override;
 		
 		uint32 get_baudRate() const override;
+		uint32 get_dataBitRate() const override;
 		
 		feedback recoverFromBusOffState() override;
 };
@@ -91,7 +99,8 @@ inline CAN_3::CAN_3()
 	:	m_eventID_frameReadyToRead(CMOS::get().event_create()),
 		m_errors(),
 		m_state(e_state::ERROR_ACTIVE),
-		m_baudRate(0)
+		m_baudRate(0),
+		m_dataBitRate(0)
 {
 	m_this = this;
 }
@@ -110,8 +119,8 @@ inline CAN_3::~CAN_3()
 
 inline feedback CAN_3::startup()
 {
-	//	Create Semaphore
-	return(CMOS::get().semaphore_create(this));
+	//	Create Mutex
+	return(CMOS::get().mutex_create(this));
 }
 
 

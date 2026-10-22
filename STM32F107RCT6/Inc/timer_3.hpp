@@ -111,8 +111,10 @@ inline feedback Timer_3::startup()
 
 inline void Timer_3::init_pwm(e_channel channel)
 {
-	volatile uint16* reg_ccmr = (volatile uint16*) MCU::TIMER_3::CCMR1 + (uint32) channel;
-	*reg_ccmr = 0x0060;
+	//	PWM Mode 1 (OCxM = 110): Channels 1 and 3 use the lower, Channels 2 and 4 the upper Byte of CCMR1 and CCMR2
+	volatile uint32* reg_ccmr = MCU::TIMER_3::CCMR1 + (uint32) channel / 2;
+	const uint32 shift = 8 * ((uint32) channel % 2);
+	*reg_ccmr = (*reg_ccmr & ~(0x000000FF << shift)) | (0x00000060 << shift);
 	
 	uint32 bit = 4 * (uint32) channel;
 	
@@ -129,5 +131,10 @@ inline void Timer_3::init_pwm(e_channel channel)
 inline void Timer_3::set_pwm(e_channel channel, uint32 dutycycle_ppm)
 {
 	volatile uint32* reg_ccr = MCU::TIMER_3::CCR1 + (uint32) channel;
-	*reg_ccr = ((uint64) dutycycle_ppm * *MCU::TIMER_3::ARR) / 1000000;
+	//	The Output is active while the Counter is below CCR (PWM Mode 1), so 100 % needs CCR = ARR + 1
+	if(dutycycle_ppm > 1000000)
+	{
+		dutycycle_ppm = 1000000;
+	}
+	*reg_ccr = ((uint64) dutycycle_ppm * ((uint64) *MCU::TIMER_3::ARR + 1)) / 1000000;
 }

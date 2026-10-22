@@ -86,8 +86,8 @@ inline LP_UART_1::~LP_UART_1()
 
 inline feedback LP_UART_1::startup()
 {
-	//	Create Semaphore
-	return(CMOS::get().semaphore_create(this));
+	//	Create Mutex
+	return(CMOS::get().mutex_create(this));
 }
 
 

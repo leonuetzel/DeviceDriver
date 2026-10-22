@@ -85,7 +85,30 @@ feedback FMC::init(RCC::e_clockSource_fmc clockSource, e_SDRAM_bank bank, s_SDRA
 	{
 		return(FAIL);
 	}
-	if(memoryData.t_WR_recoveryDelay < memoryData.t_RC_rowCycleDelay - memoryData.t_RCD_rowToColumnDelay - memoryData.t_RP_rowPrechargeDelay)
+	
+	
+	//	TRP and TRC are set only in FMC_SDTR1, in FMC_SDTR2 they are don't care: with two SDRAMs both Banks use the Timing of the slower
+	//	one, and TWR of each Bank has to fit it (RM0433, FMC_SDTRx). The other Bank counts once its Init has succeeded (stored at the End)
+	const s_SDRAM_config& other = (bank == e_SDRAM_bank::BANK_1) ? m_sdram_2 : m_sdram_1;
+	const bool otherInitialized = (other.t_RP_rowPrechargeDelay != 0);
+	uint8 t_RP = memoryData.t_RP_rowPrechargeDelay;
+	uint8 t_RC = memoryData.t_RC_rowCycleDelay;
+	if(otherInitialized == true)
+	{
+		if(other.t_RP_rowPrechargeDelay > t_RP)
+		{
+			t_RP = other.t_RP_rowPrechargeDelay;
+		}
+		if(other.t_RC_rowCycleDelay > t_RC)
+		{
+			t_RC = other.t_RC_rowCycleDelay;
+		}
+		if(other.t_WR_recoveryDelay < t_RC - other.t_RCD_rowToColumnDelay - t_RP)
+		{
+			return(FAIL);
+		}
+	}
+	if(memoryData.t_WR_recoveryDelay < t_RC - memoryData.t_RCD_rowToColumnDelay - t_RP)
 	{
 		return(FAIL);
 	}
@@ -99,7 +122,9 @@ feedback FMC::init(RCC::e_clockSource_fmc clockSource, e_SDRAM_bank bank, s_SDRA
 	
 	
 	
-	//	Common to both SDRAM Banks
+	//	Common to both SDRAM Banks: RPIPE, RBURST and SDCLK are set in FMC_SDCR1, in FMC_SDCR2 they are read only (RM0433, FMC_SDCRx)
+	//	Only these Bits are written, so the Init of Bank 2 keeps the Configuration of Bank 1 in the same Register. A second Init sets them
+	//	for both Banks
 	uint32 mask = 0;
 	mask |= (((uint32) memoryData.readPipeDelay)					<< 13);
 	if(memoryData.readBurst == true)
@@ -108,7 +133,7 @@ feedback FMC::init(RCC::e_clockSource_fmc clockSource, e_SDRAM_bank bank, s_SDRA
 	}
 	mask |= (((uint32) memoryData.clockDivision)					<< 10);
 	
-	*MCU::FMC::SDCR1 = mask;
+	*MCU::FMC::SDCR1 = (*MCU::FMC::SDCR1 & ~0x00007C00) | mask;
 	
 	
 	//	Configuration
@@ -137,12 +162,15 @@ feedback FMC::init(RCC::e_clockSource_fmc clockSource, e_SDRAM_bank bank, s_SDRA
 	mask |= (((memoryData.t_MRD_loadModeRegisterToActive	- 1) & 0xF) << 0);
 	
 	*fmc_sdtr = mask;
+	*MCU::FMC::SDTR1 = (*MCU::FMC::SDTR1 & ~0x00F0F000) | ((((uint32) t_RP - 1) & 0xF) << 20) | ((((uint32) t_RC - 1) & 0xF) << 12);
 	
 	
 	//	Enable FMC
 	bit::set(*MCU::FMC::BCR1, 31);
 	
 	
+	//	Initialization Sequence (RM0433, SDRAM initialization): FMC_SDSR has no BUSY Flag on the H7, so the Commands are followed by fixed Waits
+	//	of 1 ms - at least 100 µs after the Clock (SDRAM Datasheet), the Commands themselves last some SDCLK Cycles (tRP, tRC, tMRD)
 	//	Output CLK and wait >100µs
 	if(bank == e_SDRAM_bank::BANK_1)
 	{
@@ -152,7 +180,7 @@ feedback FMC::init(RCC::e_clockSource_fmc clockSource, e_SDRAM_bank bank, s_SDRA
 	{
 		*MCU::FMC::SDCMR = 0x00000009;
 	}
-	cmos.sleep_ms(100);
+	cmos.sleep_ms(1);
 	
 	
 	//	Precharge All Command
@@ -164,7 +192,7 @@ feedback FMC::init(RCC::e_clockSource_fmc clockSource, e_SDRAM_bank bank, s_SDRA
 	{
 		*MCU::FMC::SDCMR = 0x0000000A;
 	}
-	cmos.sleep_ms(100);
+	cmos.sleep_ms(1);
 	
 	
 	//	Auto Refresh Command (9 Auto Refresh Cycles)
@@ -180,7 +208,7 @@ feedback FMC::init(RCC::e_clockSource_fmc clockSource, e_SDRAM_bank bank, s_SDRA
 	for(uint32 i = 0; i < 8; i++)
 	{
 		*MCU::FMC::SDCMR = mask;
-		cmos.sleep_ms(100);
+		cmos.sleep_ms(1);
 	}
 	
 	
@@ -194,7 +222,7 @@ feedback FMC::init(RCC::e_clockSource_fmc clockSource, e_SDRAM_bank bank, s_SDRA
 	{
 		*MCU::FMC::SDCMR = 0x0000010C | (loadModeRegister << 9);
 	}
-	cmos.sleep_ms(100);
+	cmos.sleep_ms(1);
 	
 	
 	//	Set Refresh Rate
@@ -323,8 +351,21 @@ feedback FMC::init(RCC::e_clockSource_fmc clockSource, e_SDRAM_bank bank, s_SDRA
 	
 	
 	
-	uint32 value = (64.0e-3 / numberOfRows) * ((float) clock) - 20.0;
-	if(value == (uint32) (memoryData.t_WR_recoveryDelay + memoryData.t_RP_rowPrechargeDelay + memoryData.t_RC_rowCycleDelay + memoryData.t_RCD_rowToColumnDelay + 4))
+	//	Refresh Rate (RM0433, SDRAM refresh timer): COUNT = Refresh Period / Refresh Cycles in SDCLK Cycles, minus a Margin of 20. The Refresh
+	//	Cycles come from the Datasheet; without them the JEDEC Values: at least 4096 Cycles (8192 with 13 Row Address Bits) in 64 ms - the
+	//	Number of Rows alone would refresh a 2048-Row SDRAM (e.g. IS42S32200L: 4096 Cycles in 64 ms) only half as often as required
+	const float refreshCycles = (memoryData.refreshCycles != 0) ? (float) memoryData.refreshCycles : ((numberOfRows > 4096.0f) ? numberOfRows : 4096.0f);
+	const float refreshPeriod = ((memoryData.refreshPeriod_ms != 0) ? (float) memoryData.refreshPeriod_ms : 64.0f) * 1.0e-3f;
+	uint32 value = (refreshPeriod / refreshCycles) * ((float) clock) - 20.0f;
+	
+	
+	//	One Refresh Timer for both Banks: with two SDRAMs the shorter Interval stays
+	const uint32 countBefore = (*MCU::FMC::SDRTR >> 1) & 0x1FFF;
+	if(otherInitialized == true && countBefore != 0 && countBefore < value)
+	{
+		value = countBefore;
+	}
+	if(value == (uint32) (memoryData.t_WR_recoveryDelay + t_RP + t_RC + memoryData.t_RCD_rowToColumnDelay + 4))
 	{
 		value--;
 	}
@@ -347,6 +388,23 @@ feedback FMC::init(RCC::e_clockSource_fmc clockSource, e_SDRAM_bank bank, s_SDRA
 	{
 		return(FAIL);
 	}
+	
+	
+	//	MPU Region for the SDRAM: Normal Memory, Write-Back without Write-Allocate, no Instruction Fetches (TEX 000, C 1, B 1, PM0253 Table 91)
+	//	In the Default Memory Map the SDRAM is Device Memory, which the CPU accesses without merging, that is slowly
+	//	Write-Back, not Write-Through: Write-Through Memory can return old Data (ES0392 2.1.1, Arm Erratum 1259864, Category A)
+	//	Bus Masters see the Data of the CPU only after a Clean: the Drivers maintain the Cache (cacheMaintenance.hpp), the Graphics Manager
+	//	of CMOS writes the Data Cache back before the LTDC shows a new Framebuffer
+	//	Only now, after the Initialization: the Core may access Normal Memory speculatively (PM0253, Section 2.3.1)
+	//	CMOS uses the Regions 0 and 1, Bank 1 gets Region 2 and Bank 2 Region 3; the Size is a Power of 2, the Bank Address is aligned to it
+	//	If the Region cannot be set, set_region changes nothing and the SDRAM stays Device Memory: correct, only slower
+	uint32 sizeLog2 = 0;
+	while((1u << sizeLog2) < memorySize)
+	{
+		sizeLog2++;
+	}
+	MPU& mpu = cmos.get_mpu();
+	mpu.set_region(2 + (uint8) bank, startAddress, (MPU::e_size) sizeLog2, MPU::e_accessPermission::RW_RW, MPU::e_attribute::NORMAL_NOTSHAREABLE_WB, false, 0xFF, true);
 	
 	
 	if(bank == e_SDRAM_bank::BANK_1)

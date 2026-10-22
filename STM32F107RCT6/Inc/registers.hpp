@@ -28,8 +28,10 @@ namespace Interrupt
 	constexpr uint16 DMA1_CH6																	= 33;
 	constexpr uint16 ADC																			= 34;
 	constexpr uint16 CAN1_TX																	= 35;
-	constexpr uint16 CAN1_RX0																	= 36;
-	constexpr uint16 CAN1_RX1																	= 37;
+	constexpr uint16 CAN1_RX_0																	= 36;
+	[[deprecated("use Interrupt::CAN1_RX_0")]] constexpr uint16 CAN1_RX0 = CAN1_RX_0;
+	constexpr uint16 CAN1_RX_1																	= 37;
+	[[deprecated("use Interrupt::CAN1_RX_1")]] constexpr uint16 CAN1_RX1 = CAN1_RX_1;
 	constexpr uint16 CAN1_SCE																	= 38;
 	constexpr uint16 EXTI_9_TO_5															= 39;
 	constexpr uint16 TIMER_1_BREAK														= 40;
@@ -72,8 +74,10 @@ namespace Interrupt
 	constexpr uint16 ETHERNET																	= 77;
 	constexpr uint16 ETHERNET_WAKEUP													= 78;
 	constexpr uint16 CAN2_TX																	= 79;
-	constexpr uint16 CAN2_RX0																	= 80;
-	constexpr uint16 CAN2_RX1																	= 81;
+	constexpr uint16 CAN2_RX_0																	= 80;
+	[[deprecated("use Interrupt::CAN2_RX_0")]] constexpr uint16 CAN2_RX0 = CAN2_RX_0;
+	constexpr uint16 CAN2_RX_1																	= 81;
+	[[deprecated("use Interrupt::CAN2_RX_1")]] constexpr uint16 CAN2_RX1 = CAN2_RX_1;
 	constexpr uint16 CAN2_SCE																	= 82;
 	constexpr uint16 USB_OTG																	= 83;
 };

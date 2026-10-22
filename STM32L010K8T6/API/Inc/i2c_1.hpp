@@ -7,7 +7,7 @@
 
 
 
-class I2C_1
+class I2C_1: public I_I2C
 {
 	public:
 		
@@ -35,6 +35,8 @@ class I2C_1
 		
 		//	Member Functions
 		inline feedback startup(RCC& rcc);
+		feedback begin(uint8 slaveAddress, bool write, uint8 numberOfBytes, bool autoEnd, uint32 timeout_ms);
+		void reset();
 		
 		
 		//	Friends
@@ -46,12 +48,13 @@ class I2C_1
 		
 	public:
 		
-		feedback init();
+		feedback init(e_mode mode = e_mode::FAST_400KHZ, RCC::e_clockSource_i2c_1 clockSource = RCC::e_clockSource_i2c_1::BUSCLOCK, bool analogFilterEnable = true, uint8 digitalFilterLength = 0);
 		
-		feedback start(uint8 slaveAddress, bool write, uint8 numberOfBytes);
-		void stop();
-		feedback tx(uint8 data);
-		uint8 rx();
+		feedback start(uint8 slaveAddress, bool write, uint8 numberOfBytes = 0, uint32 timeout_ms = 100) override;
+		feedback start_withoutStop(uint8 slaveAddress, bool write, uint8 numberOfBytes, uint32 timeout_ms = 100) override;
+		void stop() override;
+		feedback tx(uint8 data, uint32 timeout_ms = 100) override;
+		uint8 rx(uint32 timeout_ms = 100) override;
 };
 
 
@@ -88,7 +91,10 @@ inline I2C_1::~I2C_1()
 inline feedback I2C_1::startup(RCC& rcc)
 {
 	rcc.module_clockInit(RCC::e_module::I2C_1, true);
-	return(OK);
+	
+	
+	//	Mutex of the Bus: only the Thread that has locked it with cmos.mutex_lock(&i2c) may transfer
+	return(CMOS::get().mutex_create(this));
 }
 
 

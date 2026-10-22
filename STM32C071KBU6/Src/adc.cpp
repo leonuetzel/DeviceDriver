@@ -120,7 +120,15 @@ feedback ADC::calibrate()
 feedback ADC::init(e_clockSource clockSource, uint16 valueBuffer[c_numberOfValues])
 {
 	//	Protect from unauthorized Access
-	if(CMOS::get().semaphore_isOwnedByRunningThread(this) == false)
+	if(CMOS::get().mutex_isOwnedByRunningThread(this) == false)
+	{
+		return(FAIL);
+	}
+	
+	
+	//	init() runs once: while the ADC converts, its DMA Channel runs circularly. A second Call returns FAIL before it changes
+	//	anything - otherwise it would reset the ADC and then fail at the busy Channel, and the Conversion would stop
+	if(STM32C071KBU6::get().get_dma(0).is_busy() == true)
 	{
 		return(FAIL);
 	}
@@ -179,8 +187,9 @@ feedback ADC::init(e_clockSource clockSource, uint16 valueBuffer[c_numberOfValue
 	}
 	
 	
-	//	Clock
-	if(clock > c_clock_max)
+	//	Clock: the ADC allows c_clock_max, but the Temperature Sensor (CH9) needs at least 5 us Sampling Time (Datasheet, tS_temp):
+	//	the longest Setting of 160.5 Cycles lasts 5 us up to 32.1 MHz
+	if(clock > c_clock_max || clock > 32100000)
 	{
 		return(FAIL);
 	}
@@ -229,9 +238,9 @@ feedback ADC::init(e_clockSource clockSource, uint16 valueBuffer[c_numberOfValue
 	//	1 ADCCLK = 1 / 24MHz = 41.67ns
 	//	Temperature Sensor needs	>5µs Sample Time	=> 5µs / 41.67ns = min. 120 ADCCLK
 	//	VREF_INT needs						>4µs Sample Time	=> 4µs / 41.67ns = min.  96 ADCCLK
-	//	Sampling Time per Channel is (12.5 + x) ADCCLK
-	//	=> Slow Sampling Time will be (160.5 + 12.5) ADCCLK = 173 ADCCLK = 7.21µs
-	//	=> Fast Sampling Time will be (  1.5 + 12.5) ADCCLK =  14 ADCCLK = 583ns
+	//	A Conversion takes the Sampling Time x plus 12.5 ADCCLK; only x counts as Sampling Time for the Datasheet Minimum
+	//	=> Slow: Sampling Time 160.5 ADCCLK = 6.69µs, Conversion (160.5 + 12.5) ADCCLK = 173 ADCCLK = 7.21µs
+	//	=> Fast: Sampling Time   1.5 ADCCLK = 63ns,   Conversion (  1.5 + 12.5) ADCCLK =  14 ADCCLK = 583ns
 	//	Slow Sampling Time: CH9 and CH10				=> 2 Channels
 	//	Fast Sampling Time: CH0-CH8, CH1-CH19		=> 18 Channels
 	//	Sample Time needed to measure all Channels one Time: 2 x 7.21µs + 18 x 583ns = 14.42µs + 10.5µs = 24.92µs
@@ -259,12 +268,13 @@ feedback ADC::init(e_clockSource clockSource, uint16 valueBuffer[c_numberOfValue
 	//	DMA
 	DMA& dma = stm32.get_dma(0);
 	CMOS& cmos = CMOS::get();
-	if(cmos.semaphore_lock(&dma) != OK)
+	if(cmos.mutex_lock(&dma) != OK)
 	{
 		return(FAIL);
 	}
 	if(dma.transfer((void*) MCU::ADC::DR, m_value, I_DMA::e_dataType::UINT16, I_DMA::e_dataType::UINT16, false, true, I_DMA::e_direction::PERIPHERAL_TO_MEMORY, true, c_numberOfValues, I_DMA::e_priority::VERY_HIGH, false) != OK)
 	{
+		cmos.mutex_unlock(&dma);
 		return(FAIL);
 	} 
 	

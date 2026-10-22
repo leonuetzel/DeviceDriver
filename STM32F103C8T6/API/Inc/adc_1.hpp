@@ -11,6 +11,10 @@ class ADC_1
 {
 	public:
 		
+		static constexpr uint32 c_numberOfValues	= 12;
+		
+		
+		
 		
 		
 		
@@ -21,7 +25,6 @@ class ADC_1
 		
 		//	Static Member
 		static constexpr uint32 c_clock_max = 14000000;
-		static constexpr uint32 c_numberOfValues	= 12;
 		
 		
 		//	Non-static Member
@@ -95,8 +98,8 @@ inline ADC_1::~ADC_1()
 
 inline feedback ADC_1::startup()
 {
-	//	Create Semaphore
-	return(CMOS::get().semaphore_create(this));
+	//	Create Mutex
+	return(CMOS::get().mutex_create(this));
 }
 
 

@@ -40,10 +40,14 @@ class PWR
 		
 		//	Member Functions
 		feedback startup();
+		static bool isRevisionY();
+		feedback waitForVoltage();
 		
 		
 		//	Friends
 		friend class STM32H753BIT6;
+		friend class Flash;
+		friend class Update;
 		
 		
 		
@@ -53,6 +57,9 @@ class PWR
 		
 		feedback set_voltageLevel(e_voltageLevel voltageLevel);
 		e_voltageLevel get_voltageLevel();
+		static uint32 get_clock_max(e_voltageLevel voltageLevel);
+		feedback get_requiredVoltageLevel(uint32 clock, e_voltageLevel& voltageLevel);
+		[[deprecated("use get_requiredVoltageLevel(uint32 clock, e_voltageLevel& voltageLevel)")]]
 		e_voltageLevel get_requiredVoltageLevel(uint32 divider_pll_1_p, uint32 divider_pll_1_q, uint32 divider_pll_1_r, uint32 clock_pll_1, bool pll_1_range_wide);
 		void enable_ECC();
 };

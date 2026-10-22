@@ -13,24 +13,32 @@ class DBG
 		
 		enum class e_module
 		{
-			//	APB 1
+			//	APB 1 (RM0440, DBGMCU_APB1FZR1)
 			TIMER_2			= 0x0000,
+			TIMER_3			= 0x0001,
+			TIMER_4			= 0x0002,
+			TIMER_5			= 0x0003,
 			TIMER_6			= 0x0004,
+			TIMER_7			= 0x0005,
 			RTC					= 0x000A,
 			WWDG				= 0x000B,
 			IWDG				= 0x000C,
 			I2C_1				= 0x0015,
 			I2C_2				= 0x0016,
-			I2C_3				= 0x0017,
-			CAN_1				= 0x0019,
+			I2C_3				= 0x001E,
 			LP_TIMER_1	= 0x001F,
-			
-			LP_TIMER_2	= 0x0105,
-			
-			//	APB 2
+
+			//	APB 1 (DBGMCU_APB1FZR2)
+			I2C_4				= 0x0101,
+
+			//	APB 2 (DBGMCU_APB2FZR)
 			TIMER_1			= 0x020B,
+			TIMER_8			= 0x020D,
 			TIMER_15		= 0x0210,
-			TIMER_16		= 0x0211
+			TIMER_16		= 0x0211,
+			TIMER_17		= 0x0212,
+			TIMER_20		= 0x0214,
+			HRTIM				= 0x021A
 		};
 		
 		

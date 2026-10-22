@@ -94,8 +94,8 @@ inline ADC_1::~ADC_1()
 
 inline feedback ADC_1::startup()
 {
-	//	Create Semaphore
-	return(CMOS::get().semaphore_create(this));
+	//	Create Mutex
+	return(CMOS::get().mutex_create(this));
 }
 
 
@@ -194,6 +194,15 @@ inline feedback ADC_1::calibrate()
 
 inline uint16 ADC_1::operator[](uint8 channel)
 {
+	//	The Temperature Sensor (16) and VREF_INT (17) are converted as injected Group, their Results are in JDR1 and JDR2
+	if(channel == 16)
+	{
+		return(*MCU::ADC_1::JDR1 & 0x0000FFFF);
+	}
+	if(channel == 17)
+	{
+		return(*MCU::ADC_1::JDR2 & 0x0000FFFF);
+	}
 	if(channel < c_numberOfValues)
 	{
 		return(m_value[channel]);

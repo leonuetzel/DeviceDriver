@@ -37,7 +37,8 @@ namespace Interrupt
 	
 	
 	constexpr uint16 USART_2																	= 44;
-	constexpr uint16 LP_UART_1																= 45;
+	constexpr uint16 LPUART_1																= 45;
+	[[deprecated("use Interrupt::LPUART_1")]] constexpr uint16 LP_UART_1 = LPUART_1;
 };
 
 

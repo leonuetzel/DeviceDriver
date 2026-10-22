@@ -17,6 +17,8 @@ Pair<uint16, I_DMA::f_callback> DMA_2::m_channelInfo[c_channel] =
 	Pair<uint16, I_DMA::f_callback>(CMOS::eventID_invalid, nullptr)
 };
 
+volatile bool DMA_2::m_transferError[c_channel] = {};
+
 
 
 /*****************************************************************************/
@@ -30,21 +32,29 @@ void DMA_2::executeCallback(uint8 channel)
 	volatile uint32* DMA_CCR = MCU::DMA_2::CH0_CR + offset;
 	
 	
+	//	A Transfer Error disables the Channel by Hardware (EN = 0), a completed Transfer leaves it enabled until it is disabled here
+	const bool circularMode = bit::isSet(*DMA_CCR, 5);
+	m_transferError[channel] = bit::isCleared(*DMA_CCR, 0);
+	
+	
 	//	Reset EN Bit in DMA_CHx_CCR only if Mode is non-circular, else new DMA Requests wont be served
-	if(bit::isCleared(*DMA_CCR, 5) == true)
+	if(circularMode == false)
 	{
 		bit::clear(*DMA_CCR, 0);
 	}
 	
 	
-	//	Callback
+	//	Callback, in Circular Mode after every Round
 	auto& channelInfo(m_channelInfo[channel]);
 	
 	I_DMA::f_callback& callback(channelInfo.second());
 	if(callback != nullptr)
 	{
 		callback();
-		channelInfo.second() = nullptr;
+		if(circularMode == false)
+		{
+			channelInfo.second() = nullptr;
+		}
 	}
 	
 	
@@ -69,7 +79,7 @@ feedback DMA_2::reset()
 	
 	//	Protect from unauthorized Access
 	CMOS& cmos = CMOS::get();
-	if(cmos.semaphore_isOwnedByRunningThread(this) == false)
+	if(cmos.mutex_isOwnedByRunningThread(this) == false)
 	{
 		return(FAIL);
 	}
@@ -96,7 +106,32 @@ feedback DMA_2::reset()
 }
 
 
-CODE_RAM feedback DMA_2::transfer(const void* source, const void* destination, e_dataType sourceType, e_dataType destinationType, bool source_inc, bool dest_inc, e_direction direction, bool circularMode, uint16 numberOfItems, e_priority priority, bool waitForTransferEnd, f_callback callback)
+bool DMA_2::is_busy() const
+{
+	//	The Channel stays enabled until the Interrupt Routine has ended a single Transfer, a Transfer Error disables it by Hardware
+	//	A circular Transfer runs until reset(). transfer() refuses the Channel as long as it is busy
+	if(m_channel >= c_channel)
+	{
+		return(false);
+	}
+	const uint32 offset = m_channel * 0x5;
+	return(bit::isSet(*(MCU::DMA_2::CH0_CR + offset), 0));
+}
+
+
+uint16 DMA_2::get_eventID() const
+{
+	//	executeCallback() emits it at the End of every non-circular Transfer, also without a waiting Thread, and after a Transfer Error:
+	//	transfer() always enables the Transfer Complete and the Transfer Error Interrupt of a non-circular Transfer
+	if(m_channel >= c_channel)
+	{
+		return(CMOS::eventID_invalid);
+	}
+	return(m_channelInfo[m_channel].first());
+}
+
+
+feedback DMA_2::transfer(const void* source, const void* destination, e_dataType sourceType, e_dataType destinationType, bool source_inc, bool dest_inc, e_direction direction, bool circularMode, uint16 numberOfItems, e_priority priority, bool waitForTransferEnd, f_callback callback)
 {
 	//	Check if Channel is valid
 	if(m_channel >= c_channel)
@@ -121,7 +156,7 @@ CODE_RAM feedback DMA_2::transfer(const void* source, const void* destination, e
 	
 	//	Protect from unauthorized Access
 	CMOS& cmos = CMOS::get();
-	if(cmos.semaphore_isOwnedByRunningThread(this) == false)
+	if(cmos.mutex_isOwnedByRunningThread(this) == false)
 	{
 		return(FAIL);
 	}
@@ -150,7 +185,7 @@ CODE_RAM feedback DMA_2::transfer(const void* source, const void* destination, e
 	
 	//	Clear Interrupt Flags
 	uint32 temp = m_channel * 4;
-	*MCU::DMA_2::IFCR = *MCU::DMA_2::IFCR & (0x0000000F << temp);
+	*MCU::DMA_2::IFCR = 0x0000000F << temp;																	//	IFCR is write-only and reads as 0, so the Flags are written directly
 	
 	
 	
@@ -163,8 +198,12 @@ CODE_RAM feedback DMA_2::transfer(const void* source, const void* destination, e
 	uint32 MAR	= 0;
 	
 	
-	//	Enable Transfer Complete Interrupt
-	bit::set(CCR, 1);
+	//	Enable Transfer Complete Interrupt: it ends the Transfer, wakes the waiting Thread and calls the Callback
+	//	A circular Transfer without Callback and without waiting needs none, else it would come after every Round with nothing to do (e.g. ADC)
+	if(circularMode == false || waitForTransferEnd == true || callback != nullptr)
+	{
+		bit::set(CCR, 1);
+	}
 	
 	
 	//	Enable Transfer Error Interrupt
@@ -182,8 +221,12 @@ CODE_RAM feedback DMA_2::transfer(const void* source, const void* destination, e
 	}
 	
 	
-	//	Direction
-	CCR |= ((uint32) direction) << 4;
+	//	Direction: DIR (Bit 4) means "read from Memory" and is set for MEMORY_TO_PERIPHERAL only
+	//	MEMORY_TO_MEMORY reads from the Peripheral Address with MEM2MEM (Bit 14) set below; the Value 2 of the Direction would set CIRC (Bit 5)
+	if(direction == e_direction::MEMORY_TO_PERIPHERAL)
+	{
+		bit::set(CCR, 4);
+	}
 	
 	
 	//	Set Memory Pointers and Increments (MEMORY_TO_MEMORY is essentially the same as PERIPHERAL_TO_MEMORY, so we change direction to save Code Space)
@@ -257,25 +300,26 @@ CODE_RAM feedback DMA_2::transfer(const void* source, const void* destination, e
 	*DMA_MAR	= MAR;
 	
 	
-	//	Subscribe and listen to Channel Event
+	//	Enable Channel, the Interrupt Routine notes a Transfer Error
+	//	Only a waiting Thread needs the Channel Event: it subscribes before the Channel is enabled, so it cannot miss the End
+	m_transferError[m_channel] = false;
+	if(waitForTransferEnd == false)
+	{
+		bit::set(*DMA_CCR, 0);
+		return(OK);
+	}
 	cmos.event_subscribe(channelInfo.first());
 	cmos.event_listen(channelInfo.first());
-	
-	
-	//	Enable Channel
 	bit::set(*DMA_CCR, 0);
-	
-	
-	if(waitForTransferEnd == true)
-	{
-		cmos.sleep_untilEvent(channelInfo.first());
-	}
-	
-	
-	//	Unsubscribe from the Channel Event
+	cmos.sleep_untilEvent(channelInfo.first());
 	cmos.event_unsubscribe(channelInfo.first());
 	
 	
+	//	A Transfer Error ends the Transfer as well
+	if(m_transferError[m_channel] == true)
+	{
+		return(FAIL);
+	}
 	return(OK);
 }
 
@@ -287,10 +331,13 @@ CODE_RAM feedback DMA_2::transfer(const void* source, const void* destination, e
 
 
 
-CODE_RAM void ISR_DMA2_CH0()
+//	The Interrupt Routines clear and evaluate only TCIF, HTIF and TEIF, never GIF: clearing GIF in the Clock Cycle of a Transfer Error
+//	prevents the automatic Channel Disable and TEIF (Errata Sheets: DMA disable failure and error flag omission upon simultaneous
+//	transfer error and global flag clear). GIF stays set, transfer() clears all Flags before the Channel is enabled again.
+void ISR_DMA2_CH0()
 {
 	constexpr uint32 channel = 0;
-	constexpr uint32 mask = 0x0000000F << (4 * channel);
+	constexpr uint32 mask = 0x0000000E << (4 * channel);
 	
 	
 	//	Save Copy of ISR Register and clear Interrupt Flags
@@ -306,10 +353,10 @@ CODE_RAM void ISR_DMA2_CH0()
 }
 
 
-CODE_RAM void ISR_DMA2_CH1()
+void ISR_DMA2_CH1()
 {
 	constexpr uint32 channel = 1;
-	constexpr uint32 mask = 0x0000000F << (4 * channel);
+	constexpr uint32 mask = 0x0000000E << (4 * channel);
 	
 	
 	//	Save Copy of ISR Register and clear Interrupt Flags
@@ -325,10 +372,10 @@ CODE_RAM void ISR_DMA2_CH1()
 }
 
 
-CODE_RAM void ISR_DMA2_CH2()
+void ISR_DMA2_CH2()
 {
 	constexpr uint32 channel = 2;
-	constexpr uint32 mask = 0x0000000F << (4 * channel);
+	constexpr uint32 mask = 0x0000000E << (4 * channel);
 	
 	
 	//	Save Copy of ISR Register and clear Interrupt Flags
@@ -344,10 +391,10 @@ CODE_RAM void ISR_DMA2_CH2()
 }
 
 
-CODE_RAM void ISR_DMA2_CH3()
+void ISR_DMA2_CH3()
 {
 	constexpr uint32 channel = 3;
-	constexpr uint32 mask = 0x0000000F << (4 * channel);
+	constexpr uint32 mask = 0x0000000E << (4 * channel);
 	
 	
 	//	Save Copy of ISR Register and clear Interrupt Flags
@@ -363,10 +410,10 @@ CODE_RAM void ISR_DMA2_CH3()
 }
 
 
-CODE_RAM void ISR_DMA2_CH4()
+void ISR_DMA2_CH4()
 {
 	constexpr uint32 channel = 4;
-	constexpr uint32 mask = 0x0000000F << (4 * channel);
+	constexpr uint32 mask = 0x0000000E << (4 * channel);
 	
 	
 	//	Save Copy of ISR Register and clear Interrupt Flags

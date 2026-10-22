@@ -82,6 +82,13 @@ class RCC
 			LSI 					= 0x2
 		};
 		
+		enum class e_clockSource_i2c_1 : uint8
+		{
+			BUSCLOCK			= 0x0,
+			SYSTEM_CLOCK	= 0x1,
+			HSI16					= 0x2
+		};
+		
 		enum class e_clockSource_usart_2 : uint8
 		{
 			BUSCLOCK			= 0x0,
@@ -115,6 +122,7 @@ class RCC
 		e_clockSource_system m_clockSource_system;
 		e_clockSource_rtc m_clockSource_rtc;
 		e_clockSource_usart_2 m_clockSource_usart_2;
+		e_clockSource_i2c_1 m_clockSource_i2c_1;
 		e_clockSource_lpuart_1 m_clockSource_lpuart_1;
 		
 		bool m_MSI_enabled;
@@ -144,7 +152,11 @@ class RCC
 		uint32 m_clock_apb2_timer;
 		uint32 m_clock_rtc;
 		uint32 m_clock_usart_2;
+		uint32 m_clock_i2c_1;
 		uint32 m_clock_lpuart_1;
+		
+		//	Reset Flags of the last Reset (RCC_CSR), taken in startup() before they are cleared - see get_resetFlags()
+		uint32 m_resetFlags;
 		
 		
 		//	Constructor and Destructor
@@ -170,6 +182,7 @@ class RCC
 		feedback MSI_init(bool enable, uint32 range = 5);
 		feedback HSI16_init(bool enable);
 		feedback LSI_init(bool enable);
+		feedback LSE_init(bool enable);
 		
 		e_clockSource_system get_clockSource_system();
 		feedback set_clockSource(e_clockSource_system clockSource);
@@ -182,12 +195,16 @@ class RCC
 		
 		void clear_resetFlags();
 		
+		//	Reset Flags of the last Reset as RCC_CSR at Startup (the Reference Manual names the Bits)
+		constexpr inline uint32 get_resetFlags() const;
+		
 		feedback module_clockInit(e_module module, bool enable);
 		feedback module_reset(e_module module);
 		
 		feedback reset_backupDomain();
 		feedback set_clockSource(e_clockSource_rtc clockSource, bool enable);
 		feedback set_clockSource(e_clockSource_usart_2 clockSource);
+		feedback set_clockSource(e_clockSource_i2c_1 clockSource);
 		feedback set_clockSource(e_clockSource_lpuart_1 clockSource);
 		
 		constexpr inline uint32 get_clock_HSI16() const;
@@ -200,6 +217,7 @@ class RCC
 		constexpr inline uint32 get_clock_apb2_timer() const;
 		constexpr inline uint32 get_clock_rtc() const;
 		constexpr inline uint32 get_clock_usart_2() const;
+		constexpr inline uint32 get_clock_i2c_1() const;
 		constexpr inline uint32 get_clock_lpuart_1() const;
 };
 
@@ -224,6 +242,7 @@ constexpr inline RCC::RCC(Flash& flash)
 		m_clockSource_system(e_clockSource_system::MSI),
 		m_clockSource_rtc(e_clockSource_rtc::NONE),
 		m_clockSource_usart_2(e_clockSource_usart_2::BUSCLOCK),
+		m_clockSource_i2c_1(e_clockSource_i2c_1::BUSCLOCK),
 		m_clockSource_lpuart_1(e_clockSource_lpuart_1::BUSCLOCK),
 		
 		m_MSI_enabled(true),
@@ -253,7 +272,9 @@ constexpr inline RCC::RCC(Flash& flash)
 		m_clock_apb2_timer(m_clock_apb2),
 		m_clock_rtc(0),
 		m_clock_usart_2(m_clock_apb1),
-		m_clock_lpuart_1(m_clock_apb1)
+		m_clock_i2c_1(m_clock_apb1),
+		m_clock_lpuart_1(m_clock_apb1),
+		m_resetFlags(0)
 {
 	
 }
@@ -272,6 +293,11 @@ inline RCC::~RCC()
 
 inline feedback RCC::startup()
 {
+	//	Reset Flags: a Snapshot for get_resetFlags(), then cleared (RMVF, Bit 23), so that the next Reset shows only its own Flags
+	m_resetFlags = *MCU::RCC::CSR;
+	bit::set(*MCU::RCC::CSR, 23);
+	
+	
 	//MSI_init(true, m_clock_MSI);
 	//set_clockSource(e_clockSource_system::MSI);
 	
@@ -362,7 +388,19 @@ constexpr inline uint32 RCC::get_clock_usart_2() const
 }
 
 
+constexpr inline uint32 RCC::get_clock_i2c_1() const
+{
+	return(m_clock_i2c_1);
+}
+
+
 constexpr inline uint32 RCC::get_clock_lpuart_1() const
 {
 	return(m_clock_lpuart_1);
+}
+
+
+constexpr inline uint32 RCC::get_resetFlags() const
+{
+	return(m_resetFlags);
 }

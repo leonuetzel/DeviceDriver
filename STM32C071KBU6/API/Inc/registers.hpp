@@ -15,7 +15,8 @@ namespace Interrupt
 	constexpr uint16 RCC_CRS																	= 20;
 	constexpr uint16 EXTI_0_TO_1															= 21;
 	constexpr uint16 EXTI_2_TO_3															= 22;
-	constexpr uint16 EXTI_4_TO_15_DMAMUX											= 23;
+	constexpr uint16 EXTI_4_TO_15											= 23;
+	[[deprecated("use Interrupt::EXTI_4_TO_15")]] constexpr uint16 EXTI_4_TO_15_DMAMUX = EXTI_4_TO_15;
 	constexpr uint16 USB																			= 24;
 	constexpr uint16 DMA1_CH0																	= 25;
 	constexpr uint16 DMA1_CH1_CH2															= 26;

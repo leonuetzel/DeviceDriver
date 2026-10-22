@@ -19,10 +19,21 @@ class DMA2D: public I_GraphicAccelerator
 	private:
 		
 		//	Static Member
+		//	Transfers up to this Number of Pixels are waited for actively: they last only some ten Microseconds, less than Sleep and Wake-up
+		static constexpr uint32 c_maximumPixelsForActiveWait = 16384;
+		
+		//	Small Areas are filled or copied by the CPU in the Data Cache: faster than Start, Interrupt, Wait and Cache Maintenance of the DMA2D
+		//	Measured on the H753 (2026-10-16): an Area of 8 x 8 Pixels is filled 4 Times and copied 6 Times faster by the CPU, above the Thresholds
+		//	the DMA2D is as fast or faster. Blending always stays on the DMA2D, the Rounding of the CPU would not be bit-identical
+		static constexpr uint32 c_maximumPixelsForCPU_fill = 1024;
+		static constexpr uint32 c_maximumPixelsForCPU_copy = 512;
 		bool m_transferActive;
 		uint32 m_counterConfigurationError;
 		uint32 m_counterClutAccessError;
 		uint32 m_counterTransferError;
+		
+		//	Emitted by the Interrupt Routine at the End of a Transfer, wakes the Thread that waits for a large Transfer
+		uint16 m_eventID;
 		
 		
 		//	Non-static Member
@@ -37,6 +48,13 @@ class DMA2D: public I_GraphicAccelerator
 		
 		//	Member Functions
 		feedback startup();
+		void waitForTransfer(bool sleep);
+		//	Writes the Areas (ARGB8888, Line Offsets in Pixels), starts the Transfer with Cache Maintenance and waits until it is complete
+		//	The Caller has set Mode, Pixel Formats and Colors; foreground or background is nullptr if the Mode does not fetch it
+		void executeTransfer(uint32 pixelsPerLine, uint32 numberOfLines, const void* output, uint32 outputOffset, const void* foreground, uint32 foregroundOffset, const void* background, uint32 backgroundOffset);
+		static uint32 get_areaSizeInBytes(uint32 pixelsPerLine, uint32 numberOfLines, uint32 lineOffset);
+		static void fillByCPU(Color* output, uint32 pixelsPerLine, uint32 numberOfLines, uint32 outputOffset, Color color);
+		static void copyByCPU(Color* output, uint32 outputOffset, const Color* foreground, uint32 foregroundOffset, uint32 pixelsPerLine, uint32 numberOfLines);
 		
 		
 		//	Friends
@@ -96,7 +114,8 @@ constexpr inline DMA2D::DMA2D()
 	: m_transferActive(false),
 		m_counterConfigurationError(0),
 		m_counterClutAccessError(0),
-		m_counterTransferError(0)
+		m_counterTransferError(0),
+		m_eventID(CMOS::eventID_invalid)
 {
 	
 }

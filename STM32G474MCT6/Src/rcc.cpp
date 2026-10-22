@@ -451,19 +451,24 @@ feedback RCC::init_lse(bool enable)
 		}
 		
 		
-		//	LSE Clock Security System Enable
-		bit::set(*MCU::RCC::CR, 5);
+		//	The Clock Security System of the LSE (LSECSSON, BDCR Bit 5) is not switched on here: it may only be set after the RTC Clock
+		//	Source has been selected, and it cannot be switched off again
 	}
 	else
 	{
 		//	Try to disable LSE
-		bit::clear(*MCU::RCC::CR, 0);
+		bit::clear(*MCU::RCC::BDCR, 0);
 		
 		
-		//	Check if LSE is disabled
-		if(bit::isSet(*MCU::RCC::CR, 1))
+		//	Check if LSE is disabled: LSERDY goes to 0 within a few LSE Clock Cycles
+		uint32 timeout = 100000;
+		while(bit::isSet(*MCU::RCC::BDCR, 1))
 		{
-			return(FAIL);
+			timeout--;
+			if(timeout == 0)
+			{
+				return(FAIL);
+			}
 		}
 	}
 	
@@ -655,12 +660,27 @@ feedback RCC::set_clockSource(e_clockSource_pll clockSource)
 	calculate_clockTree();
 	
 	
+	//	Input Prescaler M (1 ... 16): the smallest one, that brings the PLL Input to at most 16 MHz
+	//	Sources up to 16 MHz keep M = 1, e.g. a HSE with 24 or 25 MHz is divided
+	const uint8 prescaler_old = m_prescaler_pll_input;
+	for(uint8 prescaler = 1; prescaler <= 16; prescaler++)
+	{
+		m_prescaler_pll_input = prescaler;
+		calculate_clockTree();
+		if(m_clock_pll_input <= c_clock_pll_input_max)
+		{
+			break;
+		}
+	}
+	
+	
 	//	Check Constraints (if needed in Dependance of the Voltage Scaling)
 	if(m_clock_pll_input > c_clock_pll_input_max || m_clock_pll_input < c_clock_pll_input_min)
 	{
 		//	Undo Changes
 		m_pll_enabled = pll_enabled_old;
 		m_clockSource_pll = m_clockSource_pll_old;
+		m_prescaler_pll_input = prescaler_old;
 		calculate_clockTree();
 		
 		return(FAIL);
@@ -678,6 +698,7 @@ feedback RCC::set_clockSource(e_clockSource_pll clockSource)
 			//	Undo Changes
 			m_pll_enabled = pll_enabled_old;
 			m_clockSource_pll = m_clockSource_pll_old;
+			m_prescaler_pll_input = prescaler_old;
 			calculate_clockTree();
 			
 			return(FAIL);
@@ -688,6 +709,7 @@ feedback RCC::set_clockSource(e_clockSource_pll clockSource)
 			init_hsi16(was_HSI16_enabled);
 			m_pll_enabled = pll_enabled_old;
 			m_clockSource_pll = m_clockSource_pll_old;
+			m_prescaler_pll_input = prescaler_old;
 			calculate_clockTree();
 			
 			return(FAIL);
@@ -700,8 +722,9 @@ feedback RCC::set_clockSource(e_clockSource_pll clockSource)
 	
 	
 	//	Set new Values
-	const uint32 temp = *MCU::RCC::PLL_CFGR & 0xFFFFFFFC;
-	*MCU::RCC::PLL_CFGR = temp | (uint32) clockSource;
+	//	PLL Source and Input Prescaler M (PLLM = M - 1)
+	const uint32 temp = *MCU::RCC::PLL_CFGR & 0xFFFFFF0C;
+	*MCU::RCC::PLL_CFGR = temp | (((uint32) m_prescaler_pll_input - 1) << 4) | (uint32) clockSource;
 	
 	
 	//	Enable PLL if it has been enabled before
@@ -756,7 +779,8 @@ feedback RCC::init_pll(uint32 clock_out, uint32 prescaler_p, uint32 prescaler_q,
 	{
 		return(FAIL);
 	}
-	if(prescaler_p < 2 || prescaler_p > 31 || prescaler_q % 2 != 0 || prescaler_r % 2 != 0)
+	//	PLLQ and PLLR can only divide by 2, 4, 6 or 8
+	if(prescaler_p < 2 || prescaler_p > 31 || prescaler_q < 2 || prescaler_q > 8 || prescaler_q % 2 != 0 || prescaler_r < 2 || prescaler_r > 8 || prescaler_r % 2 != 0)
 	{
 		return(FAIL);
 	}
@@ -932,7 +956,9 @@ feedback RCC::module_clockInit(e_module module, bool enable)
 	
 	if(enable == true)
 	{
+		//	The Clock of the Peripheral is active 2 Clock Cycles after its Enable Bit (RM0440, RCC): the dummy Read delays the first Access
 		bit::set(*reg, bit);
+		(void) *reg;
 		return(OK);
 	}
 	if(enable == false)

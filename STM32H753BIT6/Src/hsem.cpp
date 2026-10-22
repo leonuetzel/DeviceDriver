@@ -38,7 +38,7 @@ feedback HSEM::startup(uint8 number)
 /*                      						Public	  			 						 						 */
 /*****************************************************************************/
 
-CODE_RAM feedback HSEM::lock()
+feedback HSEM::lock()
 {
 	if(m_number >= c_number || get_owner() != 0xFF)
 	{
@@ -48,7 +48,7 @@ CODE_RAM feedback HSEM::lock()
 	volatile uint32* address = MCU::HSEM::R0 + m_number;
 	
 	uint8 ID = CMOS::get().get_runningThreadID();
-	*address = 0x80000300 | ID;																																																		//	Try to lock Semaphore
+	*address = 0x80000300 | ID;																																																		//	Try to lock Mutex
 	
 	if(get_owner() != ID)
 	{
@@ -58,7 +58,7 @@ CODE_RAM feedback HSEM::lock()
 }
 
 
-CODE_RAM feedback HSEM::unlock()
+feedback HSEM::unlock()
 {
 	uint8 ID = CMOS::get().get_runningThreadID();
 	if(m_number >= c_number || get_owner() != ID)
@@ -77,7 +77,7 @@ CODE_RAM feedback HSEM::unlock()
 }
 
 
-CODE_RAM feedback HSEM::force_unlock()
+feedback HSEM::force_unlock()
 {
 	if(m_number >= c_number)
 	{
@@ -96,7 +96,7 @@ CODE_RAM feedback HSEM::force_unlock()
 }
 
 
-CODE_RAM uint8 HSEM::get_owner() const
+uint8 HSEM::get_owner() const
 {
 	if(m_number >= c_number)
 	{
@@ -104,7 +104,7 @@ CODE_RAM uint8 HSEM::get_owner() const
 	}
 	
 	volatile uint32* address = MCU::HSEM::R0 + m_number;
-	if(bit::isCleared(*address, 31))																																															//	Semaphore is free
+	if(bit::isCleared(*address, 31))																																															//	Mutex is free
 	{
 		return(0xFF);
 	}

@@ -87,6 +87,9 @@ SECTION(bootloader) feedback Flash::write2Words(uint32 dataAtAddress, uint32 dat
 		
 	}
 	
+	//	Clear EOP and the Error Flags of previous Operations, otherwise the Hardware sets PGSERR and refuses this one
+	*MCU::FLASH::SR = 0x0000C3FB;
+	
 	
 	//	Enable End of Operation Interrupt
 	//	This is necessary for EOP Bit to be set after a Programming Operation (we dont use the Interrupt)
@@ -97,11 +100,14 @@ SECTION(bootloader) feedback Flash::write2Words(uint32 dataAtAddress, uint32 dat
 	bit::set(*MCU::FLASH::CR, 0);
 	
 	
-	//	Program
+	//	Program: the first Word, then the second of the same Double Word (RM0394, standard Programming). volatile, so that the Compiler neither
+	//	reorders them nor merges them into one STRD - an Interrupt restarts an STRD and writes the first Word twice, the Flash then sets
+	//	PGAERR and PGSERR. An Interrupt between the two single Writes is allowed (PGAERR only for a second Word of another Double Word):
+	//	no Interrupt Routine writes the Flash, so the Interrupts stay enabled (the Caller ensures that only one Thread programs at a Time)
 	const uint32 addressInt = (uint32) address;
-	uint32* const addressPlus0 = (uint32*) (addressInt + 0);
-	uint32* const addressPlus4 = (uint32*) (addressInt + 4);
-	
+	volatile uint32* const addressPlus0 = (volatile uint32*) (addressInt + 0);
+	volatile uint32* const addressPlus4 = (volatile uint32*) (addressInt + 4);
+
 	*addressPlus0 = dataAtAddress;
 	*addressPlus4 = dataAtAddressPlus4Byte;
 	
@@ -162,6 +168,14 @@ SECTION(bootloader) feedback Flash::writePage(uint32* data, uint32 pageNumber)
 	}
 	
 	
+	//	Erase the Page before writing, as writePage does on all Microcontrollers: a Double Word can only be programmed once after an Erase
+	//	Called non-virtually: an In-Application Update erases the V-Table in the Flash, the Function has to work without it
+	if(Flash::erase(pageNumber) != OK)
+	{
+		return(FAIL);
+	}
+	
+	
 	//	Unlock Access to Flash Registers
 	if(unlock_FPEC() != OK)
 	{
@@ -205,6 +219,10 @@ SECTION(bootloader) feedback Flash::erase(uint32 pageNumber)
 	{
 		return(FAIL);
 	}
+	
+	
+	//	Clear EOP and the Error Flags of previous Operations, otherwise the Hardware sets PGSERR and refuses this one
+	*MCU::FLASH::SR = 0x0000C3FB;
 	
 	
 	//	Set Page Erase Bit
@@ -261,7 +279,7 @@ SECTION(bootloader) feedback Flash::erase(uint32 pageNumber)
 SECTION(bootloader) feedback Flash::erase()
 {
 	//	Wait for Busy-Flag to be reset
-	while(bit::isSet(*MCU::FLASH::SR, 0) == true)
+	while(bit::isSet(*MCU::FLASH::SR, 16) == true)
 	{
 		
 	}
@@ -274,16 +292,20 @@ SECTION(bootloader) feedback Flash::erase()
 	}
 	
 	
+	//	Clear EOP and the Error Flags of previous Operations, otherwise the Hardware sets PGSERR and refuses this one
+	*MCU::FLASH::SR = 0x0000C3FB;
+	
+	
 	//	Set Mass Erase Bit
 	bit::set(*MCU::FLASH::CR, 2);
 	
 	
-	//	Start Erase
-	bit::set(*MCU::FLASH::CR, 6);
+	//	Start Erase (STRT)
+	bit::set(*MCU::FLASH::CR, 16);
 	
 	
 	//	Wait for Busy-Flag to be reset
-	while(bit::isSet(*MCU::FLASH::SR, 0) == true)
+	while(bit::isSet(*MCU::FLASH::SR, 16) == true)
 	{
 		
 	}
@@ -393,8 +415,13 @@ feedback Flash::set_waitStates(uint32 clock_ahb, PWR::e_voltageScaling voltageSc
 	}
 	
 	
-	//	Write Value to Register
-	uint32 temp = *MCU::FLASH::ACR & 0xFFFFFFF8;
+	//	Write Value to Register - with Wait States also the Prefetch (PRFTEN, Bit 8): with Prefetch off, Wait States and the Sleep or Stop
+	//	Debug Mode (DBG_SLEEP/DBG_STOP, set by the Debugger), unreachable Instructions can run after a WFI/WFE (Errata Sheet ES0387, 2.2.12)
+	uint32 temp = *MCU::FLASH::ACR & ~((1u << 8) | 0x7u);
+	if(waitStates > 0)
+	{
+		temp |= (1u << 8);
+	}
 	*MCU::FLASH::ACR = temp | waitStates;
 	
 	

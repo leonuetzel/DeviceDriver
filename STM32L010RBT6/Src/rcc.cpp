@@ -148,6 +148,21 @@ void RCC::calculate_clockTree()
 	}
 	
 	
+	//	I2C 1 Clock
+	if(m_clockSource_i2c_1 == e_clockSource_i2c_1::BUSCLOCK)
+	{
+		m_clock_i2c_1 = m_clock_apb1;
+	}
+	if(m_clockSource_i2c_1 == e_clockSource_i2c_1::SYSTEM_CLOCK)
+	{
+		m_clock_i2c_1 = m_clock_system;
+	}
+	if(m_clockSource_i2c_1 == e_clockSource_i2c_1::HSI16)
+	{
+		m_clock_i2c_1 = m_clock_HSI16;
+	}
+	
+	
 	//	USART 2 Clock
 	if(m_clockSource_usart_2 == e_clockSource_usart_2::BUSCLOCK)
 	{
@@ -201,7 +216,8 @@ feedback RCC::MSI_init(bool enable, uint32 range)
 	}
 	
 	
-	if(m_MSI_enabled == enable)
+	//	A running MSI can change its Range as well (RM0451, RCC_ICSCR)
+	if(m_MSI_enabled == enable && (enable == false || m_MSI_range == range))
 	{
 		return(OK);
 	}
@@ -366,13 +382,20 @@ feedback RCC::set_clockSource(e_clockSource_system clockSource)
 	*MCU::RCC::CFGR = temp | (uint32) clockSource;
 	
 	
-	//	Check if Switch was successful
-	if(get_clockSource_system() != clockSource)
+	//	Wait for the Switch: SWS follows SW after some Clock Cycles of both Clock Sources
+	uint32 timeout = 100000;
+	while(get_clockSource_system() != clockSource)
 	{
-		//	Undo Changes and return
-		m_clockSource_system = clockSourceSystemOld;
-		calculate_clockTree();
-		return(FAIL);
+		timeout--;
+		if(timeout == 0)
+		{
+			//	Undo Changes and return
+			temp = *MCU::RCC::CFGR & 0xFFFFFFFC;
+			*MCU::RCC::CFGR = temp | (uint32) clockSourceSystemOld;
+			m_clockSource_system = clockSourceSystemOld;
+			calculate_clockTree();
+			return(FAIL);
+		}
 	}
 	
 	
@@ -668,7 +691,7 @@ feedback RCC::set_prescaler_APB2(uint32 prescaler)
 
 void RCC::clear_resetFlags()
 {
-	bit::set(*MCU::RCC::CSR, 24);
+	bit::set(*MCU::RCC::CSR, 23);												//	RMVF is Bit 23, Bit 24 is a Reset Flag
 }
 
 
@@ -687,7 +710,10 @@ feedback RCC::module_clockInit(e_module module, bool enable)
 	
 	if(enable == true)
 	{
+		//	An AHB or IOPORT Peripheral can be accessed one AHB Clock Cycle after its Clock has been enabled (ES0483 2.1.1):
+		//	the dummy Read delays the first Access
 		bit::set(*reg, bit);
+		(void) *reg;
 		return(OK);
 	}
 	if(enable == false)
@@ -728,6 +754,48 @@ feedback RCC::module_reset(e_module module)
 
 
 
+feedback RCC::LSE_init(bool enable)
+{
+	//	The LSE belongs to the Backup Domain: its Write Protection (PWR, DBP) has to be disabled
+	if(enable == true)
+	{
+		//	LSE is already running
+		if(bit::isSet(*MCU::RCC::CSR, 9) == true)
+		{
+			return(OK);
+		}
+		
+		
+		//	LSE not bypassed (Crystal), it can only be changed while the LSE is off
+		bit::clear(*MCU::RCC::CSR, 10);
+		
+		
+		//	LSE Enable
+		bit::set(*MCU::RCC::CSR, 8);
+		
+		
+		//	Wait for LSE to become stable: a Crystal needs up to some Seconds to start (Datasheet, tSU(LSE))
+		CMOS& cmos = CMOS::get();
+		const uint64 timestampStart = cmos.get_timestamp();
+		while(bit::isCleared(*MCU::RCC::CSR, 9) == true)
+		{
+			if(cmos.getMilliSecondsSinceTimestamp(timestampStart) > 5000)
+			{
+				//	No Crystal, or the Backup Domain is write protected
+				bit::clear(*MCU::RCC::CSR, 8);
+				return(FAIL);
+			}
+		}
+	}
+	else
+	{
+		//	LSE Disable
+		bit::clear(*MCU::RCC::CSR, 8);
+	}
+	return(OK);
+}
+
+
 feedback RCC::reset_backupDomain()
 {
 	bit::set(*MCU::RCC::CSR, 19);
@@ -737,6 +805,11 @@ feedback RCC::reset_backupDomain()
 	}
 	bit::clear(*MCU::RCC::CSR, 19);
 	
+	
+	//	The Reset also clears the Selection and the Enable of the RTC Clock: the Driver State follows
+	m_clockSource_rtc = e_clockSource_rtc::NONE;
+	m_clock_rtc_enabled = false;
+	calculate_clockTree();
 	return(OK);
 }
 
@@ -794,6 +867,25 @@ feedback RCC::set_clockSource(e_clockSource_usart_2 clockSource)
 	*MCU::RCC::CCIPR = temp | (((uint32) clockSource) << 2);
 	
 	m_clockSource_usart_2 = clockSource;
+	calculate_clockTree();
+	
+	return(OK);
+}
+
+
+feedback RCC::set_clockSource(e_clockSource_i2c_1 clockSource)
+{
+	if(m_clockSource_i2c_1 == clockSource)
+	{
+		return(OK);
+	}
+	
+	
+	//	I2C1SEL (RCC_CCIPR Bits 13:12)
+	uint32 temp = *MCU::RCC::CCIPR & 0xFFFFCFFF;
+	*MCU::RCC::CCIPR = temp | (((uint32) clockSource) << 12);
+	
+	m_clockSource_i2c_1 = clockSource;
 	calculate_clockTree();
 	
 	return(OK);

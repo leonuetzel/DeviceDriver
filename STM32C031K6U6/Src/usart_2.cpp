@@ -26,16 +26,22 @@
 
 feedback USART_2::init(uint32 baud, e_databits databits, e_parity parity, e_stopbits stopbits, uint8* rxBuffer, uint32 rxBufferSize, uint8* txBuffer, uint32 txBufferSize)
 {
-	//	Check if Semaphore is locked
+	//	Check if Mutex is locked
 	CMOS& cmos = CMOS::get();
-	if(cmos.semaphore_isOwnedByRunningThread(this) == false)
+	if(cmos.mutex_isOwnedByRunningThread(this) == false)
 	{
 		return(FAIL);
 	}
 	
 	
-	//	Check for valid Number of Databits
-	if(databits == e_databits::_7)
+	//	Word Length: the Parity Bit is the MSB of the Word, so with Parity the Word is one Bit longer than the Databits
+	//	Possible are Words with 8 or 9 Bit, 7 Databits are not supported
+	uint32 wordLength = 7 + (uint32) databits;
+	if(parity != e_parity::NONE)
+	{
+		wordLength++;
+	}
+	if(databits == e_databits::_7 || wordLength > 9)
 	{
 		return(FAIL);
 	}
@@ -50,6 +56,7 @@ feedback USART_2::init(uint32 baud, e_databits databits, e_parity parity, e_stop
 	m_size = rxBufferSize;
 	clear();
 	m_txBuffer = RingbufferExternal<uint8>(txBuffer, txBufferSize);
+	m_txInFlight = 0;
 	
 	
 	//	Reset USART 2
@@ -63,8 +70,8 @@ feedback USART_2::init(uint32 baud, e_databits databits, e_parity parity, e_stop
 	uint32 clock_in = rcc.get_clock_apb();
 	
 	
-	//	Databits
-	if(databits == e_databits::_8)
+	//	Word Length M: 0 = 8 Bit, 1 = 9 Bit, including the Parity Bit
+	if(wordLength == 8)
 	{
 		bit::clear(*MCU::USART_2::CR1, 12);
 	}
@@ -126,15 +133,21 @@ feedback USART_2::init(uint32 baud, e_databits databits, e_parity parity, e_stop
 
 feedback USART_2::deinit()
 {
-	//	Check if all related Semaphores are owned by running Thread
+	//	Check if all related Mutexes are owned by running Thread
 	CMOS& cmos = CMOS::get();
-	if(cmos.semaphore_isOwnedByRunningThread(this) == false)
+	if(cmos.mutex_isOwnedByRunningThread(this) == false)
 	{
 		return(FAIL);
 	}
-	if(cmos.semaphore_isOwnedByRunningThread(m_dma_tx) == false)
+	
+	
+	//	Wait for the End of the Transmission (TC): tx returns as soon as the DMA is done, but the last Bytes are still in the Data Register
+	//	and in the Shift Register then - resetting the USART earlier would cut them off. The Timeout covers 2 Frames at 300 Baud
+	uint32 timeout_ms = 100;
+	while(m_initialized == true && bit::isCleared(*MCU::USART_2::ISR, 6) == true && timeout_ms > 0)
 	{
-		return(FAIL);
+		cmos.sleep_ms(1);
+		timeout_ms--;
 	}
 	
 	
@@ -159,6 +172,7 @@ feedback USART_2::deinit()
 	
 	//	Reset Tx Buffer
 	m_txBuffer.reset();
+	m_txInFlight = 0;
 	
 	
 	//	Reset USART
@@ -170,12 +184,8 @@ feedback USART_2::deinit()
 	}
 	
 	
-	//	Free Semaphores
-	if(cmos.semaphore_unlock(m_dma_tx) != OK)
-	{
-		return(FAIL);
-	}
-	if(cmos.semaphore_unlock(this) != OK)
+	//	Free Mutexes
+	if(cmos.mutex_unlock(this) != OK)
 	{
 		return(FAIL);
 	}
@@ -228,7 +238,6 @@ void ISR_USART_2()
 		*MCU::USART_2::ICR = 1 << 3;
 		
 		
-		//	Reset Rx Buffer
-		usart.clear();
+		//	The received Bytes stay in the Buffer, only the Bytes arriving during the Overrun are lost
 	}
 }

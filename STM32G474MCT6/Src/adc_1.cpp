@@ -37,14 +37,15 @@ feedback ADC_1::enable()
 	bit::set(*MCU::ADC_1::ISR, 0);
 	
 	
-	//	Enable ADC by setting ADEN Bit
+	//	Enable ADC by setting ADEN Bit and wait for ADRDY to be set
+	//	ADEN set within 4 ADC Clock Cycles after the End of a Calibration is reset by the Calibration Logic (as ES0387 Rev 11, 2.11.1 describes for the L4 ADC), so it is set again
 	bit::set(*MCU::ADC_1::CR, 0);
-	
-	
-	//	Wait for ADRDY to be set
 	while(bit::isCleared(*MCU::ADC_1::ISR, 0))
 	{
-		
+		if(bit::isCleared(*MCU::ADC_1::CR, 0))
+		{
+			bit::set(*MCU::ADC_1::CR, 0);
+		}
 	}
 	
 	return(OK);
@@ -198,7 +199,15 @@ feedback ADC_1::init(e_clockSource clockSource, uint16 valueBuffer[c_numberOfVal
 	
 	
 	//	Protect from unauthorized Access
-	if(CMOS::get().semaphore_isOwnedByRunningThread(this) == false)
+	if(CMOS::get().mutex_isOwnedByRunningThread(this) == false)
+	{
+		return(FAIL);
+	}
+	
+	
+	//	init() runs once: while the ADC converts, its DMA Channel runs circularly. A second Call returns FAIL before it changes
+	//	anything - otherwise it would reset the ADC and then fail at the busy Channel, and the Conversion would stop
+	if(STM32G474MCT6::get().get_dma_1(0).is_busy() == true)
 	{
 		return(FAIL);
 	}
@@ -226,15 +235,16 @@ feedback ADC_1::init(e_clockSource clockSource, uint16 valueBuffer[c_numberOfVal
 	uint32 clock = 0;
 	switch(clockSource)
 	{
+		//	The Prescaler acts on the asynchronous Clocks only (CKMODE = 00)
 		case e_clockSource::PLL_P:
 		{
-			clock = rcc.get_clock_pll_p();
+			clock = rcc.get_clock_pll_p() / c_prescaler[prescalerIndex];
 		}
 		break;
 		
 		case e_clockSource::SYSTEM:
 		{
-			clock = rcc.get_clock_system();
+			clock = rcc.get_clock_system() / c_prescaler[prescalerIndex];
 		}
 		break;
 			
@@ -297,6 +307,7 @@ feedback ADC_1::init(e_clockSource clockSource, uint16 valueBuffer[c_numberOfVal
 				return(FAIL);
 			}
 		}
+		break;
 		
 		default:
 		{
@@ -326,19 +337,19 @@ feedback ADC_1::init(e_clockSource clockSource, uint16 valueBuffer[c_numberOfVal
 	}
 	
 	
-	//	Enable VREF_INT which is connected to ADC 1 CH0
+	//	Enable VREF_INT which is connected to ADC 1 CH18 (RM0440)
 	bit::set(*MCU::ADC_1_2_COMMON::CCR, 22);
 	
 	
-	//	Enable the Temperature Sensor which is connected to ADC 1 CH17
+	//	Enable the Temperature Sensor which is connected to ADC 1 CH16
 	bit::set(*MCU::ADC_1_2_COMMON::CCR, 23);
 	
 	
-	//	Enable the VBAT Monitoring which is connected to ADC 1 CH18
+	//	Enable the VBAT Monitoring (VBAT / 3) which is connected to ADC 1 CH17
 	bit::set(*MCU::ADC_1_2_COMMON::CCR, 24);
 	
 	
-	//	Select CH0 (VREF_INT) and CH1-CH15 (regular analog Pins) for regular Conversions
+	//	Select CH0-CH15 for regular Conversions
 	*MCU::ADC_1::SQR1 = ( 3 << 24) | ( 2 << 18) | ( 1 << 12) | ( 0 << 6) | (15 << 0);
 	*MCU::ADC_1::SQR2 = ( 8 << 24) | ( 7 << 18) | ( 6 << 12) | ( 5 << 6) | ( 4 << 0);
 	*MCU::ADC_1::SQR3 = (13 << 24) | (12 << 18) | (11 << 12) | (10 << 6) | ( 9 << 0);
@@ -349,23 +360,25 @@ feedback ADC_1::init(e_clockSource clockSource, uint16 valueBuffer[c_numberOfVal
 	bit::clear(*MCU::ADC_1::CFGR1, 31);
 	
 	
-	//	Select CH16 (regular analog Pin), CH17 (Temperature Sensor) and CH18 (VBAT Monitoring) for injected Conversions
-	*MCU::ADC_1::JSQR = (18 << 20) | (17 << 14) | (16 << 8) | (2 << 0);
+	//	Select CH16 (Temperature Sensor), CH17 (VBAT / 3) and CH18 (VREF_INT) for injected Conversions
+	//	JSQ1 starts at Bit 9, JSQ2 at Bit 15 and JSQ3 at Bit 21, JL = 2 means 3 Conversions
+	*MCU::ADC_1::JSQR = (18 << 21) | (17 << 15) | (16 << 9) | (2 << 0);
 	
 	
 	//	Enable automatic injected Group Conversions after regular Group Conversions
 	bit::set(*MCU::ADC_1::CFGR1, 25);
 	
 	
+	//	Sampling Times: the internal Channels need at least 5 µs (Temperature Sensor, CH16), 12 µs (VBAT, CH17) and 4 µs (VREF_INT, CH18),
+	//	so they get the longest Sampling Time of 640.5 ADCCLK (12 µs for VBAT up to 53 MHz ADC Clock), the other Channels 12.5 ADCCLK
 	//	Time needed for a Conversion of all Channels:
-	//	17 Channel @ 12.5 +  12.5 =  25 ADCCLK
-	//	 1 Channel @ 12.5 +  92.5 = 105 ADCCLK
-	//	 1 Channel @ 12.5 + 247.5 = 260 ADCCLK
-	//	Sum = 425 + 105 + 260 = 790 ADCCLK
+	//	16 Channel @ 12.5 +  12.5 =  25 ADCCLK
+	//	 3 Channel @ 12.5 + 640.5 = 653 ADCCLK
+	//	Sum = 400 + 1959 = 2359 ADCCLK
 	//	@20MHz ADC Clock => 1 ADCCLK = 50ns
-	//	=> 790 ADCCLK = 39.5µs => 25.32kHz
+	//	=> 2359 ADCCLK = 118µs => 8.48kHz
 	*MCU::ADC_1::SMPR1 = (2 << 27) | (2 << 24) | (2 << 21) | (2 << 18) | (2 << 15) | (2 << 12) | (2 << 9) | (2 << 6) | (2 << 3) | (2 << 0);
-	*MCU::ADC_1::SMPR2 = 						 (6 << 24) | (5 << 21) | (2 << 18) | (2 << 15) | (2 << 12) | (2 << 9) | (2 << 6) | (2 << 3) | (2 << 0);
+	*MCU::ADC_1::SMPR2 = 						 (7 << 24) | (7 << 21) | (7 << 18) | (2 << 15) | (2 << 12) | (2 << 9) | (2 << 6) | (2 << 3) | (2 << 0);
 	
 	
 	//	Continuous Conversion Mode
@@ -383,7 +396,7 @@ feedback ADC_1::init(e_clockSource clockSource, uint16 valueBuffer[c_numberOfVal
 	//	DMA
 	DMA_1& dma = stm32.get_dma_1(0);
 	CMOS& cmos = CMOS::get();
-	if(cmos.semaphore_lock(&dma) != OK)
+	if(cmos.mutex_lock(&dma) != OK)
 	{
 		return(FAIL);
 	}
@@ -391,6 +404,7 @@ feedback ADC_1::init(e_clockSource clockSource, uint16 valueBuffer[c_numberOfVal
 	dmamux.map(DMAMUX::e_input::ADC_1, DMAMUX::e_output::DMA_1_CH0);
 	if(dma.transfer((void*) MCU::ADC_1::DR, m_value, I_DMA::e_dataType::UINT16, I_DMA::e_dataType::UINT16, false, true, I_DMA::e_direction::PERIPHERAL_TO_MEMORY, true, 16, I_DMA::e_priority::VERY_HIGH, false, callback) != OK)
 	{
+		cmos.mutex_unlock(&dma);
 		return(FAIL);
 	}
 	

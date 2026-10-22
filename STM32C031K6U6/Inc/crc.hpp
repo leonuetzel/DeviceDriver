@@ -95,9 +95,9 @@ inline feedback CRC::startup(RCC& rcc)
 	rcc.module_clockInit(RCC::e_module::CRC, true);
 	
 	
-	//	Create Semaphore
+	//	Create Mutex
 	CMOS& cmos = CMOS::get();
-	if(cmos.semaphore_create(this) != OK)
+	if(cmos.mutex_create(this) != OK)
 	{
 		return(FAIL);
 	}

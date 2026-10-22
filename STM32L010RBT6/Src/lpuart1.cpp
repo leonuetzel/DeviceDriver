@@ -26,48 +26,64 @@
 
 feedback LP_UART_1::init(uint32 baud, e_databits databits, e_parity parity, e_stopbits stopbits, uint8* rxBuffer, uint32 rxBufferSize, uint8* txBuffer, uint32 txBufferSize)
 {
-	//	Check if Semaphore is locked
+	//	Check if Mutex is locked
 	CMOS& cmos = CMOS::get();
-	if(cmos.semaphore_isOwnedByRunningThread(this) == false)
+	if(cmos.mutex_isOwnedByRunningThread(this) == false)
 	{
 		return(FAIL);
 	}
 	
 	
-	//	Lock Semaphore of Tx DMA
-	STM32L010RBT6& stm32 = STM32L010RBT6::get();
-	{
-		DMA& dma_tx = stm32.get_dma(6);
-		m_dma_tx = &dma_tx;
-		dma_tx.set_requestMapping(DMA::e_requestMapping::CH6_LPUART1TX);
-	}
-	if(cmos.semaphore_lock(m_dma_tx) != OK)
-	{
-		return(FAIL);
-	}
-	
-	
-	//	Lock Semaphore of Rx DMA
-	{
-		DMA& dma_rx = stm32.get_dma(5);
-		m_dma_rx = &dma_rx;
-		dma_rx.set_requestMapping(DMA::e_requestMapping::CH5_LPUART1RX);
-	}
-	if(cmos.semaphore_lock(m_dma_rx) != OK)
-	{
-		return(FAIL);
-	}
-	
-	
-	//	Rx and Tx Buffer
+	//	Check the Parameters before the DMA Channels are locked, so that a Failure does not leave them locked
 	if(rxBufferSize <= 0 || rxBuffer == nullptr || txBufferSize <= 0 || txBuffer == nullptr)
 	{
 		return(FAIL);
 	}
+	
+	
+	//	Word Length: the Parity Bit is the MSB of the Word, so with Parity the Word is one Bit longer than the Databits
+	//	Possible are Words with 7, 8 or 9 Bit
+	uint32 wordLength = 7 + (uint32) databits;
+	if(parity != e_parity::NONE)
+	{
+		wordLength++;
+	}
+	if(wordLength > 9)
+	{
+		return(FAIL);
+	}
+	
+	
+	//	Lock Mutex of Tx DMA
+	STM32L010RBT6& stm32 = STM32L010RBT6::get();
+	DMA& dma_tx = stm32.get_dma(6);
+	m_dma_tx = &dma_tx;
+	if(cmos.mutex_lock(m_dma_tx) != OK)
+	{
+		return(FAIL);
+	}
+	//	The Request Mapping is only changed by the Owner of the Channel
+	dma_tx.set_requestMapping(DMA::e_requestMapping::CH6_LPUART1TX);
+	
+	
+	//	Lock Mutex of Rx DMA
+	DMA& dma_rx = stm32.get_dma(5);
+	m_dma_rx = &dma_rx;
+	if(cmos.mutex_lock(m_dma_rx) != OK)
+	{
+		cmos.mutex_unlock(m_dma_tx);
+		return(FAIL);
+	}
+	//	The Request Mapping is only changed by the Owner of the Channel
+	dma_rx.set_requestMapping(DMA::e_requestMapping::CH5_LPUART1RX);
+	
+	
+	//	Rx and Tx Buffer
 	m_data = rxBuffer;
 	m_size = rxBufferSize;
-	clear();
+	reset();
 	m_txBuffer = RingbufferExternal<uint8>(txBuffer, txBufferSize);
+	m_txInFlight = 0;
 	
 	
 	//	Reset LPUART
@@ -80,46 +96,35 @@ feedback LP_UART_1::init(uint32 baud, e_databits databits, e_parity parity, e_st
 	rcc.set_clockSource(RCC::e_clockSource_lpuart_1::SYSTEM_CLOCK);
 	
 	
-	//	Databits
-	switch(databits)
+	//	Word Length M[1:0]: 10 = 7 Bit, 00 = 8 Bit, 01 = 9 Bit, including the Parity Bit
+	if(wordLength == 7)
 	{
-		case e_databits::_7:
-		{
-			bit::clear(*MCU::LP_UART_1::CR1, 12);
-			bit::set(*MCU::LP_UART_1::CR1, 28);
-		}
-		break;
-		
-		case e_databits::_8:
-		{
-			bit::clear(*MCU::LP_UART_1::CR1, 12);
-			bit::clear(*MCU::LP_UART_1::CR1, 28);
-		}
-		break;
-		
-		case e_databits::_9:
-		{
-			bit::set(*MCU::LP_UART_1::CR1, 12);
-			bit::clear(*MCU::LP_UART_1::CR1, 28);
-		}
-		break;
-		
-		default:
-		{
-			return(FAIL);
-		}
+		bit::clear(*MCU::LP_UART_1::CR1, 12);
+		bit::set(*MCU::LP_UART_1::CR1, 28);
+	}
+	else if(wordLength == 8)
+	{
+		bit::clear(*MCU::LP_UART_1::CR1, 12);
+		bit::clear(*MCU::LP_UART_1::CR1, 28);
+	}
+	else
+	{
+		bit::set(*MCU::LP_UART_1::CR1, 12);
+		bit::clear(*MCU::LP_UART_1::CR1, 28);
 	}
 	
 	
 	//	Baud Rate
-	//	Ratio Input Clock to Baudrate must be in the Range 3...4096
-	//	Chapter 22.7.4 in RM 0451 Rev. 3)
-	uint32 clock_ratio = rcc.get_clock_system() / baud;
-	if(clock_ratio < 3 || clock_ratio > 4096)
+	//	BRR = 256 * Input Clock / Baudrate, rounded to the nearest Value, it must be in the Range 0x300...0xFFFFF (RM0451, LPUART_BRR)
+	//	Dividing first would lose the fractional Part of the Ratio
+	const uint64 brr = (256ull * rcc.get_clock_system() + baud / 2) / baud;
+	if(brr < 0x300 || brr > 0xFFFFF)
 	{
+		cmos.mutex_unlock(m_dma_rx);
+		cmos.mutex_unlock(m_dma_tx);
 		return(FAIL);
 	}
-	*MCU::LP_UART_1::BRR = 256 * clock_ratio;
+	*MCU::LP_UART_1::BRR = (uint32) brr;
 	
 	
 	//	Stop Bits
@@ -147,6 +152,8 @@ feedback LP_UART_1::init(uint32 baud, e_databits databits, e_parity parity, e_st
 	//	Rx DMA Setup
 	if(m_dma_rx->transfer((void*) MCU::LP_UART_1::RDR, m_data, I_DMA::e_dataType::UINT8, I_DMA::e_dataType::UINT8, false, true, I_DMA::e_direction::PERIPHERAL_TO_MEMORY, true, m_size, I_DMA::e_priority::VERY_HIGH, false) != OK)
 	{
+		cmos.mutex_unlock(m_dma_rx);
+		cmos.mutex_unlock(m_dma_tx);
 		return(FAIL);
 	}
 	
@@ -157,8 +164,8 @@ feedback LP_UART_1::init(uint32 baud, e_databits databits, e_parity parity, e_st
 	
 	//	Interrupt
 	NVIC& nvic = cmos.get_nvic();
-	nvic.setPriority(Interrupt::LP_UART_1, 10);
-	nvic.enable(Interrupt::LP_UART_1);
+	nvic.setPriority(Interrupt::LPUART_1, 2);				//	Cortex-M0/M0+: 2 Priority Bits, own Interrupts use 1 to 2
+	nvic.enable(Interrupt::LPUART_1);
 	
 	
 	//	LPUART 1 Enable
@@ -181,25 +188,35 @@ feedback LP_UART_1::init(uint32 baud, e_databits databits, e_parity parity, e_st
 
 feedback LP_UART_1::deinit()
 {
-	//	Check if all related Semaphores are owned by running Thread
+	//	Check if all related Mutexes are owned by running Thread
 	CMOS& cmos = CMOS::get();
-	if(cmos.semaphore_isOwnedByRunningThread(this) == false)
+	if(cmos.mutex_isOwnedByRunningThread(this) == false)
 	{
 		return(FAIL);
 	}
-	if(cmos.semaphore_isOwnedByRunningThread(m_dma_tx) == false)
+	if(cmos.mutex_isOwnedByRunningThread(m_dma_tx) == false)
 	{
 		return(FAIL);
 	}
-	if(cmos.semaphore_isOwnedByRunningThread(m_dma_rx) == false)
+	if(cmos.mutex_isOwnedByRunningThread(m_dma_rx) == false)
 	{
 		return(FAIL);
+	}
+	
+	
+	//	Wait for the End of the Transmission (TC): tx returns as soon as the DMA is done, but the last Bytes are still in the Data Register
+	//	and in the Shift Register then - resetting the USART earlier would cut them off. The Timeout covers 2 Frames at 300 Baud
+	uint32 timeout_ms = 100;
+	while(m_initialized == true && bit::isCleared(*MCU::LP_UART_1::ISR, 6) == true && timeout_ms > 0)
+	{
+		cmos.sleep_ms(1);
+		timeout_ms--;
 	}
 	
 	
 	//	Disable Interrupt
 	NVIC& nvic = cmos.get_nvic();
-	if(nvic.disable(Interrupt::LP_UART_1) != OK)
+	if(nvic.disable(Interrupt::LPUART_1) != OK)
 	{
 		return(FAIL);
 	}
@@ -225,6 +242,7 @@ feedback LP_UART_1::deinit()
 	
 	//	Reset Tx Buffer
 	m_txBuffer.reset();
+	m_txInFlight = 0;
 	
 	
 	//	Reset USART
@@ -236,16 +254,16 @@ feedback LP_UART_1::deinit()
 	}
 	
 	
-	//	Free Semaphores
-	if(cmos.semaphore_unlock(m_dma_rx) != OK)
+	//	Free Mutexes
+	if(cmos.mutex_unlock(m_dma_rx) != OK)
 	{
 		return(FAIL);
 	}
-	if(cmos.semaphore_unlock(m_dma_tx) != OK)
+	if(cmos.mutex_unlock(m_dma_tx) != OK)
 	{
 		return(FAIL);
 	}
-	if(cmos.semaphore_unlock(this) != OK)
+	if(cmos.mutex_unlock(this) != OK)
 	{
 		return(FAIL);
 	}
@@ -279,7 +297,8 @@ void ISR_LPUART_1()
 		
 		
 		//	Update Head
-		uart.m_head = uart.m_size - *MCU::DMA::CH5_NDTR;
+		//	The DMA writes the received Data into the Buffer by itself, NDTR counts the remaining Elements until the End of the Buffer
+		uart.set_writePosition(uart.m_size - *MCU::DMA::CH5_NDTR);
 		
 		
 		//	Notify Threads about received Data
@@ -295,7 +314,6 @@ void ISR_LPUART_1()
 		bit::set(*MCU::LP_UART_1::ICR, 3);
 		
 		
-		//	Reset Rx Buffer
-		uart.clear();
+		//	The received Bytes stay in the Buffer, only the Bytes arriving during the Overrun are lost
 	}
 }

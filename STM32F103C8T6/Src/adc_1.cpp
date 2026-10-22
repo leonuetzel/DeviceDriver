@@ -28,7 +28,15 @@ feedback ADC_1::init(uint32 clock, uint16 valueBuffer[c_numberOfValues])
 {
 	//	Protect from unauthorized Access
 	CMOS& cmos = CMOS::get();
-	if(cmos.semaphore_isOwnedByRunningThread(this) == false)
+	if(cmos.mutex_isOwnedByRunningThread(this) == false)
+	{
+		return(FAIL);
+	}
+	
+	
+	//	init() runs once: while the ADC converts, its DMA Channel runs circularly. A second Call returns FAIL before it changes
+	//	anything - otherwise it would reset the ADC and then fail at the busy Channel, and the Conversion would stop
+	if(STM32F103C8T6::get().get_dma(0).is_busy() == true)
 	{
 		return(FAIL);
 	}
@@ -107,18 +115,20 @@ feedback ADC_1::init(uint32 clock, uint16 valueBuffer[c_numberOfValues])
 	*MCU::ADC_1::SQR2 = 0x2304A0E6;
 	*MCU::ADC_1::SQR3 = 0x0A418820;
 	
-	*MCU::ADC_1::SMPR1 = 0x006C0000;
+	//	Sampling Time 239.5 Cycles: the Temperature Sensor and VREF_INT need 17.1µs (Datasheet, TS_temp and TS_vrefint), that is 239.5 Cycles at 14MHz
+	*MCU::ADC_1::SMPR1 = 0x00FC0000;
 	*MCU::ADC_1::SMPR2 = 0x3FFFFFFF;
 	
 	
 	//	DMA
 	I_DMA& dma = stm32f103c8t6.get_dma(0);
-	if(cmos.semaphore_lock(&dma) != OK)
+	if(cmos.mutex_lock(&dma) != OK)
 	{
 		return(FAIL);
 	}
 	if(dma.transfer((void*) MCU::ADC_1::DR, m_value, I_DMA::e_dataType::UINT16, I_DMA::e_dataType::UINT16, false, true, I_DMA::e_direction::PERIPHERAL_TO_MEMORY, true, c_numberOfValues, I_DMA::e_priority::VERY_HIGH, false) != OK)
 	{
+		cmos.mutex_unlock(&dma);
 		return(FAIL);
 	}
 	

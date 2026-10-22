@@ -20,12 +20,7 @@ feedback BackupSRAM::startup()
 {
 	writeProtection(false);
 	
-	bit::set(*MCU::RCC::BDCR, 16);																																																//  Reset Backup Domain
-	while(bit::isCleared(*MCU::RCC::BDCR, 16))
-	{
-		
-	}
-	bit::clear(*MCU::RCC::BDCR, 16);
+	//	The Backup Domain is not reset: Backup SRAM, Backup Registers and RTC keep their Contents over a Reset of the Microcontroller
 	
 	RCC& rcc = STM32H753BIT6::get().get_rcc();
 	rcc.module_clockInit(RCC::e_module::BKP_RAM, true);

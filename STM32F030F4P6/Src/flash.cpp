@@ -26,7 +26,8 @@
 
 feedback Flash::set_waitStates(uint32 clock_ahb)
 {
-	uint32 temp = *MCU::FLASH::ACR & 0x00000007;
+	//	LATENCY (Bits 2:0) is replaced, the other Bits (e.g. the Prefetch Buffer) are kept
+	uint32 temp = *MCU::FLASH::ACR & 0xFFFFFFF8;
 	if(clock_ahb > 24000000)
 	{
 		*MCU::FLASH::ACR = temp | 0x1;

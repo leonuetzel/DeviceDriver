@@ -1,6 +1,7 @@
 #pragma once
 
 #include "cmos.hpp"
+#include "vrefbuf.hpp"
 
 
 
@@ -32,7 +33,7 @@ class ADC_3
 		
 		
 		//	Non-static Member
-		uint16 m_clock;
+		uint32 m_clock;
 		uint16* m_value;
 		
 		
@@ -57,7 +58,9 @@ class ADC_3
 		
 	public:
 		
-		feedback init(uint32 clock, uint16 valueBuffer[c_valueBufferSize], e_clockSource clockSource);
+		//	The DMA writes the 16 regular Channels into the first 32 Bytes of valueBuffer, the Driver writes the 4 injected Channels behind them
+		//	With the Data Cache on, valueBuffer must start at a Cache Line, e.g. alignas(32), so the CPU never shares a Line with the DMA
+		feedback init(uint32 clock, uint16 valueBuffer[c_valueBufferSize], e_clockSource clockSource, VREFBUF::e_mode referenceMode = VREFBUF::e_mode::EXTERNAL, VREFBUF::e_voltage referenceVoltage = VREFBUF::e_voltage::VOLTAGE_2V5);
 		
 		inline uint16 operator[](uint8 channel) const;
 };
@@ -97,8 +100,8 @@ inline ADC_3::~ADC_3()
 
 inline feedback ADC_3::startup()
 {
-	//	Create Semaphore
-	return(CMOS::get().semaphore_create(this));
+	//	Create Mutex
+	return(CMOS::get().mutex_create(this));
 }
 
 

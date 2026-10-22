@@ -453,13 +453,20 @@ feedback RCC::set_clockSource(e_clockSource_system clockSource)
 	*MCU::RCC::CFGR = temp | (uint32) clockSource;
 	
 	
-	//	Check if Switch was successful
-	if(get_clockSource_system() != clockSource)
+	//	Wait for the Switch: SWS follows SW after some Clock Cycles of both Clock Sources
+	uint32 timeout = 100000;
+	while(get_clockSource_system() != clockSource)
 	{
-		//	Undo Changes and return
-		m_clockSource_system = clockSourceSystemOld;
-		calculate_clockTree();
-		return(FAIL);
+		timeout--;
+		if(timeout == 0)
+		{
+			//	Undo Changes and return
+			temp = *MCU::RCC::CFGR & 0xFFFFFFFC;
+			*MCU::RCC::CFGR = temp | (uint32) clockSourceSystemOld;
+			m_clockSource_system = clockSourceSystemOld;
+			calculate_clockTree();
+			return(FAIL);
+		}
 	}
 	
 	
@@ -575,7 +582,14 @@ feedback RCC::init_pll_1(uint32 clock_out)
 	if(m_clockSource_pll_1 == e_clockSource_pll_1::HSI_DIV2)
 	{
 		//	Input Prescaler is fixed for HSI Input, so we can leave the Input Prescaler at it's old Value
-		bestPrescalerIndex = prescaler_old;
+		//	It is written back below by its Index, so the Index of the old Value is needed
+		for(uint32 prescalerIndex = 0; prescalerIndex < numberOfPrescalers; prescalerIndex++)
+		{
+			if(c_prescaler_pll_1_input[prescalerIndex] == prescaler_old)
+			{
+				bestPrescalerIndex = prescalerIndex;
+			}
+		}
 		
 		
 		//	Check if Clocks meet the Constraints
@@ -843,6 +857,20 @@ feedback RCC::init_pll_2_3(uint32 clock_out_pll2, uint32 clock_out_pll3)
 				}
 				
 				
+				//	PLL 1 is fed by PLL 2 (through PREDIV1): its Input and Output must stay within their Limits as well
+				if(m_clockSource_pll_1 == e_clockSource_pll_1::PLL2 && m_pll_1_enabled == true)
+				{
+					if(m_clock_pll_1_input < c_clock_pll_1_input_min || m_clock_pll_1_input > c_clock_pll_1_input_max)
+					{
+						continue;
+					}
+					if(m_clock_pll_1 < c_clock_pll_1_output_min || m_clock_pll_1 > c_clock_pll_1_output_max)
+					{
+						continue;
+					}
+				}
+				
+				
 				//	Check Deviation from desired Clock
 				const uint32 deviation_pll2 = Math::absolute<int32>(((int32) m_clock_pll_2) - clock_out_pll2);
 				const uint32 deviation_pll3 = Math::absolute<int32>(((int32) m_clock_pll_3) - clock_out_pll3);
@@ -1002,7 +1030,10 @@ feedback RCC::module_clockInit(e_module module, bool enable)
 	
 	if(enable == true)
 	{
+		//	The Clock of the Peripheral is active some Clock Cycles after its Enable Bit (2 on the L4/G4, RM0394): the dummy Read delays the
+		//	first Access to the Peripheral, as the ST HAL does it on every STM32
 		bit::set(*reg, bit);
+		(void) *reg;
 		return(OK);
 	}
 	if(enable == false)
@@ -1054,6 +1085,48 @@ feedback RCC::module_reset(e_module module)
 
 
 
+
+
+feedback RCC::init_lse(bool enable)
+{
+	//	The LSE belongs to the Backup Domain: its Write Protection (PWR, DBP) has to be disabled
+	if(enable == true)
+	{
+		//	LSE is already running
+		if(bit::isSet(*MCU::RCC::BDCR, 1) == true)
+		{
+			return(OK);
+		}
+		
+		
+		//	LSE not bypassed (Crystal), it can only be changed while the LSE is off
+		bit::clear(*MCU::RCC::BDCR, 2);
+		
+		
+		//	LSE Enable
+		bit::set(*MCU::RCC::BDCR, 0);
+		
+		
+		//	Wait for LSE to become stable: a Crystal needs up to some Seconds to start (Datasheet, tSU(LSE))
+		CMOS& cmos = CMOS::get();
+		const uint64 timestampStart = cmos.get_timestamp();
+		while(bit::isCleared(*MCU::RCC::BDCR, 1) == true)
+		{
+			if(cmos.getMilliSecondsSinceTimestamp(timestampStart) > 5000)
+			{
+				//	No Crystal, or the Backup Domain is write protected
+				bit::clear(*MCU::RCC::BDCR, 0);
+				return(FAIL);
+			}
+		}
+	}
+	else
+	{
+		//	LSE Disable
+		bit::clear(*MCU::RCC::BDCR, 0);
+	}
+	return(OK);
+}
 
 
 feedback RCC::reset_backupDomain()

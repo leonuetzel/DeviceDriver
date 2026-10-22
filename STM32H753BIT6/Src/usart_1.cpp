@@ -26,40 +26,64 @@
 
 feedback USART_1::init(uint32 baud, e_databits databits, e_parity parity, e_stopbits stopbits, uint8* rxBuffer, uint32 rxBufferSize, uint8* txBuffer, uint32 txBufferSize)
 {
-	//	Check if Semaphore is locked
+	//	Check if Mutex is locked
 	CMOS& cmos = CMOS::get();
-	if(cmos.semaphore_isOwnedByRunningThread(this) == false)
+	if(cmos.mutex_isOwnedByRunningThread(this) == false)
 	{
 		return(FAIL);
 	}
 	
 	
-	//	Lock Semaphore of Tx DMA
+	//	Check the Parameters before the DMA Channels are locked, so that a Failure does not leave them locked
+	//	With the Data Cache on, the Rx Buffer is invalidated after every Reception and must own its Cache Lines (see cacheMaintenance.hpp)
+	if(rxBufferSize <= 0 || rxBuffer == nullptr || txBufferSize <= 0 || txBuffer == nullptr)
+	{
+		return(FAIL);
+	}
+	if(CacheMaintenance::ownsCacheLines(rxBuffer, rxBufferSize) == false)
+	{
+		return(FAIL);
+	}
+	
+	
+	//	Word Length: the Parity Bit is the MSB of the Word, so with Parity the Word is one Bit longer than the Databits
+	//	Possible are Words with 7, 8 or 9 Bit
+	uint32 wordLength = 7 + (uint32) databits;
+	if(parity != e_parity::NONE)
+	{
+		wordLength++;
+	}
+	if(wordLength > 9)
+	{
+		return(FAIL);
+	}
+	
+	
+	//	Lock Mutex of Tx DMA
 	STM32H753BIT6& stm32 = STM32H753BIT6::get();
 	m_dma_tx = &stm32.get_dma_1(4);
-	if(cmos.semaphore_lock(m_dma_tx) != OK)
+	if(cmos.mutex_lock(m_dma_tx) != OK)
 	{
 		return(FAIL);
 	}
 	
 	
-	//	Lock Semaphore of Rx DMA
+	//	Lock Mutex of Rx DMA
 	m_dma_rx = &stm32.get_dma_1(3);
-	if(cmos.semaphore_lock(m_dma_rx) != OK)
+	if(cmos.mutex_lock(m_dma_rx) != OK)
 	{
+		cmos.mutex_unlock(m_dma_tx);
 		return(FAIL);
 	}
 	
 	
 	//	Rx and Tx Buffer
-	if(rxBufferSize <= 0 || rxBuffer == nullptr || txBufferSize <= 0 || txBuffer == nullptr)
-	{
-		return(FAIL);
-	}
+	//	With the Data Cache on, the Rx Buffer is invalidated after every Reception and must own its Cache Lines (see cacheMaintenance.hpp)
 	m_data = rxBuffer;
 	m_size = rxBufferSize;
-	clear();
+	reset();
 	m_txBuffer = RingbufferExternal<uint8>(txBuffer, txBufferSize);
+	m_txInFlight = 0;
 	
 	
 	//	Reset USART
@@ -76,33 +100,21 @@ feedback USART_1::init(uint32 baud, e_databits databits, e_parity parity, e_stop
 	
 	
 	
-	switch(databits)
+	//	Word Length M[1:0]: 10 = 7 Bit, 00 = 8 Bit, 01 = 9 Bit, including the Parity Bit
+	if(wordLength == 7)
 	{
-		case e_databits::_7:
-		{
-			bit::clear(*MCU::USART_1::CR1, 12);
-			bit::set(*MCU::USART_1::CR1, 28);
-		}
-		break;
-		
-		case e_databits::_8:
-		{
-			bit::clear(*MCU::USART_1::CR1, 12);
-			bit::clear(*MCU::USART_1::CR1, 28);
-		}	
-		break;
-		
-		case e_databits::_9:
-		{
-			bit::set(*MCU::USART_1::CR1, 12);
-			bit::clear(*MCU::USART_1::CR1, 28);
-		}
-		break;
-		
-		default:
-		{
-			return(FAIL);
-		}
+		bit::clear(*MCU::USART_1::CR1, 12);
+		bit::set(*MCU::USART_1::CR1, 28);
+	}
+	else if(wordLength == 8)
+	{
+		bit::clear(*MCU::USART_1::CR1, 12);
+		bit::clear(*MCU::USART_1::CR1, 28);
+	}
+	else
+	{
+		bit::set(*MCU::USART_1::CR1, 12);
+		bit::clear(*MCU::USART_1::CR1, 28);
 	}
 	
 	
@@ -145,6 +157,8 @@ feedback USART_1::init(uint32 baud, e_databits databits, e_parity parity, e_stop
 	//	Rx DMA Setup
 	if(m_dma_rx->transfer((void*) MCU::USART_1::RDR, m_data, I_DMA::e_dataType::UINT8, I_DMA::e_dataType::UINT8, false, true, I_DMA::e_direction::PERIPHERAL_TO_MEMORY, true, m_size, I_DMA::e_priority::VERY_HIGH, false) != OK)
 	{
+		cmos.mutex_unlock(m_dma_rx);
+		cmos.mutex_unlock(m_dma_tx);
 		return(FAIL);
 	}
 	
@@ -179,19 +193,29 @@ feedback USART_1::init(uint32 baud, e_databits databits, e_parity parity, e_stop
 
 feedback USART_1::deinit()
 {
-	//	Check if all related Semaphores are owned by running Thread
+	//	Check if all related Mutexes are owned by running Thread
 	CMOS& cmos = CMOS::get();
-	if(cmos.semaphore_isOwnedByRunningThread(this) == false)
+	if(cmos.mutex_isOwnedByRunningThread(this) == false)
 	{
 		return(FAIL);
 	}
-	if(cmos.semaphore_isOwnedByRunningThread(m_dma_tx) == false)
+	if(cmos.mutex_isOwnedByRunningThread(m_dma_tx) == false)
 	{
 		return(FAIL);
 	}
-	if(cmos.semaphore_isOwnedByRunningThread(m_dma_rx) == false)
+	if(cmos.mutex_isOwnedByRunningThread(m_dma_rx) == false)
 	{
 		return(FAIL);
+	}
+	
+	
+	//	Wait for the End of the Transmission (TC): tx returns as soon as the DMA is done, but the last Bytes are still in the Data Register
+	//	and in the Shift Register then - resetting the USART earlier would cut them off. The Timeout covers 2 Frames at 300 Baud
+	uint32 timeout_ms = 100;
+	while(m_initialized == true && bit::isCleared(*MCU::USART_1::ISR, 6) == true && timeout_ms > 0)
+	{
+		cmos.sleep_ms(1);
+		timeout_ms--;
 	}
 	
 	
@@ -223,6 +247,7 @@ feedback USART_1::deinit()
 	
 	//	Reset Tx Buffer
 	m_txBuffer.reset();
+	m_txInFlight = 0;
 	
 	
 	//	Reset USART
@@ -234,16 +259,16 @@ feedback USART_1::deinit()
 	}
 	
 	
-	//	Free Semaphores
-	if(cmos.semaphore_unlock(m_dma_rx) != OK)
+	//	Free Mutexes
+	if(cmos.mutex_unlock(m_dma_rx) != OK)
 	{
 		return(FAIL);
 	}
-	if(cmos.semaphore_unlock(m_dma_tx) != OK)
+	if(cmos.mutex_unlock(m_dma_tx) != OK)
 	{
 		return(FAIL);
 	}
-	if(cmos.semaphore_unlock(this) != OK)
+	if(cmos.mutex_unlock(this) != OK)
 	{
 		return(FAIL);
 	}
@@ -276,8 +301,14 @@ CODE_RAM void ISR_USART_1()
 		bit::set(*MCU::USART_1::ICR, 4);
 		
 		
+		//	Cache Maintenance: the CPU reads the received Data only after this
+		//	The whole Buffer is invalidated, the CPU never writes it
+		CacheMaintenance::afterWrite(usart.m_data, usart.m_size);
+		
+		
 		//	Update Head
-		usart.m_head = usart.m_size - *MCU::DMA_1::CH3_NDTR;
+		//	The DMA writes the received Data into the Buffer by itself, NDTR counts the remaining Elements until the End of the Buffer
+		usart.set_writePosition(usart.m_size - *MCU::DMA_1::CH3_NDTR);
 		
 		
 		//	Notify Threads about received Data
@@ -293,7 +324,6 @@ CODE_RAM void ISR_USART_1()
 		bit::set(*MCU::USART_1::ICR, 3);
 		
 		
-		//	Reset Rx Buffer
-		usart.clear();
+		//	The received Bytes stay in the Buffer, only the Bytes arriving during the Overrun are lost
 	}
 }

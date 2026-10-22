@@ -22,6 +22,10 @@ class Flash: public I_Flash
 		static constexpr uint32 c_pageSizeInBytes	= 128 * 1024;
 		static constexpr uint32 c_numberOfPages		= 16;
 		static constexpr uint32 c_size						= c_pageSizeInBytes * c_numberOfPages;
+		static constexpr uint32 c_numberOfSectorsPerBank	= 8;
+		static constexpr uint32 c_flashStartAddress			= 0x08000000;
+		//	Error Flags of FLASH_SR1/2: WRPERR, PGSERR, STRBERR, INCERR, OPERR - the same Bits in FLASH_CCR1/2 clear them
+		static constexpr uint32 c_errorFlags							= (1 << 17) | (1 << 18) | (1 << 19) | (1 << 21) | (1 << 22);
 		
 		
 		//	Non-static Member
@@ -37,6 +41,10 @@ class Flash: public I_Flash
 		
 		//	Member Functions
 		feedback startup();
+		static void get_registers(uint32 bank, volatile uint32*& KEYR, volatile uint32*& CR, volatile uint32*& SR, volatile uint32*& CCR);
+		static feedback unlock(uint32 bank);
+		static feedback wait(uint32 bank);
+		static void invalidateCaches(const void* address, uint32 sizeInBytes);
 		
 		
 		//	Friends
@@ -51,6 +59,8 @@ class Flash: public I_Flash
 		virtual feedback writePage(uint32* data, uint32 pageNumber) override;
 		virtual feedback erase(uint32 pageNumber) override;
 		virtual feedback erase() override;
+		feedback write(const uint32* flashWord, uint32 address);
+		feedback swapBanks();
 		
 		virtual uint32 get_pageSize() const override;
 		virtual uint32 get_numberOfPages() const override;

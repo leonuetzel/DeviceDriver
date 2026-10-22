@@ -101,8 +101,8 @@ inline ADC::~ADC()
 
 inline feedback ADC::startup()
 {
-	//	Create Semaphore
-	CMOS::get().semaphore_create(this);
+	//	Create Mutex
+	CMOS::get().mutex_create(this);
 	
 	
 	return(OK);

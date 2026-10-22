@@ -258,6 +258,43 @@ INTERRUPT_VECTOR const STM32G474MCT6::s_interruptTable STM32G474MCT6::c_interrup
 /*                      						Private	  			 						 						 */
 /*****************************************************************************/
 
+bool STM32G474MCT6::startBegin(volatile uint8& state)
+{
+	//	Check and Change of the State as one exclusive Access (LDREXB/STREXB, ARMv7-M), without disabling Interrupts: an Exception or a Thread
+	//	Switch between the two Instructions clears the exclusive Monitor, STREXB fails and the Check is repeated. So exactly one Caller gets
+	//	true and starts the Peripheral
+	uint8 old = c_notStarted;
+	uint32 failed = 0;
+	do
+	{
+		asm volatile("ldrexb %[out_a], [%[in_a]]" : [out_a] "=r" (old) : [in_a] "r" (&state) : "memory");
+		if(old != c_notStarted)
+		{
+			asm volatile("clrex" : : : "memory");
+			break;
+		}
+		asm volatile("strexb %[out_a], %[in_a], [%[in_b]]" : [out_a] "=&r" (failed) : [in_a] "r" ((uint32) c_starting), [in_b] "r" (&state) : "memory");
+	}
+	while(failed != 0);
+	if(old == c_notStarted)
+	{
+		return(true);
+	}
+
+
+	//	Another Thread starts it right now: wait until it is started. An Interrupt (IPSR != 0) cannot wait for a Thread - but there the
+	//	Peripheral is already in Use, because its Interrupt is only enabled by its Driver
+	uint32 ipsr;
+	asm volatile("mrs %[out_a], ipsr" : [out_a] "=r" (ipsr) : : "memory");
+	CMOS& cmos = CMOS::get();
+	while(state != c_started && (ipsr & 0x1FF) == 0)
+	{
+		cmos.sleep_ms(1);
+	}
+	return(false);
+}
+
+
 void STM32G474MCT6::copy_flashToRAM(const uint32* src, uint32* dest, uint32 sizeInBytes)
 {
 	for(uint32 i = 0; i < sizeInBytes / 4; i++)
@@ -303,6 +340,19 @@ void STM32G474MCT6::preInit()
 /*                      						Public	  			 						 						 */
 /*****************************************************************************/
 
+uint8 STM32G474MCT6::get_versionMajor()
+{
+	//	Compiled into the Library: the Version of the Library, not of the Headers the Application uses
+	return(DEVICEDRIVER_VERSION_MAJOR);
+}
+
+
+uint8 STM32G474MCT6::get_versionMinor()
+{
+	return(DEVICEDRIVER_VERSION_MINOR);
+}
+
+
 STM32G474MCT6& STM32G474MCT6::get()
 {
 	static STM32G474MCT6 stm32;
@@ -317,20 +367,62 @@ STM32G474MCT6& STM32G474MCT6::get()
 
 
 
-void EXCEPTION_RESET()
+//	Assembler: sets a Memory Region to zero, Word by Word - start and size are the Linker Symbols of its Address and of its Size in Bytes
+//	It uses only r0 (Address), r1 (End) and r2 (0) and no Stack; the local Labels 1 and 2 can be used again
+#define ZERO_RAM_ASM(start, size)					\
+	"ldr r0, =" start "					\n\t"	\
+	"ldr r1, =" size "					\n\t"	\
+	"adds r1, r0, r1					\n\t"	\
+	"movs r2, #0							\n\t"	\
+	"1:											\n\t"	\
+	"cmp r0, r1							\n\t"	\
+	"bhs 2f									\n\t"	\
+	"str r2, [r0]							\n\t"	\
+	"adds r0, r0, #4					\n\t"	\
+	"b 1b										\n\t"	\
+	"2:											\n\t"
+
+
+//	Reset Handler, Part 1: sets the SRAM to zero and moves the Stack Pointer to the upper End of the Stack Pool of CMOS, then calls Part 2
+//	The Function is naked and written in Assembler, it uses no Stack: the initial Stack Pointer of the Vector Table points into the SRAM that is
+//	zeroed here. The Stack Pool is unused until CMOS::run() creates the first Thread, and Stack::reserve takes the Blocks from its lower End:
+//	Part 2, CMOS::run(), the global Constructors and all Interrupts run on its upper End, until main() starts on its own Stack
+NAKED void EXCEPTION_RESET()
+{
+	asm volatile
+	(
+		//	Zero SRAM 1
+		ZERO_RAM_ASM("__memory_SRAM_1_start__", "__memory_SRAM_1_size__")
+		
+		//	Zero SRAM 2
+		ZERO_RAM_ASM("__memory_SRAM_2_start__", "__memory_SRAM_2_size__")
+		
+		//	Zero SRAM CCM
+		ZERO_RAM_ASM("__memory_SRAM_CCM_start__", "__memory_SRAM_CCM_size__")
+		
+		
+		//	Stack Pointer to the upper End of the Stack Pool (__cmos_stack_start__ + __cmos_stack_size__)
+		"ldr r0, =__cmos_stack_start__			\n\t"
+		"ldr r1, =__cmos_stack_size__			\n\t"
+		"adds r0, r0, r1								\n\t"
+		"msr msp, r0									\n\t"
+		
+		
+		//	Part 2, it never returns - the Literals of the ldr Instructions follow directly behind
+		"bl __resetHandler__						\n\t"
+		"b .												\n\t"
+		".ltorg											\n\t"
+	);
+}
+
+
+
+
+
+//	Reset Handler, Part 2: runs on the Stack Pool of CMOS, the SRAM is zero
+extern "C" void __resetHandler__()
 {
 	//	External Symbols
-	extern uint32 __memory_SRAM_1_start__;
-	extern uint32 __memory_SRAM_1_size__;
-	
-	extern uint32 __memory_SRAM_2_start__;
-	extern uint32 __memory_SRAM_2_size__;
-	
-	extern uint32 __memory_SRAM_CCM_start__;
-	extern uint32 __memory_SRAM_CCM_size__;
-	
-	
-	
 	extern uint32 __cmos_data_flash_start__;
 	extern uint32 __cmos_data_flash_size__;
 	extern uint32 __cmos_data_ram_start__;
@@ -339,25 +431,11 @@ void EXCEPTION_RESET()
 	extern uint32 __cmos_code_flash_size__;
 	extern uint32 __cmos_code_ram_start__;
 	
-	extern uint32 __cmos_heap_start__;
-	extern uint32 __cmos_heap_size__;
-	
 	
 	
 	
 	
 	//	Convenience
-	uint32* const				c_memory_SRAM_1_start		= (uint32*) &__memory_SRAM_1_start__;
-	const uint32				c_memory_SRAM_1_size		= (uint32)  &__memory_SRAM_1_size__;
-	
-	uint32* const				c_memory_SRAM_2_start		= (uint32*) &__memory_SRAM_2_start__;
-	const uint32				c_memory_SRAM_2_size		= (uint32)  &__memory_SRAM_2_size__;
-	
-	uint32* const				c_memory_SRAM_CCM_start	= (uint32*) &__memory_SRAM_CCM_start__;
-	const uint32				c_memory_SRAM_CCM_size	= (uint32)  &__memory_SRAM_CCM_size__;
-	
-	
-	
 	const uint32* const	c_data_flash_start	= (uint32*) &__cmos_data_flash_start__;
 	const uint32				c_data_flash_size		= (uint32)  &__cmos_data_flash_size__;
 	uint32* const				c_data_ram_start		= (uint32*) &__cmos_data_ram_start__;
@@ -366,33 +444,8 @@ void EXCEPTION_RESET()
 	const uint32				c_code_flash_size		= (uint32)  &__cmos_code_flash_size__;
 	uint32* const				c_code_ram_start		= (uint32*) &__cmos_code_ram_start__;
 	
-	const uint32* const	c_heap_start				= (uint32*) &__cmos_heap_start__;
-	const uint32				c_heap_size					= (uint32)  &__cmos_heap_size__;
 	
 	
-	
-	
-	
-	//	Zero Memories - IMPORTANT: Dont clear Stackpointer
-	constexpr uint32 c_stackpointerMemoryInBytes = 128;
-	STM32G474MCT6::zeroOutRAM(c_memory_SRAM_1_start, c_memory_SRAM_1_size - c_stackpointerMemoryInBytes);
-	
-	STM32G474MCT6::zeroOutRAM(c_memory_SRAM_2_start, c_memory_SRAM_2_size);
-	STM32G474MCT6::zeroOutRAM(c_memory_SRAM_CCM_start, c_memory_SRAM_CCM_size);
-	
-	
-	//	Set Stackpointer to reserved Stack Memory
-	asm volatile
-	(
-		"msr msp, %[in_a]"
-			:
-			:	[in_a] "r" (c_heap_start + c_heap_size / 4)
-			:
-	);
-	
-	
-	//	Zero Memory that couldnt be cleared before Stackpointer Moving
-	STM32G474MCT6::zeroOutRAM(c_memory_SRAM_1_start + (c_memory_SRAM_1_size - c_stackpointerMemoryInBytes) / 4, c_stackpointerMemoryInBytes);
 	
 	
 	//	Copy non-zero-initialized Variables to SRAM

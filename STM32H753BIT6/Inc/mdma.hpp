@@ -45,6 +45,8 @@ class MDMA
 		
 	public:
 		
+		//	The Transfers run on their own, the Functions return right after the Start
+		//	With the Data Cache on, call CacheMaintenance::afterWrite(destination, sizeInBytes) when the Transfer has ended, before the CPU reads the Destination
 		feedback copy(uint8 channel, uint8* source,	uint8* destination,		uint16 sizeInBytes);
 		feedback copy(uint8 channel, uint16* source,	uint16* destination,	uint16 sizeInBytes);
 		feedback copy(uint8 channel, uint32* source,	uint32* destination,	uint16 sizeInBytes);

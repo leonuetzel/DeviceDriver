@@ -24,7 +24,7 @@
 /*                      						Public	  			 						 						 */
 /*****************************************************************************/
 
-CODE_RAM feedback GPIO::init_pin(MCU::PIN pin, e_mode mode, e_speed speed, e_pupd pupd)
+feedback GPIO::init_pin(MCU::PIN pin, e_mode mode, e_speed speed, e_pupd pupd)
 {
 	const uint32 port = ((uint32) pin) >> 4;
 	const uint32 pinNumber = ((uint32) pin) & 0x0000000F;
@@ -96,7 +96,20 @@ CODE_RAM feedback GPIO::init_pin(MCU::PIN pin, e_mode mode, e_speed speed, e_pup
 	
 	if(mode != e_mode::IN && mode != e_mode::ANALOG)
 	{
-		mask |= (uint32) speed;
+		//	MODE Bits of the F1: 01 = 10 MHz, 10 = 2 MHz, 11 = 50 MHz, 00 is the Input Mode (RM0008, GPIOx_CRL)
+		//	The Values of I_GPIO::e_speed differ, so they are converted
+		switch(speed)
+		{
+			case e_speed::LOW:
+				mask |= 0x2;
+				break;
+			case e_speed::MEDIUM:
+				mask |= 0x1;
+				break;
+			default:
+				mask |= 0x3;
+				break;
+		}
 	}
 	const uint32 pinNumberModified = pinNumber & 0x7;
 	uint32 temp = *reg_cr & (0xFFFFFFFF - (0x0F << (4 * pinNumberModified)));

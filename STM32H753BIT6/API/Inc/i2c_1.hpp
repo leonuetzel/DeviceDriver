@@ -1,6 +1,7 @@
 #pragma once
 
 #include "cmos.hpp"
+#include "rcc.hpp"
 
 
 
@@ -34,6 +35,8 @@ class I2C_1: public I_I2C
 		
 		//	Member Functions
 		feedback startup();
+		feedback begin(uint8 slaveAddress, bool write, uint8 numberOfBytes, bool autoEnd, uint32 timeout_ms);
+		void reset();
 		
 		
 		//	Friends
@@ -45,9 +48,10 @@ class I2C_1: public I_I2C
 		
 	public:
 		
-		feedback init();
+		feedback init(e_mode mode = e_mode::FAST_400KHZ, RCC::e_clockSource_i2c clockSource = RCC::e_clockSource_i2c::BUS_CLOCK, bool analogFilterEnable = true, uint8 digitalFilterLength = 0);
 		
 		feedback start(uint8 slaveAddress, bool write, uint8 numberOfBytes = 0, uint32 timeout_ms = 100) override;
+		feedback start_withoutStop(uint8 slaveAddress, bool write, uint8 numberOfBytes, uint32 timeout_ms = 100) override;
 		void stop() override;
 		feedback tx(uint8 data, uint32 timeout_ms = 100) override;
 		uint8 rx(uint32 timeout_ms = 100) override;

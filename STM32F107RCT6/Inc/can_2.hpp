@@ -21,6 +21,8 @@ class CAN_2: public I_CAN
 		
 		//	Static Member
 		static CAN_2* m_this;
+		static constexpr uint32 c_firstFilterBank = 14;
+		static constexpr uint32 c_numberOfFilterBanks = 14;
 		
 		
 		//	Non-static Member
@@ -45,6 +47,11 @@ class CAN_2: public I_CAN
 		//	Member Functions
 		inline feedback startup();
 		feedback extractFrame(CAN_Frame& canFrame, uint32 RI, uint32 RDT, uint32 RDL, uint32 RDH);
+		static bool get_rangeAsMask(const s_filterElement& filterElement, uint32 id_max, uint32& mask);
+		static feedback check_filters(const Array<s_filterElement>& standardFilterElements, const Array<s_filterElement>& extendedFilterElements);
+		static uint32 get_numberOfFilterBanks(const Array<s_filterElement>& filterElements, bool extended);
+		static void set_filterBank(uint32 bank, bool scale_32Bit, uint32 register_1, uint32 register_2, bool fifo_1);
+		static void program_filters(const Array<s_filterElement>& standardFilterElements, const Array<s_filterElement>& extendedFilterElements);
 		
 		feedback writeToTxMailbox(const CAN_Frame& canFrame);
 		
@@ -119,9 +126,9 @@ inline CAN_2::~CAN_2()
 		delete m_rxBuffer;
 		
 		
-		//	Delete the corresponding Semaphore (needs to be locked by this Thread to erase)
-		cmos.semaphore_lock(m_rxBuffer);
-		cmos.semaphore_erase(m_rxBuffer);
+		//	Delete the corresponding Mutex (needs to be locked by this Thread to erase)
+		cmos.mutex_lock(m_rxBuffer);
+		cmos.mutex_erase(m_rxBuffer);
 	}
 	m_rxBuffer = nullptr;
 	
@@ -133,9 +140,9 @@ inline CAN_2::~CAN_2()
 		delete m_txBuffer;
 		
 		
-		//	Delete the corresponding Semaphore (needs to be locked by this Thread to erase)
-		cmos.semaphore_lock(m_txBuffer);
-		cmos.semaphore_erase(m_txBuffer);
+		//	Delete the corresponding Mutex (needs to be locked by this Thread to erase)
+		cmos.mutex_lock(m_txBuffer);
+		cmos.mutex_erase(m_txBuffer);
 	}
 	m_txBuffer = nullptr;
 }
@@ -148,8 +155,8 @@ inline CAN_2::~CAN_2()
 
 inline feedback CAN_2::startup()
 {
-	//	Create Semaphore
-	return(CMOS::get().semaphore_create(this));
+	//	Create Mutex
+	return(CMOS::get().mutex_create(this));
 }
 
 

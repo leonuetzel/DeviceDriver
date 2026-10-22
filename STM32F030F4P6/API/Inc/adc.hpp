@@ -11,6 +11,10 @@ class ADC
 {
 	public:
 		
+		static constexpr uint32 c_numberOfValues	= 11;
+		
+		
+		
 		enum class e_clockSource
 		{
 			HSI_14			= 0x0,
@@ -26,7 +30,6 @@ class ADC
 		
 		//	Static Member
 		static constexpr uint32 c_clock_max				= 14000000;
-		static constexpr uint32 c_numberOfValues	= 11;
 		
 		
 		//	Non-static Member
@@ -100,8 +103,8 @@ inline ADC::~ADC()
 
 inline feedback ADC::startup()
 {
-	//	Create Semaphore
-	CMOS::get().semaphore_create(this);
+	//	Create Mutex
+	CMOS::get().mutex_create(this);
 	
 	
 	return(OK);

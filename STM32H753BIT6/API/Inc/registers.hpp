@@ -9,7 +9,8 @@
 namespace Interrupt
 {
 	constexpr uint16 WWDG																			= 16;
-	constexpr uint16 PVD																			= 17;
+	constexpr uint16 PVD_PVM																			= 17;
+	[[deprecated("use Interrupt::PVD_PVM")]] constexpr uint16 PVD = PVD_PVM;
 	constexpr uint16 RTC_TAMPER_CSSLSE												= 18;
 	constexpr uint16 RTC_WAKEUP																= 19;
 	constexpr uint16 FLASH																		= 20;

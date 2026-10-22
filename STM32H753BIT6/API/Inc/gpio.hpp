@@ -204,7 +204,7 @@ namespace MCU
 		A1_TIMER2CH2															= 0x011,
 		A1_TIMER5CH2															= 0x012,
 		A1_LPTIMER3OUT														= 0x013,
-		A1_TIMER5CH1N															= 0x014,
+		A1_TIMER15CH1N															= 0x014,
 		A1_USART2RTS_USART2DE											= 0x017,
 		A1_UART4RX																= 0x018,
 		A1_QUADSPIBK1IO3													= 0x019,
@@ -323,7 +323,7 @@ namespace MCU
 		A11_FDCAN1RX															= 0x0B9,
 		A11_USB2DM																= 0x0BA,
 		A11_LCDR4																	= 0x0BE,
-		A11_EVENTOUT															= 0x0B,
+		A11_EVENTOUT															= 0x0BF,
 		
 		A12_TIMER1ETR															= 0x0C1,
 		A12_HRTIMERCHD2														= 0x0C2,

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "cmos.hpp"
+#include "pwr.hpp"
 
 
 
@@ -20,8 +21,8 @@ class RCC
 		static constexpr uint32 c_clock_hsi =        64000000;
 		static constexpr uint32 c_clock_csi =         4000000;
 		static constexpr uint32 c_clock_lsi = 					32000;
-		static constexpr uint32 c_clock_hse = 				8000000;
-		static constexpr uint32 c_clock_lse = 							0;
+		static constexpr uint32 c_clock_hse = 				8000000;		//	Default, set_clock_hse sets the real Frequency
+		static constexpr uint32 c_clock_lse = 					32768;
 		
 		
 		
@@ -236,6 +237,14 @@ class RCC
 			PLL_2_Q			= 0x2
 		};
 		
+		enum class e_clockSource_i2c : uint8
+		{
+			BUS_CLOCK		= 0x0,
+			PLL_3_R			= 0x1,
+			HSI					= 0x2,
+			CSI					= 0x3
+		};
+		
 		enum class e_resetReason
 		{
 			NONE,
@@ -258,6 +267,19 @@ class RCC
 	private:
 		
 		//	Static Member
+		//	Loops to wait for an Oscillator, a PLL or a Flag: some Milliseconds at 480 MHz, longer at lower Clocks
+		static constexpr uint32 c_loops_oscillator = 1000000;
+		
+		//	Settings of a PLL: Input Divider DIVM, Multiplier DIVN, Fraction FRACN, real VCO Frequency, Input Range PLLxRGE, VCO Range
+		typedef struct
+		{
+			uint32 divider_in;
+			uint32 multiplier;
+			uint32 fraction;
+			uint32 clock_vco;
+			uint32 inputRange;
+			e_pll_range range;
+		}s_pll;
 		
 		
 		
@@ -273,6 +295,7 @@ class RCC
 		e_clockSource_uart m_clockSource_uart_234578;
 		e_clockSource_fmc m_clockSource_fmc;
 		e_clockSource_can m_clockSource_can;
+		e_clockSource_i2c m_clockSource_i2c;
 		
 		e_pll_range m_pll_1_range;
 		e_pll_range m_pll_2_range;
@@ -293,6 +316,7 @@ class RCC
 		uint32 m_clock_apb1_timer;
 		uint32 m_clock_apb2_timer;
 		uint32 m_clock_perck;
+		uint32 m_clock_hse;
 		
 		uint8 m_divider_hsi;
 		uint32 m_divider_pll_1_p;
@@ -313,6 +337,9 @@ class RCC
 		uint32 m_divider_apb3;
 		uint32 m_divider_apb4;
 		
+		//	Reset Flags of the last Reset (RCC_RSR), taken in startup() before they are cleared - see get_resetFlags()
+		uint32 m_resetFlags;
+		
 		
 		//	Constructor and Destructor
 		constexpr inline RCC();
@@ -322,7 +349,18 @@ class RCC
 		
 		//	Member Functions
 		feedback startup();
-		feedback set_busPrescaler(uint32 newClock);
+		feedback set_busPrescaler(uint32 newClock, PWR::e_voltageLevel voltageLevel);
+		static bool waitForBit(volatile uint32* reg, uint32 bitNumber, bool state, uint32 numberOfLoops);
+		feedback get_clock_pllInput(uint32& clock_in);
+		static feedback calculate_pll(uint32 clock_in, uint32 clock_vco, s_pll& pll);
+		static feedback check_pllDividers(uint32 pllNumber, uint32 divider_p, uint32 divider_q, uint32 divider_r);
+		static uint32 get_clock_pllOutputMax(uint32 clock_vco, uint32 divider_p, uint32 divider_q, uint32 divider_r);
+		uint32 get_clock_pllsOutputMax(uint32 pllNumberExcluded);
+		feedback adapt_voltageLevel(PWR::e_voltageLevel voltageLevel);
+		feedback switchSystemClockToHSI(bool& switched);
+		feedback stop_pll(uint32 pllNumber);
+		feedback start_pll(uint32 pllNumber, const s_pll& pll, uint32 divider_p, uint32 divider_q, uint32 divider_r);
+		feedback init_pll(uint32 pllNumber, uint32 clock_out, uint32 divider_p, uint32 divider_q, uint32 divider_r);
 		
 		
 		//	Friends
@@ -336,6 +374,9 @@ class RCC
 		
 		feedback HSE_init(bool enable);
 		feedback HSI_init(bool enable, uint8 divider);
+		feedback init_lse(bool enable);
+		feedback init_lsi(bool enable);
+		feedback init_csi(bool enable);
 		
 		feedback set_clockSource_pll(e_clockSource_pll clockSource);
 		feedback pll_1_init(uint32 clock_out, uint32 divider_p, uint32 divider_q, uint32 divider_r);
@@ -353,12 +394,16 @@ class RCC
 		feedback module_clockInit(e_module module, bool enable);
 		feedback module_reset(e_module module);
 		
+		//	Reset Flags of the last Reset as RCC_RSR at Startup (the Reference Manual names the Bits)
+		constexpr inline uint32 get_resetFlags() const;
+		
 		feedback set_clockSource(e_clockSource_perck clockSource);
 		feedback set_clockSource(e_clockSource_adc clockSource);
 		feedback set_clockSource(e_clockSource_sdmmc clockSource);
 		feedback set_clockSource(e_clockSource_uart clockSource, uint32 uartNumber);
 		feedback set_clockSource(e_clockSource_fmc clockSource);
 		feedback set_clockSource(e_clockSource_can clockSource);
+		feedback set_clockSource(e_clockSource_i2c clockSource);
 		
 		constexpr inline e_clockSource_perck get_clockSource_perck();
 		constexpr inline e_clockSource_adc get_clockSource_adc();
@@ -367,6 +412,7 @@ class RCC
 		constexpr inline e_clockSource_uart get_clockSource_uart_234578();
 		constexpr inline e_clockSource_fmc get_clockSource_fmc();
 		constexpr inline e_clockSource_can get_clockSource_can();
+		constexpr inline e_clockSource_i2c get_clockSource_i2c();
 		
 		constexpr inline uint32 get_clock_pll_1();
 		constexpr inline uint32 get_clock_pll_2();
@@ -380,6 +426,11 @@ class RCC
 		constexpr inline uint32 get_clock_apb4();
 		constexpr inline uint32 get_clock_apb1_timer();
 		constexpr inline uint32 get_clock_apb2_timer();
+		
+		feedback set_clock_hse(uint32 clock);
+		constexpr inline uint32 get_clock_hse();
+		constexpr inline uint32 get_clock_hsi();
+		uint32 get_clock_i2c();
 		constexpr inline uint32 get_clock_perck();
 		
 		constexpr inline uint32 get_clock_pll_1_p();
@@ -419,6 +470,7 @@ constexpr inline RCC::RCC()
 		m_clockSource_uart_234578(e_clockSource_uart::BUS_CLOCK),
 		m_clockSource_fmc(e_clockSource_fmc::BUS_CLOCK),
 		m_clockSource_can(e_clockSource_can::HSE),
+		m_clockSource_i2c(e_clockSource_i2c::BUS_CLOCK),
 		
 		m_pll_1_range(e_pll_range::WIDE),
 		m_pll_2_range(e_pll_range::WIDE),
@@ -437,6 +489,7 @@ constexpr inline RCC::RCC()
 		m_clock_apb1_timer(m_clock_apb1),
 		m_clock_apb2_timer(m_clock_apb2),
 		m_clock_perck(c_clock_hsi),
+		m_clock_hse(c_clock_hse),
 		
 		m_divider_hsi(1),
 		m_divider_pll_1_p(2),
@@ -455,7 +508,8 @@ constexpr inline RCC::RCC()
 		m_divider_apb1(1),
 		m_divider_apb2(1),
 		m_divider_apb3(1),
-		m_divider_apb4(1)
+		m_divider_apb4(1),
+		m_resetFlags(0)
 {
 	
 }
@@ -519,6 +573,12 @@ constexpr inline RCC::e_clockSource_fmc RCC::get_clockSource_fmc()
 constexpr inline RCC::e_clockSource_can RCC::get_clockSource_can()
 {
 	return(m_clockSource_can);
+}
+
+
+constexpr inline RCC::e_clockSource_i2c RCC::get_clockSource_i2c()
+{
+	return(m_clockSource_i2c);
 }
 
 
@@ -599,6 +659,19 @@ constexpr inline uint32 RCC::get_clock_apb2_timer()
 }
 
 
+constexpr inline uint32 RCC::get_clock_hse()
+{
+	return(m_clock_hse);
+}
+
+
+constexpr inline uint32 RCC::get_clock_hsi()
+{
+	//	hsi_ck and hsi_ker_ck come after the Divider HSIDIV
+	return(c_clock_hsi / m_divider_hsi);
+}
+
+
 constexpr inline uint32 RCC::get_clock_perck()
 {
 	return(m_clock_perck);
@@ -612,53 +685,68 @@ constexpr inline uint32 RCC::get_clock_perck()
 
 constexpr inline uint32 RCC::get_clock_pll_1_p()
 {
-	return(m_clock_pll_1 / m_divider_pll_1_p);
+	//	Divider 0: the Output is off
+	return(m_divider_pll_1_p == 0 ? 0 : m_clock_pll_1 / m_divider_pll_1_p);
 }
 
 
 constexpr inline uint32 RCC::get_clock_pll_1_q()
 {
-	return(m_clock_pll_1 / m_divider_pll_1_q);
+	//	Divider 0: the Output is off
+	return(m_divider_pll_1_q == 0 ? 0 : m_clock_pll_1 / m_divider_pll_1_q);
 }
 
 
 constexpr inline uint32 RCC::get_clock_pll_1_r()
 {
-	return(m_clock_pll_1 / m_divider_pll_1_r);
+	//	Divider 0: the Output is off
+	return(m_divider_pll_1_r == 0 ? 0 : m_clock_pll_1 / m_divider_pll_1_r);
 }
 
 
 constexpr inline uint32 RCC::get_clock_pll_2_p()
 {
-	return(m_clock_pll_2 / m_divider_pll_2_p);
+	//	Divider 0: the Output is off
+	return(m_divider_pll_2_p == 0 ? 0 : m_clock_pll_2 / m_divider_pll_2_p);
 }
 
 
 constexpr inline uint32 RCC::get_clock_pll_2_q()
 {
-	return(m_clock_pll_2 / m_divider_pll_2_q);
+	//	Divider 0: the Output is off
+	return(m_divider_pll_2_q == 0 ? 0 : m_clock_pll_2 / m_divider_pll_2_q);
 }
 
 
 constexpr inline uint32 RCC::get_clock_pll_2_r()
 {
-	return(m_clock_pll_2 / m_divider_pll_2_r);
+	//	Divider 0: the Output is off
+	return(m_divider_pll_2_r == 0 ? 0 : m_clock_pll_2 / m_divider_pll_2_r);
 }
 
 
 constexpr inline uint32 RCC::get_clock_pll_3_p()
 {
-	return(m_clock_pll_3 / m_divider_pll_3_p);
+	//	Divider 0: the Output is off
+	return(m_divider_pll_3_p == 0 ? 0 : m_clock_pll_3 / m_divider_pll_3_p);
 }
 
 
 constexpr inline uint32 RCC::get_clock_pll_3_q()
 {
-	return(m_clock_pll_3 / m_divider_pll_3_q);
+	//	Divider 0: the Output is off
+	return(m_divider_pll_3_q == 0 ? 0 : m_clock_pll_3 / m_divider_pll_3_q);
 }
 
 
 constexpr inline uint32 RCC::get_clock_pll_3_r()
 {
-	return(m_clock_pll_3 / m_divider_pll_3_r);
+	//	Divider 0: the Output is off
+	return(m_divider_pll_3_r == 0 ? 0 : m_clock_pll_3 / m_divider_pll_3_r);
+}
+
+
+constexpr inline uint32 RCC::get_resetFlags() const
+{
+	return(m_resetFlags);
 }

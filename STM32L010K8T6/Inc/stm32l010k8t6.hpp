@@ -2,12 +2,15 @@
 
 #include "registers.hpp"
 #include "cmos.hpp"
+#include "deviceDriverVersion.hpp"
 
 #include "debug.hpp"
 #include "syscfg.hpp"
 #include "pwr.hpp"
 #include "flash.hpp"
+#include "update.hpp"
 #include "rcc.hpp"
+#include "watchdog.hpp"
 #include "gpio.hpp"
 #include "exti.hpp"
 #include "rtc.hpp"
@@ -22,6 +25,7 @@
 
 
 uint32 __startup__();
+extern "C" void __resetHandler__();
 
 
 
@@ -56,13 +60,6 @@ class STM32L010K8T6
 		Flash m_flash;
 		RCC m_rcc;
 		GPIO m_gpio;
-		EXTI m_exti;
-		RTC m_rtc;
-		Timer_2 m_timer_2;
-		DMA m_dma[DMA::c_channel];
-		ADC m_adc;
-		USART_2 m_usart_2;
-		I2C_1 m_i2c_1;
 		
 		
 		//	Constructor and Destructor
@@ -72,7 +69,18 @@ class STM32L010K8T6
 		
 		
 		//	Member Functions
+		//	Initializes the Core Drivers, only __startup__ calls it - all other Drivers start with the first Call of their Getter
 		inline feedback startup();
+
+
+		//	Peripherals besides the Core are created and started at the first Call of their Getter: a Program links, clocks and creates only the
+		//	Drivers it uses. startBegin() returns true for exactly one Caller, who starts the Peripheral and then calls startEnd(); a second
+		//	Thread that comes meanwhile waits until it is started. The first Call of a Getter must come from a Thread, not from an Interrupt
+		static constexpr uint8 c_notStarted						= 0;
+		static constexpr uint8 c_starting							= 1;
+		static constexpr uint8 c_started							= 2;
+		static bool startBegin(volatile uint8& state);
+		static inline void startEnd(volatile uint8& state);
 		
 		static void copy_flashToRAM(const uint32* src, uint32* dest, uint32 sizeInBytes);
 		static void zeroOutRAM(uint32* startAddress, uint32 sizeInBytes);
@@ -80,7 +88,9 @@ class STM32L010K8T6
 		
 		//	Friends
 		friend void EXCEPTION_RESET();
+		friend void __resetHandler__();
 		friend uint32 __startup__();
+		friend class Update;
 		
 		
 		
@@ -90,18 +100,25 @@ class STM32L010K8T6
 		
 		static STM32L010K8T6& get();
 		
+		
+		//	Version of the linked Library - if it differs from DEVICEDRIVER_VERSION_MAJOR/MINOR, Headers and Library do not belong together
+		static uint8 get_versionMajor();
+		static uint8 get_versionMinor();
+		
 		constexpr inline Flash& get_flash();
+		inline Update& get_update();
 		constexpr inline RCC& get_rcc();
 		constexpr inline PWR& get_pwr();
 		constexpr inline Debug& get_debug();
 		constexpr inline GPIO& get_gpio();
-		constexpr inline EXTI& get_exti();
-		constexpr inline RTC& get_rtc();
-		constexpr inline Timer_2& get_timer_2();
-		constexpr inline DMA& get_dma(uint8 channel);
-		constexpr inline ADC& get_adc();
-		constexpr inline USART_2& get_usart_2();
-		constexpr inline I2C_1& get_i2c_1();
+		inline Watchdog& get_watchdog();
+		inline EXTI& get_exti();
+		inline RTC& get_rtc();
+		inline Timer_2& get_timer_2();
+		inline DMA& get_dma(uint8 channel);
+		inline ADC& get_adc();
+		inline USART_2& get_usart_2();
+		inline I2C_1& get_i2c_1();
 };
 
 
@@ -140,14 +157,7 @@ inline STM32L010K8T6::STM32L010K8T6()
 		m_pwr(),
 		m_flash(),
 		m_rcc(m_flash),
-		m_gpio(),
-		m_exti(),
-		m_rtc(),
-		m_timer_2(m_rcc),
-		m_dma(),
-		m_adc(),
-		m_usart_2(),
-		m_i2c_1()
+		m_gpio()
 {
 	
 }
@@ -190,37 +200,6 @@ inline feedback STM32L010K8T6::startup()
 	{
 		return(FAIL);
 	}
-	if(m_exti.startup() != OK)
-	{
-		return(FAIL);
-	}
-	if(m_rtc.startup() != OK)
-	{
-		return(FAIL);
-	}
-	if(m_timer_2.startup() != OK)
-	{
-		return(FAIL);
-	}
-	for(uint32 i = 0; i < DMA::c_channel; i++)
-	{
-		if(m_dma[i].startup(m_rcc, i) != OK)
-		{
-			return(FAIL);
-		}
-	}
-	if(m_adc.startup() != OK)
-	{
-		return(FAIL);
-	}
-	if(m_usart_2.startup() != OK)
-	{
-		return(FAIL);
-	}
-	if(m_i2c_1.startup(m_rcc) != OK)
-	{
-		return(FAIL);
-	}
 	
 	
 	return(OK);
@@ -240,6 +219,14 @@ inline feedback STM32L010K8T6::startup()
 /*                      						Public	  			 						 						 */
 /*****************************************************************************/
 
+inline void STM32L010K8T6::startEnd(volatile uint8& state)
+{
+	//	The Compiler Barrier keeps the Writes of the Start (Object, Pointer) before the State: a Thread that sees c_started finds them
+	asm volatile("" ::: "memory");
+	state = c_started;
+}
+
+
 constexpr inline PWR& STM32L010K8T6::get_pwr()
 {
 	return(m_pwr);
@@ -249,6 +236,14 @@ constexpr inline PWR& STM32L010K8T6::get_pwr()
 constexpr inline Flash& STM32L010K8T6::get_flash()
 {
 	return(m_flash);
+}
+
+
+inline Update& STM32L010K8T6::get_update()
+{
+	//	No Member: the Update Driver is only linked into Programs that use it
+	static Update update;
+	return(update);
 }
 
 
@@ -270,48 +265,134 @@ constexpr inline GPIO& STM32L010K8T6::get_gpio()
 }
 
 
-constexpr inline EXTI& STM32L010K8T6::get_exti()
+inline Watchdog& STM32L010K8T6::get_watchdog()
 {
-	return(m_exti);
-}
-
-
-constexpr inline RTC& STM32L010K8T6::get_rtc()
-{
-	return(m_rtc);
-}
-
-
-constexpr inline Timer_2& STM32L010K8T6::get_timer_2()
-{
-	return(m_timer_2);
-}
-
-
-constexpr inline DMA& STM32L010K8T6::get_dma(uint8 channel)
-{
-	if(channel < DMA::c_channel)
+	//	Created and started at the first Call (startBegin): a Program that never calls it links nothing of the Driver. The Start registers
+	//	the Watchdog at CMOS (CMOS::get_watchdog()) but does not start it - a hardware Watchdog (Option Bit) runs from the Reset on
+	static volatile uint8 state = c_notStarted;
+	static Watchdog* volatile watchdog = nullptr;
+	if(state != c_started && startBegin(state) == true)
 	{
-		return(m_dma[channel]);
+		static Watchdog instance;
+		instance.startup(m_rcc);
+		watchdog = &instance;
+		startEnd(state);
 	}
-	DMA& fail = (DMA&) *((DMA*) nullptr);
-	return(fail);
+	return(*watchdog);
 }
 
 
-constexpr inline ADC& STM32L010K8T6::get_adc()
+inline EXTI& STM32L010K8T6::get_exti()
 {
-	return(m_adc);
+	//	Created and started at the first Call (startBegin): a Program that never calls it links nothing of the Driver
+	static volatile uint8 state = c_notStarted;
+	static EXTI* volatile exti = nullptr;
+	if(state != c_started && startBegin(state) == true)
+	{
+		static EXTI instance;
+		instance.startup();
+		exti = &instance;
+		startEnd(state);
+	}
+	return(*exti);
 }
 
 
-constexpr inline USART_2& STM32L010K8T6::get_usart_2()
+inline RTC& STM32L010K8T6::get_rtc()
 {
-	return(m_usart_2);
+	//	Created and started at the first Call (startBegin): a Program that never calls it links nothing of the Driver
+	static volatile uint8 state = c_notStarted;
+	static RTC* volatile rtc = nullptr;
+	if(state != c_started && startBegin(state) == true)
+	{
+		static RTC instance;
+		instance.startup();
+		rtc = &instance;
+		startEnd(state);
+	}
+	return(*rtc);
 }
 
 
-constexpr inline I2C_1& STM32L010K8T6::get_i2c_1()
+inline Timer_2& STM32L010K8T6::get_timer_2()
 {
-	return(m_i2c_1);
+	//	Created and started at the first Call (startBegin): a Program that never calls it links nothing of the Driver
+	static volatile uint8 state = c_notStarted;
+	static Timer_2* volatile timer_2 = nullptr;
+	if(state != c_started && startBegin(state) == true)
+	{
+		static Timer_2 instance(m_rcc);
+		instance.startup();
+		timer_2 = &instance;
+		startEnd(state);
+	}
+	return(*timer_2);
+}
+
+
+inline DMA& STM32L010K8T6::get_dma(uint8 channel)
+{
+	//	Created and started at the first Call, all at once - for an invalid Number the Replacement Object (the last one): it has no
+	//	Hardware, so its Functions return FAIL instead of accessing any Address
+	static volatile uint8 state = c_notStarted;
+	static DMA* volatile dma = nullptr;
+	if(state != c_started && startBegin(state) == true)
+	{
+		static DMA instance[DMA::c_channel + 1];
+		for(uint32 i = 0; i < DMA::c_channel; i++)
+		{
+			instance[i].startup(m_rcc, i);
+		}
+		dma = instance;
+		startEnd(state);
+	}
+	return(dma[(channel < DMA::c_channel) ? channel : DMA::c_channel]);
+}
+
+
+inline ADC& STM32L010K8T6::get_adc()
+{
+	//	Created and started at the first Call (startBegin): a Program that never calls it links nothing of the Driver
+	static volatile uint8 state = c_notStarted;
+	static ADC* volatile adc = nullptr;
+	if(state != c_started && startBegin(state) == true)
+	{
+		static ADC instance;
+		instance.startup();
+		adc = &instance;
+		startEnd(state);
+	}
+	return(*adc);
+}
+
+
+inline USART_2& STM32L010K8T6::get_usart_2()
+{
+	//	Created and started at the first Call (startBegin): a Program that never calls it links nothing of the Driver
+	static volatile uint8 state = c_notStarted;
+	static USART_2* volatile usart_2 = nullptr;
+	if(state != c_started && startBegin(state) == true)
+	{
+		static USART_2 instance;
+		instance.startup();
+		usart_2 = &instance;
+		startEnd(state);
+	}
+	return(*usart_2);
+}
+
+
+inline I2C_1& STM32L010K8T6::get_i2c_1()
+{
+	//	Created and started at the first Call (startBegin): a Program that never calls it links nothing of the Driver
+	static volatile uint8 state = c_notStarted;
+	static I2C_1* volatile i2c_1 = nullptr;
+	if(state != c_started && startBegin(state) == true)
+	{
+		static I2C_1 instance;
+		instance.startup(m_rcc);
+		i2c_1 = &instance;
+		startEnd(state);
+	}
+	return(*i2c_1);
 }

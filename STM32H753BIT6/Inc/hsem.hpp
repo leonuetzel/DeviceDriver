@@ -6,7 +6,7 @@
 
 
 
-class HSEM	:	public I_Semaphore
+class HSEM	:	public I_Mutex
 {
 	public:
 		

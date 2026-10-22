@@ -78,6 +78,192 @@ feedback CAN_2::extractFrame(CAN_Frame& canFrame, uint32 RI, uint32 RDT, uint32 
 }
 
 
+bool CAN_2::get_rangeAsMask(const s_filterElement& filterElement, uint32 id_max, uint32& mask)
+{
+	//	A Range of 2^n IDs that starts at a Multiple of 2^n is a Mask Filter: e.g. 0x000 ... 0x7FF (all standard IDs) or 0x100 ... 0x1FF
+	if(filterElement.ID2_or_mask < filterElement.ID1_or_filter || filterElement.ID2_or_mask > id_max)
+	{
+		return(false);
+	}
+	const uint32 numberOfIDs = filterElement.ID2_or_mask - filterElement.ID1_or_filter + 1;
+	if((numberOfIDs & (numberOfIDs - 1)) != 0 || (filterElement.ID1_or_filter & (numberOfIDs - 1)) != 0)
+	{
+		return(false);
+	}
+	mask = id_max & ~(numberOfIDs - 1);
+	return(true);
+}
+
+
+feedback CAN_2::check_filters(const Array<s_filterElement>& standardFilterElements, const Array<s_filterElement>& extendedFilterElements)
+{
+	//	Every Filter Element takes Filter Banks (get_numberOfFilterBanks), all together at most the Banks of this CAN
+	//	The bxCAN has no rejecting Filters and no Priority Marker; a Range only works if it is a Mask (get_rangeAsMask)
+	uint32 numberOfBanks = 0;
+	for(uint32 list = 0; list < 2; list++)
+	{
+		const bool extended = (list == 1);
+		const Array<s_filterElement>& filterElements = (extended == false) ? standardFilterElements : extendedFilterElements;
+		const uint32 id_max = (extended == false) ? 0x000007FF : 0x1FFFFFFF;
+		for(uint32 i = 0; i < filterElements.get_size(); i++)
+		{
+			const s_filterElement& filterElement = filterElements[i];
+			if(filterElement.behavior == e_filterBehavior::DISABLED)
+			{
+				continue;
+			}
+			uint32 mask = 0;
+			if((filterElement.type == e_filterType::RANGE && get_rangeAsMask(filterElement, id_max, mask) == false) || filterElement.behavior == e_filterBehavior::REJECT_ID || filterElement.behavior == e_filterBehavior::SET_PRIORITY)
+			{
+				return(FAIL);
+			}
+			if(filterElement.ID1_or_filter > id_max || filterElement.ID2_or_mask > id_max)
+			{
+				return(FAIL);
+			}
+		}
+		numberOfBanks += get_numberOfFilterBanks(filterElements, extended);
+	}
+	if(numberOfBanks > c_numberOfFilterBanks)
+	{
+		return(FAIL);
+	}
+	return(OK);
+}
+
+
+uint32 CAN_2::get_numberOfFilterBanks(const Array<s_filterElement>& filterElements, bool extended)
+{
+	//	An empty List lets all Frames of its Kind pass: one Bank that only compares the IDE Bit
+	if(filterElements.get_size() == 0)
+	{
+		return(1);
+	}
+	
+	
+	//	Mask: one Bank with 32 Bit; Dual ID: one Bank with two 16 Bit Masks (standard ID) or two Banks with 32 Bit (extended ID)
+	uint32 numberOfBanks = 0;
+	for(uint32 i = 0; i < filterElements.get_size(); i++)
+	{
+		const s_filterElement& filterElement = filterElements[i];
+		if(filterElement.behavior == e_filterBehavior::DISABLED)
+		{
+			continue;
+		}
+		numberOfBanks += (filterElement.type == e_filterType::DUAL_ID && extended == true) ? 2 : 1;
+	}
+	return(numberOfBanks);
+}
+
+
+void CAN_2::set_filterBank(uint32 bank, bool scale_32Bit, uint32 register_1, uint32 register_2, bool fifo_1)
+{
+	//	Mask Mode in both Scales: the RTR Bit is never compared, so Data and Remote Frames pass
+	volatile uint32* const filterRegisters = MCU::CAN_1::F0R1 + 2 * bank;
+	if(scale_32Bit == true)
+	{
+		bit::set(*MCU::CAN_1::FS1R, bank);
+	}
+	else
+	{
+		bit::clear(*MCU::CAN_1::FS1R, bank);
+	}
+	bit::clear(*MCU::CAN_1::FM1R, bank);
+	if(fifo_1 == true)
+	{
+		bit::set(*MCU::CAN_1::FFA1R, bank);
+	}
+	else
+	{
+		bit::clear(*MCU::CAN_1::FFA1R, bank);
+	}
+	filterRegisters[0] = register_1;
+	filterRegisters[1] = register_2;
+	bit::set(*MCU::CAN_1::FA1R, bank);
+}
+
+
+void CAN_2::program_filters(const Array<s_filterElement>& standardFilterElements, const Array<s_filterElement>& extendedFilterElements)
+{
+	//	The Filters can only be changed in the Filter Initialization Mode (FINIT), meanwhile no Frame passes
+	bit::set(*MCU::CAN_1::FMR, 0);
+	
+	
+	//	CAN_1 has the Banks 0 ... 13, CAN_2 the Banks 14 ... 27 (CAN2SB = 14, also the Reset Value) - FINIT stays set
+	*MCU::CAN_1::FMR = (*MCU::CAN_1::FMR & 0xFFFFC0FF) | (14 << 8) | 0x00000001;
+	
+	//	All Banks of this CAN off, check_filters has made sure that the Elements fit
+	for(uint32 bank = c_firstFilterBank; bank < c_firstFilterBank + c_numberOfFilterBanks; bank++)
+	{
+		bit::clear(*MCU::CAN_1::FA1R, bank);
+	}
+	
+	
+	//	Register Layout 32 Bit: STID[10:0] in Bits 31:21, EXID[17:0] in Bits 20:3, IDE Bit 2, RTR Bit 1
+	//	Register Layout 16 Bit: STID[10:0] in Bits 15:5, RTR Bit 4, IDE Bit 3, EXID[17:15] in Bits 2:0
+	uint32 bank = c_firstFilterBank;
+	for(uint32 list = 0; list < 2; list++)
+	{
+		const bool extended = (list == 1);
+		const Array<s_filterElement>& filterElements = (extended == false) ? standardFilterElements : extendedFilterElements;
+		const uint32 ide = (extended == true) ? (1 << 2) : 0;
+		
+		
+		//	Empty List: all Frames of this Kind pass, only the IDE Bit is compared
+		if(filterElements.get_size() == 0)
+		{
+			set_filterBank(bank, true, ide, (1 << 2), false);
+			bank++;
+			continue;
+		}
+		
+		
+		for(uint32 i = 0; i < filterElements.get_size(); i++)
+		{
+			const s_filterElement& filterElement = filterElements[i];
+			if(filterElement.behavior == e_filterBehavior::DISABLED)
+			{
+				continue;
+			}
+			const bool fifo_1 = (filterElement.behavior == e_filterBehavior::STORE_IN_RX_FIFO_1 || filterElement.behavior == e_filterBehavior::SET_PRIORITY_AND_STORE_IN_RX_FIFO_1);
+			
+			if(filterElement.type == e_filterType::MASK || filterElement.type == e_filterType::RANGE)
+			{
+				//	ID and Mask, the IDE Bit has to match - a Range is a Mask here, check_filters has made sure that it is one
+				uint32 mask = filterElement.ID2_or_mask;
+				if(filterElement.type == e_filterType::RANGE)
+				{
+					get_rangeAsMask(filterElement, (extended == true) ? 0x1FFFFFFF : 0x000007FF, mask);
+				}
+				const uint32 shift = (extended == true) ? 3 : 21;
+				set_filterBank(bank, true, (filterElement.ID1_or_filter << shift) | ide, (mask << shift) | (1 << 2), fifo_1);
+				bank++;
+			}
+			else if(extended == false)
+			{
+				//	Dual standard ID: two 16 Bit Filters, every ID with its full Mask and the IDE Bit (Mask in the upper Half Word)
+				const uint32 mask = (0x000007FF << 5) | (1 << 3);
+				set_filterBank(bank, false, (mask << 16) | (filterElement.ID1_or_filter << 5), (mask << 16) | (filterElement.ID2_or_mask << 5), fifo_1);
+				bank++;
+			}
+			else
+			{
+				//	Dual extended ID: one 32 Bit Bank per ID with the full Mask and the IDE Bit
+				const uint32 mask = (((uint32) 0x1FFFFFFF) << 3) | (1 << 2);
+				set_filterBank(bank, true, (filterElement.ID1_or_filter << 3) | ide, mask, fifo_1);
+				bank++;
+				set_filterBank(bank, true, (filterElement.ID2_or_mask << 3) | ide, mask, fifo_1);
+				bank++;
+			}
+		}
+	}
+	
+	
+	//	Leave the Filter Initialization Mode, the Filters are active
+	bit::clear(*MCU::CAN_1::FMR, 0);
+}
+
+
 
 
 
@@ -173,7 +359,7 @@ feedback CAN_2::init(uint32 baudRate, const Array<s_filterElement>& standardfilt
 {
 	//	Protect from unauthorized Access
 	CMOS& cmos = CMOS::get();
-	if(cmos.semaphore_isOwnedByRunningThread(this) == false)
+	if(cmos.mutex_isOwnedByRunningThread(this) == false)
 	{
 		return(FAIL);
 	}
@@ -186,23 +372,40 @@ feedback CAN_2::init(uint32 baudRate, const Array<s_filterElement>& standardfilt
 	}
 	
 	
+	//	Filters that the bxCAN can not do are rejected before anything is changed
+	if(check_filters(standardfilterElements, extendedfilterElements) != OK)
+	{
+		return(FAIL);
+	}
+	
+	
+	//	Disable the Interrupts while the Buffers and the Error List are replaced: the Interrupt Routines must not access them in between
+	//	init enables them again at the End
+	NVIC& nvic = cmos.get_nvic();
+	nvic.disable(Interrupt::CAN2_TX);
+	nvic.disable(Interrupt::CAN2_RX_0);
+	nvic.disable(Interrupt::CAN2_RX_1);
+	nvic.disable(Interrupt::CAN2_SCE);
+	m_txISR_active = false;
+	
+	
 	//	Clear Errors
 	clearErrors();
 	
 	
-	//	Initialize Buffers and create Semaphores for thread-safe Access to them
+	//	Initialize Buffers and create Mutexes for thread-safe Access to them
 	if(m_rxBuffer != nullptr)
 	{
 		//	Free Memory of old Rx Buffer
 		delete m_rxBuffer;
 		
 		
-		//	Delete the corresponding Semaphore (needs to be locked by this Thread to erase)
-		if(cmos.semaphore_lock(m_rxBuffer) != OK)
+		//	Delete the corresponding Mutex (needs to be locked by this Thread to erase)
+		if(cmos.mutex_lock(m_rxBuffer) != OK)
 		{
 			return(FAIL);
 		}
-		if(cmos.semaphore_erase(m_rxBuffer) != OK)
+		if(cmos.mutex_erase(m_rxBuffer) != OK)
 		{
 			return(FAIL);
 		}
@@ -216,7 +419,7 @@ feedback CAN_2::init(uint32 baudRate, const Array<s_filterElement>& standardfilt
 	{
 		return(FAIL);
 	}
-	if(cmos.semaphore_create(m_rxBuffer) != OK)
+	if(cmos.mutex_create(m_rxBuffer) != OK)
 	{
 		return(FAIL);
 	}
@@ -228,12 +431,12 @@ feedback CAN_2::init(uint32 baudRate, const Array<s_filterElement>& standardfilt
 		delete m_txBuffer;
 		
 		
-		//	Delete the corresponding Semaphore (needs to be locked by this Thread to erase)
-		if(cmos.semaphore_lock(m_txBuffer) != OK)
+		//	Delete the corresponding Mutex (needs to be locked by this Thread to erase)
+		if(cmos.mutex_lock(m_txBuffer) != OK)
 		{
 			return(FAIL);
 		}
-		if(cmos.semaphore_erase(m_txBuffer) != OK)
+		if(cmos.mutex_erase(m_txBuffer) != OK)
 		{
 			return(FAIL);
 		}
@@ -247,7 +450,7 @@ feedback CAN_2::init(uint32 baudRate, const Array<s_filterElement>& standardfilt
 	{
 		return(FAIL);
 	}
-	if(cmos.semaphore_create(m_txBuffer) != OK)
+	if(cmos.mutex_create(m_txBuffer) != OK)
 	{
 		return(FAIL);
 	}
@@ -264,6 +467,10 @@ feedback CAN_2::init(uint32 baudRate, const Array<s_filterElement>& standardfilt
 	
 	//	Enable Bus Clock
 	rcc.module_clockInit(RCC::e_module::CAN_2, true);
+	
+	
+	//	The Filter Banks of CAN_2 lie in CAN_1 (RM0008, dual CAN): CAN_1 needs its Clock, also if it is not used itself
+	rcc.module_clockInit(RCC::e_module::CAN_1, true);
 	
 	
 	//	Reset Can Master
@@ -354,8 +561,9 @@ feedback CAN_2::init(uint32 baudRate, const Array<s_filterElement>& standardfilt
 	baudRateCalculated = clock_apb1 / ((bestBRP + 1) * (bestTS1 + bestTS2 + 3));
 	
 	
-	//	No valid Configuration found
-	if(smallestDeviationBaudRateInPromille == 0xFFFFFFFF)
+	//	No valid Configuration found, or the Baud Rate deviates too much
+	//	CAN tolerates at most 1.58 % Clock Deviation (ISO 11898-1), more than 15 Promille cannot work reliably
+	if(smallestDeviationBaudRateInPromille > 15)
 	{
 		return(FAIL);
 	}
@@ -386,30 +594,8 @@ feedback CAN_2::init(uint32 baudRate, const Array<s_filterElement>& standardfilt
 	bit::clear(*MCU::CAN_2::MCR, 16);
 	
 	
-	//	Filtering: Pass all IDs
-	//	Deactivate Filter Bank 14 so we can modify it
-	bit::clear(*MCU::CAN_1::FA1R, 14);
-	
-	
-	//	Single 32-Bit Scale Configuration
-	bit::set(*MCU::CAN_1::FS1R, 14);
-	
-	
-	//	Filter Mode "Identifier Mask"
-	bit::clear(*MCU::CAN_1::FM1R, 14);
-	
-	
-	//	Set Mask and Identifier to '0', letting all IDs pass
-	*MCU::CAN_1::F14R1 = 0;
-	*MCU::CAN_1::F14R2 = 0;
-	
-	
-	//	Enable Filter Bank 0
-	bit::set(*MCU::CAN_1::FA1R, 14);
-	
-	
-	//	Set Filter Mode to active
-	bit::clear(*MCU::CAN_1::FMR, 0);
+	//	Filters: an empty List lets all Frames of its Kind (standard or extended ID) pass
+	program_filters(standardfilterElements, extendedfilterElements);
 	
 	
 	//	Enable Error Interrupt (when any Error is pending in CAN_ESR)
@@ -479,14 +665,13 @@ feedback CAN_2::init(uint32 baudRate, const Array<s_filterElement>& standardfilt
 	
 	
 	//	Enable all 4 Interrupt Vectors
-	NVIC& nvic = cmos.get_nvic();
 	nvic.setPriority(Interrupt::CAN2_TX,		10);
-	nvic.setPriority(Interrupt::CAN2_RX0,	10);
-	nvic.setPriority(Interrupt::CAN2_RX1,	10);
+	nvic.setPriority(Interrupt::CAN2_RX_0,	10);
+	nvic.setPriority(Interrupt::CAN2_RX_1,	10);
 	nvic.setPriority(Interrupt::CAN2_SCE,		10);
 	nvic.enable(Interrupt::CAN2_TX);
-	nvic.enable(Interrupt::CAN2_RX0);
-	nvic.enable(Interrupt::CAN2_RX1);
+	nvic.enable(Interrupt::CAN2_RX_0);
+	nvic.enable(Interrupt::CAN2_RX_1);
 	nvic.enable(Interrupt::CAN2_SCE);
 	
 	
@@ -520,18 +705,18 @@ feedback CAN_2::tx(const CAN_Frame& canFrame)
 	CMOS& cmos = CMOS::get();
 	
 	
-	//	Maximum Packet Data Size is 8 Byte
-	if(canFrame.dataSize > 8)
+	//	Maximum Packet Data Size is 8 Byte, the Driver must be initialized
+	if(canFrame.dataSize > 8 || m_txBuffer == nullptr)
 	{
 		return(FAIL);
 	}
 	
 	
-	//	Lock Semaphore
-	if(cmos.semaphore_lock(m_txBuffer) != OK)
+	//	Lock Mutex
+	if(cmos.mutex_lock(m_txBuffer) != OK)
 	{
-		//	Unlock Semaphore
-		cmos.semaphore_unlock(m_txBuffer);
+		//	Unlock Mutex
+		cmos.mutex_unlock(m_txBuffer);
 		
 		
 		return(FAIL);
@@ -543,8 +728,11 @@ feedback CAN_2::tx(const CAN_Frame& canFrame)
 	//	And that would lead to a Race Condition
 	if(m_txBuffer->write(canFrame) != OK)
 	{
-		//	Unlock Semaphore
-		cmos.semaphore_unlock(m_txBuffer);
+		m_errors[e_error::TX_RINGBUFFER_OVERFLOW] = true;
+		
+		
+		//	Unlock Mutex
+		cmos.mutex_unlock(m_txBuffer);
 		
 		
 		return(FAIL);
@@ -559,27 +747,32 @@ feedback CAN_2::tx(const CAN_Frame& canFrame)
 		//	Check for an empty Tx Buffer in case the Tx ISR interrupted us and emptied the Tx Buffer
 		if(m_txBuffer->is_empty() == false)
 		{
-			//	Read Frame back from Tx Buffer
-			CAN_Frame canFrameReadBack = m_txBuffer->read();
-			
-			
-			//	Set Tx ISR active Flag because writeToTxMailbox will trigger the Tx ISR
-			m_txISR_active = true;
-			
-			
-			//	Write Frame to Tx Mailbox
-			if(writeToTxMailbox(canFrameReadBack) != OK)
+			//	Copy the Frame from the Tx Buffer, it is only removed once it is in a Tx Mailbox
+			//	The Tx Interrupt is masked meanwhile: it must not take the same Frame from the Buffer again
+			NVIC& nvic = cmos.get_nvic();
+			nvic.disable(Interrupt::CAN2_TX);
+			CAN_Frame canFrameReadBack;
+			if(m_txBuffer->peek(0, canFrameReadBack) == OK)
 			{
-				//	Unlock Semaphore
-				cmos.semaphore_unlock(m_txBuffer);
-				return(FAIL);
+				//	Set Tx ISR active Flag because writeToTxMailbox will trigger the Tx ISR
+				m_txISR_active = true;
+				
+				
+				//	Write Frame to Tx Mailbox
+				//	If all 3 Mailboxes are still pending, the Frame stays in the Tx Buffer: every pending Mailbox triggers the Tx ISR when it is done
+				//	and the Tx ISR transmits the Frame then, so the Frame is queued like with an active Tx ISR
+				if(writeToTxMailbox(canFrameReadBack) == OK)
+				{
+					m_txBuffer->read();
+				}
 			}
+			nvic.enable(Interrupt::CAN2_TX);
 		}
 	}
 	
 	
-	//	Unlock Semaphore
-	return(cmos.semaphore_unlock(m_txBuffer));
+	//	Unlock Mutex
+	return(cmos.mutex_unlock(m_txBuffer));
 }
 
 
@@ -609,24 +802,24 @@ feedback CAN_2::rx(CAN_Frame& canFrame, uint32 fifoID)
 		}
 		
 		
-		//	Lock Semaphore
-		if(cmos.semaphore_lock(m_rxBuffer) != OK)
+		//	Lock Mutex
+		if(cmos.mutex_lock(m_rxBuffer) != OK)
 		{
-			cmos.semaphore_unlock(m_rxBuffer);
+			cmos.mutex_unlock(m_rxBuffer);
 			return(FAIL);
 		}
 		
 		
-		//	Read Frame and unlock Semaphore
+		//	Read Frame and unlock Mutex
 		if(m_rxBuffer->is_empty() == false)
 		{
 			canFrame = m_rxBuffer->read();
-			return(cmos.semaphore_unlock(m_rxBuffer));
+			return(cmos.mutex_unlock(m_rxBuffer));
 		}
 		
 		
-		//	Unlock Semaphore
-		if(cmos.semaphore_unlock(m_rxBuffer) != OK)
+		//	Unlock Mutex
+		if(cmos.mutex_unlock(m_rxBuffer) != OK)
 		{
 			return(FAIL);
 		}
@@ -647,7 +840,7 @@ uint32 CAN_2::get_numberOfUnread(uint32 fifoID) const
 
 bool CAN_2::is_dataAvailable() const
 {
-	if(m_rxBuffer->is_empty() == true)
+	if(m_rxBuffer == nullptr || m_rxBuffer->is_empty() == true)
 	{
 		return(false);
 	}
@@ -728,10 +921,24 @@ uint32 CAN_2::get_baudRate() const
 
 feedback CAN_2::recoverFromBusOffState()
 {
-	if(get_state() == CAN_2::e_state::BUS_OFF)
+	//	init sets ABOM (Automatic Bus-Off Management): the Controller leaves Bus-Off by itself after 128 Occurrences of 11 recessive Bits
+	//	Without ABOM, setting and clearing INRQ starts the Recovery (bxCAN, Bus-Off recovery)
+	//	Buffers, Filters and Bit Timing stay unchanged, so any Thread can call this Function, not only the one owning the Driver
+	if(get_state() != CAN_2::e_state::BUS_OFF || bit::isSet(*MCU::CAN_2::MCR, 6) == true)
 	{
-		return(init(m_baudRate, m_standardFilterElements, m_extendedFilterElements, m_silentMode, m_rxBuffer->get_size(), m_txBuffer->get_size()));
+		return(OK);
 	}
+	bit::set(*MCU::CAN_2::MCR, 0);
+	uint32 timeout = 100000;
+	while(bit::isCleared(*MCU::CAN_2::MSR, 0) == true)
+	{
+		timeout--;
+		if(timeout == 0)
+		{
+			return(FAIL);
+		}
+	}
+	bit::clear(*MCU::CAN_2::MCR, 0);
 	return(OK);
 }
 
@@ -843,8 +1050,15 @@ void ISR_CAN2_RX_0()
 					//	Extract CAN Frame
 					if(can.extractFrame(canFrame, RI, RDT, RDL, RDH) == OK)
 					{
-						can.m_rxBuffer->write(canFrame);
-						emitEvent = true;
+						if(can.m_rxBuffer->write(canFrame) == OK)
+						{
+							emitEvent = true;
+						}
+						else
+						{
+							//	Software Rx Buffer full, the Frame is lost
+							can.m_errors[I_CAN::e_error::RX_RINGBUFFER_OVERFLOW] = true;
+						}
 					}
 				}
 				
@@ -897,8 +1111,15 @@ void ISR_CAN2_RX_1()
 					//	Extract CAN Frame
 					if(can.extractFrame(canFrame, RI, RDT, RDL, RDH) == OK)
 					{
-						can.m_rxBuffer->write(canFrame);
-						emitEvent = true;
+						if(can.m_rxBuffer->write(canFrame) == OK)
+						{
+							emitEvent = true;
+						}
+						else
+						{
+							//	Software Rx Buffer full, the Frame is lost
+							can.m_errors[I_CAN::e_error::RX_RINGBUFFER_OVERFLOW] = true;
+						}
 					}
 				}
 				

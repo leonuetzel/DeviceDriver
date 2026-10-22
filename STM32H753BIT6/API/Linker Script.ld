@@ -1,5 +1,8 @@
 ENTRY(EXCEPTION_RESET)
 
+/*	Image Descriptor of the Firmware Update: always taken from the DeviceDriver Library	*/
+EXTERN(__cmos_imageDescriptor__)
+
 
 
 MEMORY
@@ -113,6 +116,7 @@ SECTIONS
   {
 		KEEP(*(.exceptionVector))
     KEEP(*(.interruptVector))
+		KEEP(*(.imageDescriptor))			/*	Image Descriptor of the Firmware Update: directly behind the Vector Table	*/
     . = ALIGN(32);
   } >FLASH_BANK_1
 	
@@ -252,6 +256,7 @@ SECTIONS
 		. = ALIGN(32);
 		*(.text)
 		*(.text*)
+		*(.bootloader*)		/* Flash driver functions marked SECTION(bootloader) */
     . = ALIGN(32);
 	} >FLASH_BANK_1
 	

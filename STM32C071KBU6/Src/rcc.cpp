@@ -355,15 +355,39 @@ feedback RCC::init_lsi(bool enable)
 
 feedback RCC::set_hsiSystem_prescaler(e_prescaler_hsiSystem prescaler)
 {
-	const uint32 mask = (uint32) prescaler;
+	//	If HSISYS is the System Clock, the Prescaler changes the System Clock: as in set_clockSource, the AHB and APB Prescalers and the
+	//	Flash Wait States are adjusted before a higher Clock and after a lower Clock
+	const uint32 clock_system_old = m_clock_system;
+	const auto prescaler_old = m_prescaler_hsiSystem;
+	m_prescaler_hsiSystem = c_prescaler_hsiSystem[(uint32) prescaler];
+	calculate_clockTree();
+	if(m_clock_system > clock_system_old)
+	{
+		if(autoAdjust_AHB_APB_prescaler() != OK || m_flash.set_waitStates(m_clock_ahb) != OK)
+		{
+			//	Undo Changes and return
+			m_prescaler_hsiSystem = prescaler_old;
+			calculate_clockTree();
+			autoAdjust_AHB_APB_prescaler();
+			return(FAIL);
+		}
+	}
 	
+	
+	//	Write the new Prescaler
+	const uint32 mask = (uint32) prescaler;
 	uint32 temp = *MCU::RCC::CR & 0xFFFFC7FF;
 	*MCU::RCC::CR = temp | (mask << 11);
 	
-	m_prescaler_hsiSystem = c_prescaler_hsiSystem[(uint32) prescaler];
 	
-	calculate_clockTree();
-	
+	//	Lower System Clock: Prescalers and Flash Wait States afterwards
+	if(m_clock_system < clock_system_old)
+	{
+		if(autoAdjust_AHB_APB_prescaler() != OK || m_flash.set_waitStates(m_clock_ahb) != OK)
+		{
+			return(FAIL);
+		}
+	}
 	return(OK);
 }
 
@@ -456,13 +480,20 @@ feedback RCC::set_clockSource(e_clockSource_system clockSource)
 	*MCU::RCC::CFGR = temp | (uint32) clockSource;
 	
 	
-	//	Check if Switch was successful
-	if(get_clockSource_system() != clockSource)
+	//	Wait for the Switch: SWS follows SW after some Clock Cycles of both Clock Sources
+	uint32 timeout = 100000;
+	while(get_clockSource_system() != clockSource)
 	{
-		//	Undo Changes and return
-		m_clockSource_system = clockSourceSystemOld;
-		calculate_clockTree();
-		return(FAIL);
+		timeout--;
+		if(timeout == 0)
+		{
+			//	Undo Changes and return
+			temp = *MCU::RCC::CFGR & 0xFFFFFFF8;
+			*MCU::RCC::CFGR = temp | (uint32) clockSourceSystemOld;
+			m_clockSource_system = clockSourceSystemOld;
+			calculate_clockTree();
+			return(FAIL);
+		}
 	}
 	
 	
@@ -536,7 +567,10 @@ feedback RCC::module_clockInit(e_module module, bool enable)
 	
 	if(enable == true)
 	{
+		//	The Clock of the Peripheral is active some Clock Cycles after its Enable Bit (2 on the L4/G4, RM0394): the dummy Read delays the
+		//	first Access to the Peripheral, as the ST HAL does it on every STM32
 		bit::set(*reg, bit);
+		(void) *reg;
 		return(OK);
 	}
 	if(enable == false)

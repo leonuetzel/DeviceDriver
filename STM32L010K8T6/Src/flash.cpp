@@ -28,12 +28,18 @@ feedback Flash::set_waitStates(uint32 clock_ahb)
 {
 	PWR::e_voltageRange voltageRange = STM32L010K8T6::get().get_pwr().get_voltageRange();
 	
+	//	Maximum Frequency without Wait State: 16 MHz in Range 1, 8 MHz in Range 2, 4.2 MHz in Range 3 (RM0451, Table 10)
+	//	Above 16 MHz there is always a Wait State, independent of the Range
 	uint32 waitStates = 0;
-	if(voltageRange == PWR::e_voltageRange::R1_1V8 || clock_ahb > 16000000)
+	if(clock_ahb > 16000000)
 	{
 		waitStates = 1;
 	}
-	if(voltageRange == PWR::e_voltageRange::R2_1V5 || clock_ahb > 8000000)
+	else if(voltageRange == PWR::e_voltageRange::R2_1V5 && clock_ahb > 8000000)
+	{
+		waitStates = 1;
+	}
+	else if(voltageRange == PWR::e_voltageRange::R3_1V2 && clock_ahb > 4200000)
 	{
 		waitStates = 1;
 	}
@@ -173,23 +179,26 @@ feedback Flash::write_eeprom(uint32 data, volatile uint32* address)
 	bit::clear(*MCU::FLASH::PECR, 10);
 	
 	
-	//	Reset EOP (End of Programming) Bit in FLASH_SR
-	bit::set(*MCU::FLASH::SR, 1);
+	//	Reset EOP (End of Programming) and the Error Flags of an earlier Operation, all are cleared by writing 1 (RM0451, FLASH_SR)
+	*MCU::FLASH::SR = 0x00032F02;
 	
 	
 	//	Write Data
 	*address = data;
 	
 	
-	//	Wait for Programming to finish
-	while(bit::isCleared(*MCU::FLASH::SR, 1) == true)
+	//	Wait for Programming to finish: EOP is set at the End, an Error stops the Operation without EOP
+	//	A Word takes some Milliseconds with Erase, the Timeout is far above
+	uint32 timeout = 1000000;
+	while(bit::isCleared(*MCU::FLASH::SR, 1) == true && (*MCU::FLASH::SR & 0x00032F00) == 0 && timeout > 0)
 	{
-		
+		timeout--;
 	}
+	const bool programmingFailed = (bit::isCleared(*MCU::FLASH::SR, 1) == true);
 	
 	
 	//	Lock PECR Register
-	if(lock_PECR() != OK)
+	if(lock_PECR() != OK || programmingFailed == true)
 	{
 		return(FAIL);
 	}

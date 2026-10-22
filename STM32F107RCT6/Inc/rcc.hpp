@@ -183,6 +183,9 @@ class RCC
 		uint32 m_clock_apb1_timer;
 		uint32 m_clock_apb2_timer;
 		
+		//	Reset Flags of the last Reset (RCC_CSR), taken in startup() before they are cleared - see get_resetFlags()
+		uint32 m_resetFlags;
+		
 		
 		//	Constructor and Destructor
 		constexpr inline RCC(Flash& flash);
@@ -209,6 +212,7 @@ class RCC
 		feedback init_hse(bool enable);
 		feedback init_hsi(bool enable);
 		feedback init_lsi(bool enable);
+		feedback init_lse(bool enable);
 		
 		inline e_clockSource_system get_clockSource_system();
 		feedback set_clockSource(e_clockSource_system clockSource);
@@ -218,6 +222,9 @@ class RCC
 		feedback init_pll_2_3(uint32 clock_out_pll2, uint32 clock_out_pll3);
 		
 		inline void clear_resetFlags();
+		
+		//	Reset Flags of the last Reset as RCC_CSR at Startup (the Reference Manual names the Bits)
+		constexpr inline uint32 get_resetFlags() const;
 		
 		feedback module_clockInit(e_module module, bool enable);
 		feedback module_reset(e_module module);
@@ -297,7 +304,8 @@ constexpr inline RCC::RCC(Flash& flash)
 		m_clock_apb1(m_clock_ahb / m_prescaler_apb1),
 		m_clock_apb2(m_clock_ahb / m_prescaler_apb2),
 		m_clock_apb1_timer(m_clock_apb1),
-		m_clock_apb2_timer(m_clock_apb2)
+		m_clock_apb2_timer(m_clock_apb2),
+		m_resetFlags(0)
 {
 	
 }
@@ -316,6 +324,11 @@ inline RCC::~RCC()
 
 inline feedback RCC::startup()
 {
+	//	Reset Flags: a Snapshot for get_resetFlags(), then cleared (RMVF, Bit 24), so that the next Reset shows only its own Flags
+	m_resetFlags = *MCU::RCC::CSR;
+	bit::set(*MCU::RCC::CSR, 24);
+	
+	
 	return(OK);
 }
 
@@ -437,4 +450,10 @@ constexpr inline uint32 RCC::get_clock_apb1_timer() const
 constexpr inline uint32 RCC::get_clock_apb2_timer() const
 {
 	return(m_clock_apb2_timer);
+}
+
+
+constexpr inline uint32 RCC::get_resetFlags() const
+{
+	return(m_resetFlags);
 }

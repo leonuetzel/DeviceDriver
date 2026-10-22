@@ -55,7 +55,7 @@ feedback LTDC::init(s_displayData displayData)
 	for(uint32 i = 0; i < maximumNumberOfLayers; i++)
 	{
 		//	Disable Layer
-		uint32* reg_cr = ((uint32*) MCU::LTDC::L1_CR) + i * 0x20;
+		volatile uint32* reg_cr = ((volatile uint32*) MCU::LTDC::L1_CR) + i * 0x20;
 		bit::clear(*reg_cr, 0);
 	}
 	
@@ -144,14 +144,14 @@ feedback LTDC::set_layerData(uint32 layerNumber, RectGraphic& layer)
 	
 	
 	//	Calculate register addresses for layer
-	uint32* reg_cr			= ((uint32*) MCU::LTDC::L1_CR)			+ layerNumber * 0x20;
-	uint32* reg_whpcr		= ((uint32*) MCU::LTDC::L1_WHPCR)		+ layerNumber * 0x20;
-	uint32* reg_wvpcr		= ((uint32*) MCU::LTDC::L1_WVPCR)		+ layerNumber * 0x20;
-	uint32* reg_pfcr		= ((uint32*) MCU::LTDC::L1_PFCR)		+ layerNumber * 0x20;
-	uint32* reg_cacr		= ((uint32*) MCU::LTDC::L1_CACR)		+ layerNumber * 0x20;
-	uint32* reg_cfbar		= ((uint32*) MCU::LTDC::L1_CFBAR)		+ layerNumber * 0x20;
-	uint32* reg_cfblr		= ((uint32*) MCU::LTDC::L1_CFBLR)		+ layerNumber * 0x20;
-	uint32* reg_cfblnr	= ((uint32*) MCU::LTDC::L1_CFBLNR)	+ layerNumber * 0x20;
+	volatile uint32* reg_cr			= ((volatile uint32*) MCU::LTDC::L1_CR)			+ layerNumber * 0x20;
+	volatile uint32* reg_whpcr		= ((volatile uint32*) MCU::LTDC::L1_WHPCR)		+ layerNumber * 0x20;
+	volatile uint32* reg_wvpcr		= ((volatile uint32*) MCU::LTDC::L1_WVPCR)		+ layerNumber * 0x20;
+	volatile uint32* reg_pfcr		= ((volatile uint32*) MCU::LTDC::L1_PFCR)		+ layerNumber * 0x20;
+	volatile uint32* reg_cacr		= ((volatile uint32*) MCU::LTDC::L1_CACR)		+ layerNumber * 0x20;
+	volatile uint32* reg_cfbar		= ((volatile uint32*) MCU::LTDC::L1_CFBAR)		+ layerNumber * 0x20;
+	volatile uint32* reg_cfblr		= ((volatile uint32*) MCU::LTDC::L1_CFBLR)		+ layerNumber * 0x20;
+	volatile uint32* reg_cfblnr	= ((volatile uint32*) MCU::LTDC::L1_CFBLNR)	+ layerNumber * 0x20;
 	
 	
 	//	Convert positions from bottom-up to top-down format (inverted y-axis)
@@ -231,14 +231,14 @@ feedback LTDC::stop()
 }
 
 
-CODE_RAM feedback LTDC::set_layerBuffer(uint32 layer, Color* buffer, bool applyOnNextVsync)
+feedback LTDC::set_layerBuffer(uint32 layer, Color* buffer, bool applyOnNextVsync)
 {
 	if(layer < maximumNumberOfLayers)
 	{
 		m_layer[layer].data = buffer;
 		
 		//	Set pixel buffer address
-		uint32* reg_cfbar		= ((uint32*) MCU::LTDC::L1_CFBAR)	+ layer * 0x20;
+		volatile uint32* reg_cfbar		= ((volatile uint32*) MCU::LTDC::L1_CFBAR)	+ layer * 0x20;
 		*reg_cfbar = (uint32) m_layer[layer].data;
 		
 		
@@ -257,9 +257,10 @@ CODE_RAM feedback LTDC::set_layerBuffer(uint32 layer, Color* buffer, bool applyO
 }
 
 
-CODE_RAM feedback LTDC::clear(uint32 layer)
+feedback LTDC::clear(uint32 layer)
 {
-	if(layer > maximumNumberOfLayers)
+	//	Only a Layer that exists and has a Buffer (set_layerData, set_layerBuffer)
+	if(layer >= maximumNumberOfLayers || m_layer[layer].data == nullptr)
 	{
 		return(FAIL);
 	}
@@ -274,7 +275,7 @@ CODE_RAM feedback LTDC::clear(uint32 layer)
 }
 
 
-CODE_RAM feedback LTDC::set_colorBackground(Color color)
+feedback LTDC::set_colorBackground(Color color)
 {
 	*MCU::LTDC::BCCR = (color.red << 16) | (color.green << 8) | color.blue;
 	m_colorBackground = color;
@@ -282,14 +283,14 @@ CODE_RAM feedback LTDC::set_colorBackground(Color color)
 }
 
 
-CODE_RAM feedback LTDC::set_layerAlpha(uint8 layer, uint8 alpha)
+feedback LTDC::set_layerAlpha(uint8 layer, uint8 alpha)
 {
 	if(layer >= maximumNumberOfLayers)
 	{
 		return(FAIL);
 	}
 	
-	uint32* CACR = ((uint32*) MCU::LTDC::L1_CACR) + layer * 0x20;
+	volatile uint32* CACR = ((volatile uint32*) MCU::LTDC::L1_CACR) + layer * 0x20;
 	
 	uint32 temp = *CACR & 0xFFFFFF00;
 	*CACR = temp | alpha;
@@ -297,18 +298,24 @@ CODE_RAM feedback LTDC::set_layerAlpha(uint8 layer, uint8 alpha)
 }
 
 
-CODE_RAM feedback LTDC::set_pixel(Vec2& position, Color color, uint32 layer)
+feedback LTDC::set_pixel(Vec2& position, Color color, uint32 layer)
 {
-	if(position.x < m_layer[layer].size.x || position.x >= m_layer[layer].size.x || position.y < m_layer[layer].size.y || position.y >= m_layer[layer].size.y)
+	//	The Position is relative to the Layer with the Origin bottom left (as in set_layerData) and has to lie inside it, the Layer needs a
+	//	Buffer. The Position of the Caller stays unchanged
+	if(layer >= maximumNumberOfLayers || m_layer[layer].data == nullptr)
+	{
+		return(FAIL);
+	}
+	const RectGraphic& rectangle = m_layer[layer];
+	if(position.x < 0 || position.x >= rectangle.size.x || position.y < 0 || position.y >= rectangle.size.y)
 	{
 		return(FAIL);
 	}
 	
-	position.y = m_layer[layer].size.y - position.y - 1;
 	
-	Color* pixel = m_layer[layer].data + position.y * m_layer[layer].size.x + position.x;
-	*pixel = color;
-	
+	//	The Buffer starts with the top Line
+	const uint32 line = (uint32) (rectangle.size.y - position.y - 1);
+	rectangle.data[line * (uint32) rectangle.size.x + (uint32) position.x] = color;
 	return(OK);
 }
 
@@ -318,55 +325,55 @@ CODE_RAM feedback LTDC::set_pixel(Vec2& position, Color color, uint32 layer)
 
 
 
-CODE_RAM LTDC::s_displayData& LTDC::get_displayData()
+LTDC::s_displayData& LTDC::get_displayData()
 {
 	return(m_displayData);
 }
 
 
-CODE_RAM Vec2 LTDC::get_displayDimensions()
+Vec2 LTDC::get_displayDimensions()
 {
 	return(Vec2(m_displayData.h_active, m_displayData.v_active));
 }
 
 
-CODE_RAM RectGraphic& LTDC::get_layerData(uint32 layer)
+RectGraphic& LTDC::get_layerData(uint32 layer)
 {
 	return(m_layer[layer]);
 }
 
 
-CODE_RAM uint32 LTDC::get_maximumNumberOfLayers()
+uint32 LTDC::get_maximumNumberOfLayers()
 {
 	return(maximumNumberOfLayers);
 }
 
 
-CODE_RAM uint32 LTDC::get_fps()
+uint32 LTDC::get_fps()
 {
 	return(m_fps);
 }
 
 
-CODE_RAM uint64& LTDC::get_frameCounter()
+uint64& LTDC::get_frameCounter()
 {
 	return(m_frameCounter);
 }
 
 
-CODE_RAM uint32 LTDC::get_fifoUnderrunCounter()
+uint32 LTDC::get_fifoUnderrunCounter()
 {
 	return(m_fifoUnderrunCounter);
 }
 
 
-CODE_RAM uint32 LTDC::get_fifoTransmitErrorCounter()
+uint32 LTDC::get_fifoTransmitErrorCounter()
 {
 	return(m_fifoTransmitErrorCounter);
 }
 
 
-CODE_RAM Color LTDC::get_colorBackground()
+Color LTDC::get_colorBackground()
 {
 	return(m_colorBackground);
 }
@@ -379,7 +386,7 @@ CODE_RAM Color LTDC::get_colorBackground()
 
 
 
-CODE_RAM void ISR_LTDC()
+void ISR_LTDC()
 {
 	static uint8 counter;
 	static uint8 second;
@@ -390,17 +397,15 @@ CODE_RAM void ISR_LTDC()
 		LTDC& ltdc = STM32H753BIT6::get().get_ltdc();
 		CMOS& cmos = CMOS::get();
 		
+		//	Every frame is counted: the frame counter drives the periodic updates of the Graphics Manager
+		ltdc.m_frameCounter++;
+		counter++;
 		uint8 second_new = cmos.get_time().second;
 		if(second != second_new)
 		{
 			ltdc.m_fps = counter;
 			second = second_new;
 			counter = 0;
-		}
-		else
-		{
-			counter++;
-			ltdc.m_frameCounter++;
 		}
 		
 		
@@ -424,7 +429,7 @@ CODE_RAM void ISR_LTDC()
 }
 
 
-CODE_RAM void ISR_LTDC_ERROR()
+void ISR_LTDC_ERROR()
 {
 	if(bit::isSet(*MCU::LTDC::ISR, 1))
 	{

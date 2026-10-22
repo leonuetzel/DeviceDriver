@@ -22,6 +22,7 @@ class DMA : public I_DMA
 		
 		//	Static Member
 		static Pair<uint16, f_callback> m_channelInfo[c_channel];
+		static volatile bool m_transferError[c_channel];												//	Set by the Interrupt Routine when a Transfer Error has ended the Transfer
 		
 		
 		//	Non-static Member
@@ -54,6 +55,8 @@ class DMA : public I_DMA
 		
 		feedback reset() override;
 		feedback transfer(const void* source, const void* destination, e_dataType sourceType, e_dataType destinationType, bool source_inc, bool dest_inc, e_direction direction, bool circularMode, uint16 numberOfItems, e_priority priority = e_priority::LOW, bool waitForTransferEnd = true, f_callback callback = nullptr) override;
+		bool is_busy() const override;
+		uint16 get_eventID() const override;
 };
 
 
@@ -98,9 +101,9 @@ inline feedback DMA::startup(RCC& rcc, uint8 channel)
 	m_channel = channel;
 	
 	
-	//	Create Semaphore
+	//	Create Mutex
 	CMOS& cmos = CMOS::get();
-	if(cmos.semaphore_create(this) != OK)
+	if(cmos.mutex_create(this) != OK)
 	{
 		return(FAIL);
 	}
@@ -115,9 +118,9 @@ inline feedback DMA::startup(RCC& rcc, uint8 channel)
 	if(channel == 0)
 	{
 		NVIC& nvic = CMOS::get().get_nvic();
-		nvic.setPriority(Interrupt::DMA_CH0,			10);
-		nvic.setPriority(Interrupt::DMA_CH1_CH2,	10);
-		nvic.setPriority(Interrupt::DMA_CH3_CH4,	10);
+		nvic.setPriority(Interrupt::DMA_CH0,			2);				//	Cortex-M0/M0+: 2 Priority Bits, own Interrupts use 1 to 2
+		nvic.setPriority(Interrupt::DMA_CH1_CH2,	2);				//	Cortex-M0/M0+: 2 Priority Bits, own Interrupts use 1 to 2
+		nvic.setPriority(Interrupt::DMA_CH3_CH4,	2);				//	Cortex-M0/M0+: 2 Priority Bits, own Interrupts use 1 to 2
 		
 		nvic.enable(Interrupt::DMA_CH0);
 		nvic.enable(Interrupt::DMA_CH1_CH2);

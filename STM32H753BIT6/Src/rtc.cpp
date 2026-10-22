@@ -18,159 +18,119 @@
 
 feedback RTC::startup()
 {
+	//	Bus Clock of the RTC Registers (RTCAPBEN) - the RTC itself runs in the Backup Domain
+	//	The Backup Domain is not reset: the RTC keeps running over a Reset of the Microcontroller, init() only sets it if necessary
+	STM32H753BIT6::get().get_rcc().module_clockInit(RCC::e_module::RTC, true);
+	m_eventID_alarm = CMOS::get().event_create();
 	return(OK);
 }
 
 
-
-
-
-
-
-feedback RTC::initClock(e_clockSource clockSource, Time time)
+feedback RTC::check_time(const Time& time)
 {
-	RCC& m_rcc = STM32H753BIT6::get().get_rcc();
-	m_rcc.module_clockInit(RCC::e_module::RTC, true);
-	
-	
-	//	Disable Write Protection of Backup Domain
-	bit::set(*MCU::PWR::CR1, 8);
-	
-	
-	//	Select Clock Source
-	*MCU::RCC::BDCR &= 0xFFFFFCFF;
-	switch(clockSource)
+	//	The Date Register holds the Years 2000 ... 2099 and a Weekday (0 is forbidden), so the Date must be valid
+	if(time.get_weekday() == Time::e_weekday::INVALID || time.year < 2000 || time.year > 2099)
 	{
-		case e_clockSource::LSE:
+		return(FAIL);
+	}
+	if(time.hour > 23 || time.minute > 59 || time.second > 59)
+	{
+		return(FAIL);
+	}
+	return(OK);
+}
+
+
+feedback RTC::calculate_prescaler(uint32 clock, uint32& prescaler_async, uint32& prescaler_sync)
+{
+	//	1 Hz for the Calendar: clock = (PREDIV_A + 1) * (PREDIV_S + 1) with PREDIV_A + 1 up to 128 and PREDIV_S + 1 up to 32768
+	//	A high asynchronous Prescaler saves Power, so the largest Divider without Remainder is taken (LSE 32768 Hz: 128 * 256)
+	for(uint32 divider_async = 128; divider_async > 0; divider_async--)
+	{
+		if(clock % divider_async == 0 && clock / divider_async <= 32768)
 		{
-			*MCU::RCC::BDCR |= 0x00000100;
-			m_clockIn = RCC::c_clock_lse;
+			prescaler_async = divider_async - 1;
+			prescaler_sync = clock / divider_async - 1;
+			return(OK);
 		}
-		break;
-			
-		case e_clockSource::LSI:
-		{
-			*MCU::RCC::BDCR |= 0x00000200;
-			m_clockIn = m_rcc.c_clock_lsi;
-		}
-		break;
-			
-		case e_clockSource::HSE:
-		{
-			*MCU::RCC::CFGR &= (0xFFFFFFFF - (0x3F << 8));
-			*MCU::RCC::CFGR |= (0x8 << 8);
-			*MCU::RCC::BDCR |= 0x00000300;
-			m_clockIn = RCC::c_clock_hse / 0x8;
-		}
-		break;
-			
-		default:
-		{
-			return(FAIL);
-		}
-		break;
 	}
 	
 	
-	//	Enable RTC Clock
-	bit::set(*MCU::RCC::BDCR, 15);
-	m_clockSource = clockSource;
-	
-	
-	//	Unlock Write Protection of RTC Registers
+	//	No exact Divider: the asynchronous Prescaler divides by 128 and the synchronous one is rounded
+	const uint32 divider_sync = (clock + 64) / 128;
+	if(divider_sync == 0 || divider_sync > 32768)
+	{
+		return(FAIL);
+	}
+	prescaler_async = 127;
+	prescaler_sync = divider_sync - 1;
+	return(OK);
+}
+
+
+bool RTC::is_enabled()
+{
+	//	RTCEN in RCC_BDCR - it belongs to the Backup Domain and keeps its Value over a Reset of the Microcontroller
+	return(bit::isSet(*MCU::RCC::BDCR, 15));
+}
+
+
+bool RTC::enable_backupDomainWrite()
+{
+	//	The RTC and RCC_BDCR are write protected as long as DBP in PWR_CR1 is 0 - BackupSRAM switches the Protection, so it is restored afterwards
+	const bool writeProtected = bit::isCleared(*MCU::PWR::CR1, 8);
+	bit::set(*MCU::PWR::CR1, 8);
+	while(bit::isCleared(*MCU::PWR::CR1, 8))
+	{
+		
+	}
+	return(writeProtected);
+}
+
+
+void RTC::restore_backupDomainWrite(bool writeProtected)
+{
+	if(writeProtected == true)
+	{
+		bit::clear(*MCU::PWR::CR1, 8);
+	}
+}
+
+
+feedback RTC::enter_initializationMode(bool& writeProtected)
+{
+	//	Unlock the Write Protection of the Backup Domain and of the RTC Registers
+	writeProtected = enable_backupDomainWrite();
 	*MCU::RTC::WPR = 0x000000CA;
 	*MCU::RTC::WPR = 0x00000053;
 	
 	
-	//	Enter RTC Initialisation Mode
+	//	Enter the Initialization Mode: the Calendar stops until the Mode is left, INITF tells that the Registers can be written
 	bit::set(*MCU::RTC::ISR, 7);
+	CMOS& cmos = CMOS::get();
+	const uint64 timestampStart = cmos.get_timestamp();
 	while(bit::isCleared(*MCU::RTC::ISR, 6))
 	{
-		
+		//	INITF comes after at most 2 Cycles of the RTC Clock - without a running RTC Clock never
+		if(cmos.getMilliSecondsSinceTimestamp(timestampStart) > 100)
+		{
+			exit_initializationMode(writeProtected);
+			return(FAIL);
+		}
 	}
-	
-	
-	
-	
-	*MCU::RTC::PRER = (99 << 16);
-	*MCU::RTC::PRER |= 9999;
-	
-	uint32 year = time.year - 2000;
-	*MCU::RTC::TR = ((time.hour / 10) << 20) | ((time.hour % 10) << 16) | ((time.minute / 10) << 12) | ((time.minute % 10) << 8) | ((time.second / 10) << 4) | (time.second % 10);
-	*MCU::RTC::DR = ((year / 10) << 20) | ((year % 10) << 16) | (((uint32) (time.get_weekday())) << 13) | ((time.month / 10) << 12) | ((time.month % 10) << 8) | ((time.day / 10) << 4) | (time.day % 10);
-	
-	
-	//	Time Format 24h
-	bit::clear(*MCU::RTC::CR, 6);
-	
-	
-	//	Exit RTC Initialisation Mode
+	return(OK);
+}
+
+
+void RTC::exit_initializationMode(bool writeProtected)
+{
+	//	Leave the Initialization Mode, the Calendar starts again after 4 Cycles of the RTC Clock
 	bit::clear(*MCU::RTC::ISR, 7);
 	
 	
-	
-	set_alarm();
-	
-	
-	//	Enable Alarm A Interrupt
-	bit::set(*MCU::RTC::CR, 12);
-	
-	
-	//	Enable Rising Trigger
-	bit::set(*MCU::EXTI::RTSR1, 17);
-	
-	
-	//	Disable Falling Trigger
-	bit::clear(*MCU::EXTI::FTSR1, 17);
-	
-	
-	//	Unmask ISR_RTC_ALARM_EXTI Interrupt
-	bit::set(*MCU::EXTI::CPUIMR1, 17);
-	
-	
-	//	Lock Write Protection of RTC Registers
+	//	Lock the Write Protection of the RTC Registers and restore the one of the Backup Domain
 	*MCU::RTC::WPR = 0x000000FF;
-	
-	
-	//	Enable Write Protection of Backup Domain
-	//bit::clear(*MCU::PWR::CR1, 8);
-	return(OK);
-}
-
-
-void RTC::set_alarm()
-{
-	Time time(read());
-	
-	//	Disable Write Protection of Backup Domain
-	bit::set(*MCU::PWR::CR1, 8);
-	
-	
-	//	Unlock Write Protection of RTC Registers
-	*MCU::RTC::WPR = 0x000000CA;
-	*MCU::RTC::WPR = 0x00000053;
-	
-	
-	//	Disable Alarm A
-	bit::clear(*MCU::RTC::CR, 8);
-	
-	
-	//	Clear Alarm A Flag
-	bit::clear(*MCU::RTC::ISR, 8);
-	
-	while(bit::isCleared(*MCU::RTC::ISR, 0))
-	{
-		
-	}
-	
-	time++;
-	uint32 seconds_tens = time.second / 10;
-	uint32 seconds_units = time.second % 10;
-	*MCU::RTC::ALRMAR = 0x80808000 | (seconds_tens << 4) | seconds_units;
-	
-	
-	//	Enable Alarm A
-	bit::set(*MCU::RTC::CR, 8);
+	restore_backupDomainWrite(writeProtected);
 }
 
 
@@ -179,38 +139,323 @@ void RTC::set_alarm()
 /*                      						Public	  			 						 						 */
 /*****************************************************************************/
 
-CODE_RAM Time RTC::read()
+feedback RTC::init(e_clockSource clockSource, Time time)
 {
+	if(clockSource == e_clockSource::NONE || check_time(time) != OK)
+	{
+		return(FAIL);
+	}
+	
+	
+	//	Clock Source of the RTC that has been selected before (RTCSEL in RCC_BDCR, Backup Domain)
+	RCC& rcc = STM32H753BIT6::get().get_rcc();
+	const uint32 clockSource_running = (*MCU::RCC::BDCR >> 8) & 0x00000003;
+	const bool runningBefore = (clockSource_running == (uint32) clockSource && is_enabled() == true);
+	
+	
+	//	The Clock Source can only be changed by a Reset of the Backup Domain (BDRST), it sets the whole RTC to its Reset Values
+	const bool writeProtected = enable_backupDomainWrite();
+	if(clockSource_running != 0 && clockSource_running != (uint32) clockSource)
+	{
+		bit::set(*MCU::RCC::BDCR, 16);
+		bit::clear(*MCU::RCC::BDCR, 16);
+	}
+	restore_backupDomainWrite(writeProtected);
+	
+	
+	//	The selected Oscillator has to run: the RTC needs its Clock already for the Configuration
+	//	A running LSE is kept, the LSI has to be started again after every Reset
+	uint32 clock = 0;
+	switch(clockSource)
+	{
+		case e_clockSource::LSE:
+		{
+			if(rcc.init_lse(true) != OK)
+			{
+				return(FAIL);
+			}
+			clock = RCC::c_clock_lse;
+		}
+		break;
+		
+		case e_clockSource::LSI:
+		{
+			if(rcc.init_lsi(true) != OK)
+			{
+				return(FAIL);
+			}
+			clock = RCC::c_clock_lsi;
+		}
+		break;
+		
+		case e_clockSource::HSE:
+		{
+			//	HSE divided by RTCPRE (2 ... 63) has to be at most 1 MHz (RM0433, RCC_CFGR) - RTCPRE is not part of the Backup Domain
+			const uint32 clock_hse = rcc.get_clock_hse();
+			uint32 rtcpre = (clock_hse + 999999) / 1000000;
+			if(rtcpre < 2)
+			{
+				rtcpre = 2;
+			}
+			if(bit::isCleared(*MCU::RCC::CR, 17) == true || rtcpre > 63)
+			{
+				return(FAIL);
+			}
+			*MCU::RCC::CFGR = (*MCU::RCC::CFGR & 0xFFFFC0FF) | (rtcpre << 8);
+			clock = clock_hse / rtcpre;
+		}
+		break;
+		
+		default:
+		{
+			return(FAIL);
+		}
+	}
+	
+	
+	//	Select and enable the RTC Clock
+	const bool writeProtected_2 = enable_backupDomainWrite();
+	*MCU::RCC::BDCR = (*MCU::RCC::BDCR & 0xFFFFFCFF) | (((uint32) clockSource) << 8);
+	bit::set(*MCU::RCC::BDCR, 15);
+	restore_backupDomainWrite(writeProtected_2);
+	
+	
+	//	Prescaler for 1 Hz
+	uint32 prescaler_async = 0;
+	uint32 prescaler_sync = 0;
+	if(calculate_prescaler(clock, prescaler_async, prescaler_sync) != OK)
+	{
+		return(FAIL);
+	}
+	const uint32 prer = (prescaler_async << 16) | prescaler_sync;
+	
+	
+	//	The Clock keeps running: same Clock Source, enabled and with the same Prescaler - only init() sets these
+	if(runningBefore == true && (*MCU::RTC::PRER & 0x007F7FFF) == prer)
+	{
+		return(OK);
+	}
+	
+	
+	//	Set the Prescaler and the Time
+	bool writeProtected_3 = false;
+	if(enter_initializationMode(writeProtected_3) != OK)
+	{
+		return(FAIL);
+	}
+	
+	//	The synchronous Prescaler has to be written first, then the asynchronous one (two separate Write Accesses)
+	*MCU::RTC::PRER = prescaler_sync;
+	*MCU::RTC::PRER = prer;
+	
+	//	Time Format 24h
+	bit::clear(*MCU::RTC::CR, 6);
+	
+	exit_initializationMode(writeProtected_3);
+	
+	return(set_time(time));
+}
+
+
+feedback RTC::set_time(Time time)
+{
+	if(check_time(time) != OK || is_enabled() == false)
+	{
+		return(FAIL);
+	}
+	
+	
+	//	Time Register (BCD)
+	uint32 tr = 0;
+	tr |= ((time.hour		/ 10) << 20);
+	tr |= ((time.hour		% 10) << 16);
+	tr |= ((time.minute / 10) << 12);
+	tr |= ((time.minute % 10) << 8);
+	tr |= ((time.second / 10) << 4);
+	tr |= ( time.second % 10);
+	
+	
+	//	Date Register (BCD), the Weekday is calculated from the full Year, before 2000 is subtracted
+	const Time::e_weekday weekday = time.get_weekday();
+	const uint32 year = time.year - 2000;
+	uint32 dr = 0;
+	dr |= ((year				/ 10) << 20);
+	dr |= ((year				% 10) << 16);
+	dr |= (((uint32) weekday)	<< 13);
+	dr |= ((time.month	/ 10) << 12);
+	dr |= ((time.month	% 10) << 8);
+	dr |= ((time.day		/ 10) << 4);
+	dr |= ( time.day		% 10);
+	
+	
+	bool writeProtected = false;
+	if(enter_initializationMode(writeProtected) != OK)
+	{
+		return(FAIL);
+	}
+	*MCU::RTC::TR = tr;
+	*MCU::RTC::DR = dr;
+	exit_initializationMode(writeProtected);
+	
+	
+	//	The Initialization Mode has cleared RSF: read() waits until the Shadow Registers show the new Time
+	return(OK);
+}
+
+
+Time RTC::read()
+{
+	//	A Time with the Year 0 is invalid: the RTC is not running
+	const Time invalid(0, 0, 0, 0, 0, 0);
+	if(is_enabled() == false)
+	{
+		return(invalid);
+	}
+	
+	
+	//	The Shadow Registers are synchronized with the Calendar every Second Clock Cycle of the RTC (RSF) - after a Reset not yet
+	CMOS& cmos = CMOS::get();
+	const uint64 timestampStart = cmos.get_timestamp();
 	while(bit::isCleared(*MCU::RTC::ISR, 5))
 	{
-		
+		if(cmos.getMilliSecondsSinceTimestamp(timestampStart) > 10)
+		{
+			return(invalid);
+		}
 	}
 	
-	uint32 time_1 = *MCU::RTC::TR;
-	uint32 date_1 = *MCU::RTC::DR;
 	
-	bit::clear(*MCU::RTC::ISR, 5);
-	while(bit::isCleared(*MCU::RTC::ISR, 5))
+	//	Reading TR locks DR until it is read, so both belong to the same Second
+	const uint32 tr = *MCU::RTC::TR;
+	const uint32 dr = *MCU::RTC::DR;
+	
+	Time time;
+	time.year		= ((dr & 0x00F00000) >> 20) * 10 + ((dr & 0x000F0000) >> 16) + 2000;
+	time.month	= ((dr & 0x00001000) >> 12) * 10 + ((dr & 0x00000F00) >> 8);
+	time.day		= ((dr & 0x00000030) >> 4 ) * 10 +  (dr & 0x0000000F);
+	time.hour		= ((tr & 0x00300000) >> 20) * 10 + ((tr & 0x000F0000) >> 16);
+	time.minute	= ((tr & 0x00007000) >> 12) * 10 + ((tr & 0x00000F00) >> 8);
+	time.second	= ((tr & 0x00000070) >> 4 ) * 10 +  (tr & 0x0000000F);
+	return(time);
+}
+
+
+feedback RTC::set_alarm(Time time)
+{
+	//	Alarm A compares Day of the Month, Hour, Minute and Second - Month and Year are not part of the Comparison
+	if(check_time(time) != OK || is_enabled() == false)
 	{
-		
+		return(FAIL);
 	}
 	
-	uint32 time_2 = *MCU::RTC::TR;
-	uint32 date_2 = *MCU::RTC::DR;
 	
-	if(time_1 != time_2 || date_1 != date_2)
+	//	Unlock the Write Protection of the Backup Domain and of the RTC Registers
+	const bool writeProtected = enable_backupDomainWrite();
+	*MCU::RTC::WPR = 0x000000CA;
+	*MCU::RTC::WPR = 0x00000053;
+	
+	
+	//	Disable Alarm A, ALRAWF tells that ALRMAR can be written
+	bit::clear(*MCU::RTC::CR, 8);
+	CMOS& cmos = CMOS::get();
+	const uint64 timestampStart = cmos.get_timestamp();
+	while(bit::isCleared(*MCU::RTC::ISR, 0))
 	{
-		return(Time(0, 0, 0, 0, 0, 0));
+		if(cmos.getMilliSecondsSinceTimestamp(timestampStart) > 100)
+		{
+			*MCU::RTC::WPR = 0x000000FF;
+			restore_backupDomainWrite(writeProtected);
+			return(FAIL);
+		}
 	}
 	
-	uint16 year		= ((date_1 & 0x00F00000) >> 20) * 10 + ((date_1 & 0x000F0000) >> 16) + 2000;
-	uint8 month		= ((date_1 & 0x00001000) >> 12) * 10 + ((date_1 & 0x00000F00) >> 8);
-	uint8 day			= ((date_1 & 0x00000030) >> 4 ) * 10 +  (date_1 & 0x0000000F);
-	//time.weekday	= (e_weekday) ((date_1 & 0x0000E000) >> 13);
 	
-	uint8 hour		= ((time_1 & 0x00300000) >> 20) * 10 + ((time_1 & 0x000F0000) >> 16);
-	uint8 minute	= ((time_1 & 0x00007000) >> 12) * 10 + ((time_1 & 0x00000F00) >> 8);
-	uint8 second	= ((time_1 & 0x00000070) >> 4 ) * 10 +  (time_1 & 0x0000000F);
+	//	All Masks (MSK1 ... MSK4) cleared, WDSEL = 0: Day of the Month; the Sub-Seconds are not compared (RTC_ALRMASSR = 0)
+	uint32 alrmar = 0;
+	alrmar |= ((time.day		/ 10) << 28);
+	alrmar |= ((time.day		% 10) << 24);
+	alrmar |= ((time.hour		/ 10) << 20);
+	alrmar |= ((time.hour		% 10) << 16);
+	alrmar |= ((time.minute / 10) << 12);
+	alrmar |= ((time.minute % 10) << 8);
+	alrmar |= ((time.second / 10) << 4);
+	alrmar |= ( time.second % 10);
+	*MCU::RTC::ALRMAR = alrmar;
+	*MCU::RTC::ALRMASSR = 0;
 	
-	return(Time(second, minute, hour, day, month, year));
+	
+	//	Clear the Alarm Flag (rc_w0, INIT stays 0), enable the Alarm and its Interrupt
+	*MCU::RTC::ISR = ~((uint32) ((1 << 8) | (1 << 7)));
+	bit::set(*MCU::RTC::CR, 12);
+	bit::set(*MCU::RTC::CR, 8);
+	
+	
+	//	Lock the Write Protection of the RTC Registers and restore the one of the Backup Domain
+	*MCU::RTC::WPR = 0x000000FF;
+	restore_backupDomainWrite(writeProtected);
+	
+	
+	//	The Alarm reaches the Interrupt over EXTI Line 17 (rising Edge), an old pending Event is cleared first
+	bit::set(*MCU::EXTI::RTSR1, 17);
+	bit::clear(*MCU::EXTI::FTSR1, 17);
+	*MCU::EXTI::CPUPR1 = 1 << 17;
+	bit::set(*MCU::EXTI::CPUIMR1, 17);
+	
+	NVIC& nvic = cmos.get_nvic();
+	nvic.setPriority(Interrupt::RTC_ALARM_EXTI, 10);
+	nvic.enable(Interrupt::RTC_ALARM_EXTI);
+	return(OK);
+}
+
+
+feedback RTC::disable_alarm()
+{
+	//	Mask the EXTI Line first, so that no Alarm comes while the Alarm is disabled
+	bit::clear(*MCU::EXTI::CPUIMR1, 17);
+	
+	
+	//	Disable Alarm A and its Interrupt
+	const bool writeProtected = enable_backupDomainWrite();
+	*MCU::RTC::WPR = 0x000000CA;
+	*MCU::RTC::WPR = 0x00000053;
+	bit::clear(*MCU::RTC::CR, 12);
+	bit::clear(*MCU::RTC::CR, 8);
+	*MCU::RTC::WPR = 0x000000FF;
+	restore_backupDomainWrite(writeProtected);
+	return(OK);
+}
+
+
+
+
+
+
+
+
+
+
+void ISR_RTC_ALARM_EXTI()
+{
+	//	Alarm A
+	if(bit::isSet(*MCU::RTC::ISR, 8) == true)
+	{
+		//	Clear the Alarm Flag: RTC_ISR[13:8] are not write protected by WPR, but the Backup Domain must be writable; INIT stays 0
+		const bool writeProtected = RTC::enable_backupDomainWrite();
+		*MCU::RTC::ISR = ~((uint32) ((1 << 8) | (1 << 7)));
+		RTC::restore_backupDomainWrite(writeProtected);
+		
+		
+		//	The Alarm comes once: the EXTI Line is masked, set_alarm unmasks it again
+		//	Without this, the Alarm would come again every Month, when Day, Hour, Minute and Second match
+		bit::clear(*MCU::EXTI::CPUIMR1, 17);
+		
+		
+		//	Notify the Threads
+		RTC& rtc = STM32H753BIT6::get().get_rtc();
+		CMOS::get().event_emit(rtc.m_eventID_alarm);
+	}
+	
+	
+	//	Clear the pending EXTI Line 17 - after the Flag of the RTC, else the Line would be pending again
+	*MCU::EXTI::CPUPR1 = 1 << 17;
 }
